@@ -1,0 +1,105 @@
+package com.lamprism.luxspec.user.autoconfigure;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.lamprism.luxspec.user.security.Argon2idPasswordScheme;
+import com.lamprism.luxspec.user.security.EncodedPassword;
+import com.lamprism.luxspec.user.security.PasswordScheme;
+import com.lamprism.luxspec.user.spring.LuxspecPasswordEncoder;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+class LuxspecUserAutoConfigurationTest {
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(LuxspecUserAutoConfiguration.class));
+
+    @Test
+    void createsTheDefaultSchemeAndSpringBridge() {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(PasswordScheme.class);
+            assertThat(context).hasSingleBean(PasswordEncoder.class);
+            assertThat(context.getBean(PasswordScheme.class)).isInstanceOf(Argon2idPasswordScheme.class);
+            assertThat(context.getBean(PasswordEncoder.class)).isInstanceOf(LuxspecPasswordEncoder.class);
+        });
+    }
+
+    @Test
+    void keepsAnApplicationPasswordSchemeAndBridgesIt() {
+        contextRunner
+                .withUserConfiguration(CustomPasswordSchemeConfiguration.class)
+                .run(context -> {
+                    assertThat(context.getBean(PasswordScheme.class))
+                            .isInstanceOf(CustomPasswordScheme.class);
+                    assertThat(context.getBean(PasswordEncoder.class))
+                            .isInstanceOf(LuxspecPasswordEncoder.class);
+                    assertThat(context.getBeansOfType(Argon2idPasswordScheme.class)).isEmpty();
+                });
+    }
+
+    @Test
+    void keepsAnApplicationPasswordEncoderAndDoesNotAdaptItInward() {
+        contextRunner
+                .withUserConfiguration(CustomPasswordEncoderConfiguration.class)
+                .run(context -> {
+                    assertThat(context.getBean(PasswordScheme.class))
+                            .isInstanceOf(Argon2idPasswordScheme.class);
+                    assertThat(context.getBean(PasswordEncoder.class))
+                            .isInstanceOf(CustomPasswordEncoder.class);
+                    assertThat(context.getBeansOfType(LuxspecPasswordEncoder.class)).isEmpty();
+                });
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomPasswordSchemeConfiguration {
+        @Bean
+        PasswordScheme passwordScheme() {
+            return new CustomPasswordScheme();
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomPasswordEncoderConfiguration {
+        @Bean
+        PasswordEncoder passwordEncoder() {
+            return new CustomPasswordEncoder();
+        }
+    }
+
+    private static final class CustomPasswordScheme implements PasswordScheme {
+        @Override
+        public EncodedPassword encode(CharSequence rawPassword) {
+            return new EncodedPassword("custom");
+        }
+
+        @Override
+        public boolean verify(CharSequence rawPassword, EncodedPassword encodedPassword) {
+            return true;
+        }
+
+        @Override
+        public boolean needsUpgrade(EncodedPassword encodedPassword) {
+            return false;
+        }
+    }
+
+    private static final class CustomPasswordEncoder implements PasswordEncoder {
+        @Override
+        public String encode(CharSequence rawPassword) {
+            return "custom";
+        }
+
+        @Override
+        public boolean matches(CharSequence rawPassword, String encodedPassword) {
+            return true;
+        }
+
+        @Override
+        public boolean upgradeEncoding(String encodedPassword) {
+            return false;
+        }
+    }
+}

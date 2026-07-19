@@ -1,0 +1,76 @@
+databaseChangeLog:
+  - changeSet:
+      id: luxspec-user-001-initial
+      author: RollW
+      changes:
+        - createTable:
+            tableName: luxspec_user
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_luxspec_user
+              - column:
+                  name: username
+                  type: VARCHAR(120)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: password
+                  type: VARCHAR(255)
+              - column:
+                  name: email
+                  type: VARCHAR(320)
+              - column:
+                  name: status
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: registered_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: luxspec_user
+            columnNames: username
+            constraintName: ux_luxspec_user_username
+        - createTable:
+            tableName: luxspec_user_role
+            columns:
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role_name
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: luxspec_user_role
+            columnNames: user_id, role_name
+            constraintName: pk_luxspec_user_role
+        - addForeignKeyConstraint:
+            baseTableName: luxspec_user_role
+            baseColumnNames: user_id
+            referencedTableName: luxspec_user
+            referencedColumnNames: id
+            constraintName: fk_luxspec_user_role_user
+            onDelete: CASCADE
