@@ -22,4 +22,6 @@ description = "Spring Boot auto-configuration for the Luxspec configuration syst
 
 dependencies {
     api(project(":config:config-core"))
+    testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("org.assertj:assertj-core")
 }

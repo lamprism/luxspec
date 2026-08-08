@@ -23,4 +23,5 @@ description = "Security core contracts and defaults."
 dependencies {
     api(project(":core:core-base"))
     api(project(":config:config-core"))
+    implementation("org.bouncycastle:bcprov-jdk18on")
 }

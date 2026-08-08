@@ -22,4 +22,5 @@ description = "Spring Framework integration for Luxspec core."
 
 dependencies {
     api(project(":core:core-base"))
+    implementation("com.github.f4b6a3:ulid-creator")
 }

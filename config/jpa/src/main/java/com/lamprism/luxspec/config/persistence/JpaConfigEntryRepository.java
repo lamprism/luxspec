@@ -1,7 +1,8 @@
 package com.lamprism.luxspec.config.persistence;
 
-import java.util.Optional;
 import org.springframework.data.repository.Repository;
+
+import java.util.Optional;
 
 /**
  * Internal persistence access for configuration entries owned by one JPA source.

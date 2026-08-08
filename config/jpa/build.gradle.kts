@@ -23,6 +23,7 @@ description = "JPA-backed configuration system implementation."
 dependencies {
     api(project(":config:config-core"))
     api("org.springframework.data:spring-data-jpa")
+    implementation("tools.jackson.core:jackson-databind")
     implementation("jakarta.persistence:jakarta.persistence-api")
     testImplementation("org.hibernate.orm:hibernate-core")
     testImplementation("org.liquibase:liquibase-core")

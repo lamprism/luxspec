@@ -17,14 +17,14 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
-                  name: masked
+                  name: tombstone
                   type: BOOLEAN
                   defaultValueBoolean: false
                   constraints:
                     nullable: false
               - column:
-                  name: raw_kind
-                  type: VARCHAR(16)
+                  name: payload
+                  type: CLOB
               - column:
                   name: updated_at
                   type: TIMESTAMP
@@ -40,37 +40,3 @@ databaseChangeLog:
             tableName: luxspec_config_entry
             columnNames: source_id, config_key
             constraintName: pk_luxspec_config_entry
-        - createTable:
-            tableName: luxspec_config_entry_value
-            columns:
-              - column:
-                  name: source_id
-                  type: VARCHAR(128)
-                  constraints:
-                    nullable: false
-              - column:
-                  name: config_key
-                  type: VARCHAR(512)
-                  constraints:
-                    nullable: false
-              - column:
-                  name: position
-                  type: INTEGER
-                  constraints:
-                    nullable: false
-              - column:
-                  name: raw_value
-                  type: CLOB
-                  constraints:
-                    nullable: false
-        - addPrimaryKey:
-            tableName: luxspec_config_entry_value
-            columnNames: source_id, config_key, position
-            constraintName: pk_luxspec_config_entry_value
-        - addForeignKeyConstraint:
-            baseTableName: luxspec_config_entry_value
-            baseColumnNames: source_id, config_key
-            referencedTableName: luxspec_config_entry
-            referencedColumnNames: source_id, config_key
-            constraintName: fk_luxspec_config_entry_value_entry
-            onDelete: CASCADE

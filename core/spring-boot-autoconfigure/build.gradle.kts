@@ -21,6 +21,7 @@ plugins {
 description = "Spring Boot auto-configuration for Luxspec core."
 
 dependencies {
-    api(project(":core:core-base"))
     api(project(":core:core-spring"))
+    testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("org.assertj:assertj-core")
 }

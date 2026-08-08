@@ -1,11 +1,24 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.authorization;
 
-import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import com.lamprism.luxspec.security.authentication.Authentication;
 
 /**
  * Evaluates resource-instance policy after an action's baseline grant requirement passes.
@@ -25,8 +38,8 @@ public interface ResourceAuthorizer<ID> {
      * Applies instance-level policy after baseline requirements have passed.
      *
      * @param authentication the effective authenticated actor
-     * @param action the attempted resource action
-     * @param reference the referenced resource
+     * @param action         the attempted resource action
+     * @param reference      the referenced resource
      * @return the final instance-level decision
      */
     AuthorizationDecision authorize(
@@ -34,26 +47,4 @@ public interface ResourceAuthorizer<ID> {
             ResourceAction<ID> action,
             ResourceReference<ID> reference
     );
-
-    /**
-     * Applies the fixed authorization pipeline to each reference in input order.
-     *
-     * @param authentication the effective authenticated actor
-     * @param action the attempted resource action
-     * @param references the referenced resources
-     * @param accessController the fixed baseline-policy coordinator
-     * @return decisions in the same order as references
-     */
-    default List<AuthorizationDecision> authorize(
-            Authentication authentication,
-            ResourceAction<ID> action,
-            Collection<ResourceReference<ID>> references,
-            ResourceAccessController accessController
-    ) {
-        List<AuthorizationDecision> decisions = new ArrayList<>();
-        for (ResourceReference<ID> reference : references) {
-            decisions.add(accessController.authorize(authentication, action, reference, this));
-        }
-        return List.copyOf(decisions);
-    }
 }

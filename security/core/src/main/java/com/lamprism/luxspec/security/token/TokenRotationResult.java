@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.token;
 
 import java.util.Objects;
@@ -14,7 +30,7 @@ public sealed interface TokenRotationResult<S>
      * Creates a successful rotation result.
      *
      * @param state the updated server-authoritative state
-     * @param <S> the state type
+     * @param <S>   the state type
      * @return the successful result
      */
     static <S> Succeeded<S> succeeded(S state) {
@@ -25,7 +41,7 @@ public sealed interface TokenRotationResult<S>
      * Creates a rejected rotation result.
      *
      * @param reason the authoritative rejection reason
-     * @param <S> the state type
+     * @param <S>    the state type
      * @return the rejected result
      */
     static <S> Rejected<S> rejected(TokenRotationRejection reason) {

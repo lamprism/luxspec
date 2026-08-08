@@ -1,11 +1,28 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.authentication;
 
-import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
-import com.lamprism.luxspec.security.token.access.AccessToken;
-import com.lamprism.luxspec.security.token.access.NoOpAccessTokenRevocationStore;
-import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
 import com.lamprism.luxspec.AuthErrorCode;
 import com.lamprism.luxspec.security.token.TokenVerifier;
+import com.lamprism.luxspec.security.token.access.AccessToken;
+import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
+import com.lamprism.luxspec.security.token.access.NoOpAccessTokenRevocationStore;
+import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
+
 import java.util.Objects;
 
 /**
@@ -25,7 +42,7 @@ public final class AccessTokenAuthenticator implements Authenticator<AccessToken
     /**
      * Creates an authenticator with Token verification and current-subject resolution roles.
      *
-     * @param tokenVerifier the authoritative Access Token verifier
+     * @param tokenVerifier   the authoritative Access Token verifier
      * @param subjectResolver the current subject and state resolver
      */
     public AccessTokenAuthenticator(
@@ -38,7 +55,7 @@ public final class AccessTokenAuthenticator implements Authenticator<AccessToken
     /**
      * Creates an authenticator with an explicit optional access-token revocation store.
      *
-     * @param tokenVerifier the authoritative Access Token verifier
+     * @param tokenVerifier   the authoritative Access Token verifier
      * @param subjectResolver the current subject and state resolver
      * @param revocationStore the optional verified-token revocation store
      */
@@ -76,6 +93,9 @@ public final class AccessTokenAuthenticator implements Authenticator<AccessToken
         );
         if (revocationStore.isRevoked(token)) {
             throw new AuthenticationException(AuthErrorCode.ACCESS_TOKEN_REVOKED, "Access token was rejected");
+        }
+        if (SystemSubject.TYPE.equals(token.getSubjectType())) {
+            throw new AuthenticationException(AuthErrorCode.INVALID_TOKEN, "System subject tokens are not accepted");
         }
         Subject subject = subjectResolver.resolve(token.getSubjectType(), token.getSubjectId());
         return new Authentication(subject, token.getGrants());

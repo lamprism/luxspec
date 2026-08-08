@@ -1,9 +1,11 @@
 package com.lamprism.luxspec.config.persistence;
 
 import com.lamprism.luxspec.config.ConfigKey;
-import com.lamprism.luxspec.config.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceId;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -14,6 +16,7 @@ import java.util.Objects;
  */
 @Embeddable
 public class JpaConfigEntryId implements Serializable {
+    @Serial
     private static final long serialVersionUID = 1L;
     static final int SOURCE_ID_LENGTH = 128;
     static final int CONFIG_KEY_LENGTH = 512;
@@ -28,7 +31,7 @@ public class JpaConfigEntryId implements Serializable {
      * Stores the source-local configuration key.
      */
     @Column(name = "config_key", nullable = false, length = CONFIG_KEY_LENGTH)
-    private String configKey;
+    private String key;
 
     /**
      * Creates an empty identity for JPA materialization.
@@ -36,15 +39,15 @@ public class JpaConfigEntryId implements Serializable {
     protected JpaConfigEntryId() {
     }
 
-    private JpaConfigEntryId(String sourceId, String configKey) {
+    private JpaConfigEntryId(String sourceId, String key) {
         this.sourceId = sourceId;
-        this.configKey = configKey;
+        this.key = key;
     }
 
     /**
      * Creates one storage identity from a source and a configuration key.
      *
-     * @param sourceId the persistent source partition
+     * @param sourceId  the persistent source partition
      * @param configKey the source-local configuration key
      * @return the validated storage identity
      */
@@ -59,17 +62,25 @@ public class JpaConfigEntryId implements Serializable {
         );
     }
 
+    String getSourceId() {
+        return sourceId;
+    }
+
+    String getKey() {
+        return key;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (!(other instanceof JpaConfigEntryId identifier)) {
             return false;
         }
-        return sourceId.equals(identifier.sourceId) && configKey.equals(identifier.configKey);
+        return sourceId.equals(identifier.sourceId) && key.equals(identifier.key);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceId, configKey);
+        return Objects.hash(sourceId, key);
     }
 
     /**

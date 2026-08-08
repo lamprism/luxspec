@@ -1,9 +1,27 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.user.spring;
 
-import com.lamprism.luxspec.user.security.EncodedPassword;
-import com.lamprism.luxspec.user.security.PasswordScheme;
-import java.util.Objects;
+import com.lamprism.luxspec.user.security.password.EncodedPassword;
+import com.lamprism.luxspec.user.security.password.PasswordScheme;
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.Objects;
 
 /**
  * Adapts the provider-independent Luxspec password scheme to Spring Security.
@@ -29,19 +47,19 @@ public final class LuxspecPasswordEncoder implements PasswordEncoder {
      * @return the opaque encoded password value
      */
     @Override
-    public String encode(CharSequence rawPassword) {
+    public String encode(@Nullable CharSequence rawPassword) {
         return passwordScheme.encode(rawPassword).getValue();
     }
 
     /**
      * Verifies one raw password through the configured Luxspec scheme.
      *
-     * @param rawPassword the raw password
+     * @param rawPassword     the raw password
      * @param encodedPassword the stored encoded password value
      * @return whether the password matches
      */
     @Override
-    public boolean matches(CharSequence rawPassword, String encodedPassword) {
+    public boolean matches(@Nullable CharSequence rawPassword, @Nullable String encodedPassword) {
         return passwordScheme.verify(rawPassword, new EncodedPassword(encodedPassword));
     }
 
@@ -52,7 +70,7 @@ public final class LuxspecPasswordEncoder implements PasswordEncoder {
      * @return whether the configured scheme considers it outdated
      */
     @Override
-    public boolean upgradeEncoding(String encodedPassword) {
+    public boolean upgradeEncoding(@Nullable String encodedPassword) {
         return passwordScheme.needsUpgrade(new EncodedPassword(encodedPassword));
     }
 }

@@ -1,11 +1,32 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.crypto.config;
 
-import com.lamprism.luxspec.config.ConfigReadOption;
+import com.lamprism.luxspec.config.ConfigBinding;
 import com.lamprism.luxspec.config.ConfigReader;
-import com.lamprism.luxspec.config.ConfigSpec;
+import com.lamprism.luxspec.security.crypto.DefaultPublicKeyDeriver;
 import com.lamprism.luxspec.security.crypto.KeyEntry;
 import com.lamprism.luxspec.security.crypto.KeySet;
 import com.lamprism.luxspec.security.crypto.KeySetProvider;
+import com.lamprism.luxspec.security.crypto.PublicKeyDeriver;
+import org.jspecify.annotations.Nullable;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -17,9 +38,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Resolves named JCA key sets from typed Luxspec configuration.
@@ -28,6 +46,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public final class ConfigKeySetProvider implements KeySetProvider {
     private final ConfigReader reader;
+    private final PublicKeyDeriver publicKeyDeriver;
 
     /**
      * Creates a provider backed by typed Luxspec configuration.
@@ -35,7 +54,18 @@ public final class ConfigKeySetProvider implements KeySetProvider {
      * @param reader the typed configuration reader
      */
     public ConfigKeySetProvider(ConfigReader reader) {
+        this(reader, new DefaultPublicKeyDeriver());
+    }
+
+    /**
+     * Creates a provider backed by typed Luxspec configuration and a custom public-key deriver.
+     *
+     * @param reader           the typed configuration reader
+     * @param publicKeyDeriver the public-key deriver used when a key pair omits its public key
+     */
+    public ConfigKeySetProvider(ConfigReader reader, PublicKeyDeriver publicKeyDeriver) {
         this.reader = Objects.requireNonNull(reader, "reader");
+        this.publicKeyDeriver = Objects.requireNonNull(publicKeyDeriver, "publicKeyDeriver");
     }
 
     /**
@@ -49,19 +79,20 @@ public final class ConfigKeySetProvider implements KeySetProvider {
     public KeySet get(String keySetName) {
         String nonBlankKeySetName = requireText(keySetName, "keySetName");
         Map<String, String> keySetParameters = Map.of("key-set", nonBlankKeySetName);
-        Optional<String> activeKeyId = readOptional(ConfigKeySetSpecs.ACTIVE_KEY_ID.bind(keySetParameters));
-        Optional<List<String>> keyIds = readOptional(ConfigKeySetSpecs.KEY_IDS.bind(keySetParameters));
-        if (activeKeyId.isEmpty() && keyIds.isEmpty()) {
+        String activeKeyId = readOptional(ConfigKeySetSpecs.ACTIVE_KEY_ID.bind(keySetParameters));
+        List<String> keyIds = readOptional(ConfigKeySetSpecs.KEY_IDS.bind(keySetParameters));
+        if (activeKeyId == null && keyIds == null) {
             throw new IllegalArgumentException("Configured key set is not available: " + nonBlankKeySetName);
         }
         List<KeyEntry> entries = new ArrayList<>();
-        for (String keyId : keyIds.orElseThrow(
-                () -> new IllegalStateException("Configured key set does not declare key IDs")
-        )) {
+        if (keyIds == null) {
+            throw new IllegalStateException("Configured key set does not declare key IDs");
+        }
+        for (String keyId : keyIds) {
             entries.add(readEntry(nonBlankKeySetName, keyId));
         }
-        if (activeKeyId.isPresent()) {
-            return KeySet.withActiveKey(activeKeyId.orElseThrow(), entries);
+        if (activeKeyId != null) {
+            return KeySet.withActiveKey(activeKeyId, entries);
         }
         return KeySet.forVerification(entries);
     }
@@ -72,27 +103,26 @@ public final class ConfigKeySetProvider implements KeySetProvider {
                 "key-set", keySetName,
                 "key-id", nonBlankKeyId
         );
-        String type = requireText(read(ConfigKeySetSpecs.TYPE.bind(parameters)), "type");
+        ConfigKeyMaterialType type = read(ConfigKeySetSpecs.TYPE.bind(parameters));
         String algorithm = requireText(read(ConfigKeySetSpecs.ALGORITHM.bind(parameters)), "algorithm");
-        if ("secret".equals(type)) {
-            return secretEntry(nonBlankKeyId, algorithm, read(ConfigKeySetSpecs.SECRET.bind(parameters)));
-        }
-        if ("key-pair".equals(type)) {
-            return keyPairEntry(
+        return switch (type) {
+            case SECRET -> secretEntry(
+                    nonBlankKeyId,
+                    algorithm,
+                    read(ConfigKeySetSpecs.SECRET.bind(parameters))
+            );
+            case KEY_PAIR -> keyPairEntry(
                     nonBlankKeyId,
                     algorithm,
                     read(ConfigKeySetSpecs.PRIVATE_KEY.bind(parameters)),
-                    read(ConfigKeySetSpecs.PUBLIC_KEY.bind(parameters))
+                    readOptional(ConfigKeySetSpecs.PUBLIC_KEY.bind(parameters))
             );
-        }
-        if ("public-key".equals(type)) {
-            return publicKeyEntry(
+            case PUBLIC_KEY -> publicKeyEntry(
                     nonBlankKeyId,
                     algorithm,
                     read(ConfigKeySetSpecs.PUBLIC_KEY.bind(parameters))
             );
-        }
-        throw new IllegalArgumentException("Key material type is unsupported: " + type);
+        };
     }
 
     private KeyEntry secretEntry(String keyId, String algorithm, String encodedSecret) {
@@ -105,18 +135,20 @@ public final class ConfigKeySetProvider implements KeySetProvider {
             String keyId,
             String algorithm,
             String encodedPrivateKey,
-            String encodedPublicKey
+            @Nullable String encodedPublicKey
     ) {
         try {
             KeyFactory keyFactory = KeyFactory.getInstance(algorithm);
             PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(
                     decode(encodedPrivateKey, "privateKey")
             ));
-            PublicKey publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(
+            PublicKey publicKey = encodedPublicKey == null
+                    ? publicKeyDeriver.derivePublicKey(privateKey)
+                    : keyFactory.generatePublic(new X509EncodedKeySpec(
                     decode(encodedPublicKey, "publicKey")
             ));
             return new KeyEntry(keyId, privateKey, publicKey);
-        } catch (GeneralSecurityException exception) {
+        } catch (GeneralSecurityException | RuntimeException exception) {
             throw new IllegalArgumentException("Configured key pair is invalid", exception);
         }
     }
@@ -141,14 +173,18 @@ public final class ConfigKeySetProvider implements KeySetProvider {
         return decoded;
     }
 
-    private <T> T read(ConfigSpec<T> spec) {
-        return readOptional(spec).orElseThrow(
-                () -> new IllegalStateException("Required key-set configuration is not available: " + spec.getKey().getValue())
-        );
+    private <T> T read(ConfigBinding<T> binding) {
+        T value = readOptional(binding);
+        if (value == null) {
+            throw new IllegalStateException(
+                    "Required key-set configuration is not available: " + binding.getKey().getValue()
+            );
+        }
+        return value;
     }
 
-    private <T> Optional<T> readOptional(ConfigSpec<T> spec) {
-        return reader.get(spec, ConfigReadOption.FRESH).getValue();
+    private <T> @Nullable T readOptional(ConfigBinding<T> binding) {
+        return reader.get(binding).getValue();
     }
 
     private String requireText(String value, String name) {

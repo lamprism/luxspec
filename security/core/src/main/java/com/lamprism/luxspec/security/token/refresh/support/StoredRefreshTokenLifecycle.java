@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.token.refresh.support;
 
 import com.lamprism.luxspec.AuthErrorCode;
@@ -7,7 +23,6 @@ import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.token.IssuedToken;
 import com.lamprism.luxspec.security.token.SessionLifetime;
 import com.lamprism.luxspec.security.token.Token;
-import com.lamprism.luxspec.security.token.TokenDigest;
 import com.lamprism.luxspec.security.token.TokenHasher;
 import com.lamprism.luxspec.security.token.TokenIssuance;
 import com.lamprism.luxspec.security.token.TokenIssuer;
@@ -21,6 +36,7 @@ import com.lamprism.luxspec.security.token.refresh.RefreshTokenSession;
 import com.lamprism.luxspec.security.token.refresh.RefreshTokenSessionFactory;
 import com.lamprism.luxspec.security.token.refresh.RefreshTokenSessionId;
 import com.lamprism.luxspec.security.token.refresh.RefreshTokenSessionStore;
+
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -54,15 +70,15 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
     /**
      * Creates a store-backed Refresh Token lifecycle.
      *
-     * @param sessionStore the authoritative Refresh Token Session store
-     * @param accessTokenIssuer the issuer used for access-side Tokens
-     * @param tokenHasher the one-way Refresh Token hasher
-     * @param sessionFactory the application Session projection factory
+     * @param sessionStore           the authoritative Refresh Token Session store
+     * @param accessTokenIssuer      the issuer used for access-side Tokens
+     * @param tokenHasher            the one-way Refresh Token hasher
+     * @param sessionFactory         the application Session projection factory
      * @param authenticationResolver the current Authentication resolver
-     * @param secureRandom the cryptographically secure random source
-     * @param clock the lifecycle clock
-     * @param idleTimeout the positive renewable idle timeout
-     * @param maximumLifetime the positive non-renewable maximum lifetime
+     * @param secureRandom           the cryptographically secure random source
+     * @param clock                  the lifecycle clock
+     * @param idleTimeout            the positive renewable idle timeout
+     * @param maximumLifetime        the positive non-renewable maximum lifetime
      */
     public StoredRefreshTokenLifecycle(
             RefreshTokenSessionStore<S> sessionStore,

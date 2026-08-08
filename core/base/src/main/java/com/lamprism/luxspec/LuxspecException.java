@@ -1,7 +1,24 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec;
 
-import java.util.Objects;
 import org.jspecify.annotations.Nullable;
+
+import java.util.Objects;
 
 /**
  * A runtime exception that carries one stable business error code.
@@ -18,7 +35,7 @@ public class LuxspecException extends RuntimeException implements ErrorCodeCarri
      * Creates an exception with no underlying cause.
      *
      * @param errorCode the stable business error code
-     * @param message the safe failure message
+     * @param message   the safe failure message
      */
     public LuxspecException(ErrorCode errorCode, String message) {
         this(errorCode, message, null);
@@ -28,8 +45,8 @@ public class LuxspecException extends RuntimeException implements ErrorCodeCarri
      * Creates an exception with an optional underlying cause.
      *
      * @param errorCode the stable business error code
-     * @param message the safe failure message
-     * @param cause the optional underlying failure
+     * @param message   the safe failure message
+     * @param cause     the optional underlying failure
      */
     public LuxspecException(ErrorCode errorCode, String message, @Nullable Throwable cause) {
         super(message, cause);

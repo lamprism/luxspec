@@ -23,4 +23,7 @@ description = "Spring Boot auto-configuration for Luxspec web utilities."
 dependencies {
     api(project(":web:web-core"))
     api(project(":web:web-spring"))
+    implementation(project(":core:core-spring"))
+    testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("org.assertj:assertj-core")
 }

@@ -1,4 +1,28 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.token;
+
+import com.lamprism.luxspec.security.token.access.AccessToken;
+import com.lamprism.luxspec.security.token.refresh.RefreshToken;
+import com.lamprism.luxspec.security.token.support.Sha256TokenHasher;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -7,13 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import com.lamprism.luxspec.security.token.access.AccessToken;
-import com.lamprism.luxspec.security.token.refresh.RefreshToken;
-import com.lamprism.luxspec.security.token.support.Sha256TokenHasher;
-import java.time.Instant;
-import java.util.List;
-import org.junit.jupiter.api.Test;
 
 class TokenModelTest {
     private static final Instant ISSUED_AT = Instant.parse("2026-07-15T00:00:00Z");
@@ -78,14 +95,14 @@ class TokenModelTest {
 
     @Test
     void protectsDigestBytesAndPreservesTokenKindIdentity() {
-        byte[] source = new byte[] {1, 2, 3};
+        byte[] source = new byte[]{1, 2, 3};
         TokenDigest<AccessToken> accessDigest = new TokenDigest<>(AccessToken.KIND, source);
         source[0] = 9;
         byte[] exposed = accessDigest.getValue();
         exposed[1] = 9;
-        TokenDigest<RefreshToken> refreshDigest = new TokenDigest<>(RefreshToken.KIND, new byte[] {1, 2, 3});
+        TokenDigest<RefreshToken> refreshDigest = new TokenDigest<>(RefreshToken.KIND, new byte[]{1, 2, 3});
 
-        assertArrayEquals(new byte[] {1, 2, 3}, accessDigest.getValue());
+        assertArrayEquals(new byte[]{1, 2, 3}, accessDigest.getValue());
         assertNotEquals(accessDigest, refreshDigest);
         assertEquals(
                 new Sha256TokenHasher<>(AccessToken.KIND).hash(new AccessToken("same-value")),
@@ -96,8 +113,8 @@ class TokenModelTest {
     @Test
     void validatesTokenKindsAndRotationCommands() {
         TokenKind<AccessToken> equivalentKind = TokenKind.of("access", AccessToken.class);
-        TokenDigest<AccessToken> presented = new TokenDigest<>(AccessToken.KIND, new byte[] {1});
-        TokenDigest<AccessToken> successor = new TokenDigest<>(AccessToken.KIND, new byte[] {2});
+        TokenDigest<AccessToken> presented = new TokenDigest<>(AccessToken.KIND, new byte[]{1});
+        TokenDigest<AccessToken> successor = new TokenDigest<>(AccessToken.KIND, new byte[]{2});
         TokenRotation<AccessToken> rotation = new TokenRotation<>(presented, successor, ISSUED_AT);
         TokenRotationResult<AccessToken> succeeded = TokenRotationResult.succeeded(new AccessToken("successor"));
 

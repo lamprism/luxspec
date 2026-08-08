@@ -1,1 +1,2 @@
 com.lamprism.luxspec.config.autoconfigure.LuxspecConfigAutoConfiguration
+com.lamprism.luxspec.config.autoconfigure.LuxspecConfigCatalogAutoConfiguration

@@ -1,21 +1,37 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.data.jpa;
 
-import com.lamprism.luxspec.data.ComparisonCondition;
-import com.lamprism.luxspec.data.LikeCondition;
-import com.lamprism.luxspec.data.LogicalCondition;
-import com.lamprism.luxspec.data.LogicalOperator;
-import com.lamprism.luxspec.data.NegatedQueryExpression;
-import com.lamprism.luxspec.data.OrderBy;
-import com.lamprism.luxspec.data.QueryCondition;
-import com.lamprism.luxspec.data.QueryCriteria;
-import com.lamprism.luxspec.data.QueryExpression;
-import com.lamprism.luxspec.data.QueryExpressionVisitor;
-import com.lamprism.luxspec.data.QueryOperator;
+import com.lamprism.luxspec.data.query.ComparisonCondition;
+import com.lamprism.luxspec.data.query.LikeCondition;
+import com.lamprism.luxspec.data.query.LogicalCondition;
+import com.lamprism.luxspec.data.query.LogicalOperator;
+import com.lamprism.luxspec.data.query.NegatedQueryExpression;
+import com.lamprism.luxspec.data.query.OrderBy;
+import com.lamprism.luxspec.data.query.QueryCondition;
+import com.lamprism.luxspec.data.query.QueryCriteria;
+import com.lamprism.luxspec.data.query.QueryExpression;
+import com.lamprism.luxspec.data.query.QueryExpressionVisitor;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Order;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -33,13 +49,49 @@ public final class JpaCriteriaTranslator {
     }
 
     /**
+     * Creates a predicate using the default direct same-name field resolver.
+     *
+     * @param builder  the JPA criteria builder
+     * @param root     the query entity root
+     * @param criteria structured conditions and ordering
+     * @param <T>      the entity type
+     * @return the translated predicate
+     */
+    public <T> Predicate predicate(
+            CriteriaBuilder builder,
+            Root<T> root,
+            QueryCriteria criteria
+    ) {
+        return predicate(builder, root, criteria, JpaFieldResolver.byAttributeName());
+    }
+
+    /**
+     * Creates a predicate using a direct attribute resolver with a naming strategy.
+     *
+     * @param builder        the JPA criteria builder
+     * @param root           the query entity root
+     * @param criteria       structured conditions and ordering
+     * @param namingStrategy the query-to-attribute naming strategy
+     * @param <T>            the entity type
+     * @return the translated predicate
+     */
+    public <T> Predicate predicate(
+            CriteriaBuilder builder,
+            Root<T> root,
+            QueryCriteria criteria,
+            JpaFieldNamingStrategy namingStrategy
+    ) {
+        return predicate(builder, root, criteria, JpaFieldResolver.byAttributeName(namingStrategy));
+    }
+
+    /**
      * Creates a predicate for the complete structured filter expression.
      *
-     * @param builder the JPA criteria builder
-     * @param root the query entity root
-     * @param criteria structured conditions and ordering
+     * @param builder       the JPA criteria builder
+     * @param root          the query entity root
+     * @param criteria      structured conditions and ordering
      * @param fieldResolver explicit allowed typed field resolver
-     * @param <T> the entity type
+     * @param <T>           the entity type
      * @return the translated predicate
      */
     public <T> Predicate predicate(
@@ -52,13 +104,49 @@ public final class JpaCriteriaTranslator {
     }
 
     /**
+     * Creates JPA ordering terms using the default direct same-name field resolver.
+     *
+     * @param builder  the JPA criteria builder
+     * @param root     the query entity root
+     * @param criteria structured conditions and ordering
+     * @param <T>      the entity type
+     * @return immutable JPA order terms
+     */
+    public <T> List<Order> orders(
+            CriteriaBuilder builder,
+            Root<T> root,
+            QueryCriteria criteria
+    ) {
+        return orders(builder, root, criteria, JpaFieldResolver.byAttributeName());
+    }
+
+    /**
+     * Creates JPA ordering terms using a direct attribute resolver with a naming strategy.
+     *
+     * @param builder        the JPA criteria builder
+     * @param root           the query entity root
+     * @param criteria       structured conditions and ordering
+     * @param namingStrategy the query-to-attribute naming strategy
+     * @param <T>            the entity type
+     * @return immutable JPA order terms
+     */
+    public <T> List<Order> orders(
+            CriteriaBuilder builder,
+            Root<T> root,
+            QueryCriteria criteria,
+            JpaFieldNamingStrategy namingStrategy
+    ) {
+        return orders(builder, root, criteria, JpaFieldResolver.byAttributeName(namingStrategy));
+    }
+
+    /**
      * Creates JPA ordering terms for the supplied explicit typed ordering.
      *
-     * @param builder the JPA criteria builder
-     * @param root the query entity root
-     * @param criteria structured conditions and ordering
+     * @param builder       the JPA criteria builder
+     * @param root          the query entity root
+     * @param criteria      structured conditions and ordering
      * @param fieldResolver explicit allowed typed field resolver
-     * @param <T> the entity type
+     * @param <T>           the entity type
      * @return immutable JPA order terms
      */
     public <T> List<Order> orders(

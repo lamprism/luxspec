@@ -20,11 +20,11 @@ package com.lamprism.luxspec.event;
  * @author RollW
  */
 @FunctionalInterface
-public interface EventCallback<R> {
+public interface EventCallback<E extends Event> {
     /**
      * Invoked when an event is received.
      *
      * @param event the event
      */
-    void onEvent(R event);
+    void onEvent(E event);
 }

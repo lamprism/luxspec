@@ -1,11 +1,29 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.user;
 
 import com.lamprism.luxspec.resource.Resource;
 import com.lamprism.luxspec.resource.ResourceReference;
+import com.lamprism.luxspec.user.resource.UserResourceTypes;
+import org.jspecify.annotations.Nullable;
+
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
-import org.jspecify.annotations.Nullable;
 
 /**
  * An immutable generic user account read model.
@@ -24,13 +42,13 @@ public final class User implements Resource<Long> {
     /**
      * Creates an immutable user read model.
      *
-     * @param id the positive account identifier
-     * @param username the non-blank unique account name
-     * @param email the optional account email address
-     * @param roles the non-empty assigned roles
-     * @param status the account lifecycle status
+     * @param id           the positive account identifier
+     * @param username     the non-blank unique account name
+     * @param email        the optional account email address
+     * @param roles        the non-empty assigned roles
+     * @param status       the account lifecycle status
      * @param registeredAt the account registration time
-     * @param updatedAt the last account update time
+     * @param updatedAt    the last account update time
      */
     public User(
             long id,

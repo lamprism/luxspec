@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.token;
 
 import java.time.Duration;
@@ -19,9 +35,9 @@ public final class SessionLifetime {
     /**
      * Creates a session lifetime from explicit creation, activity, idle, and absolute bounds.
      *
-     * @param createdAt the session creation time
-     * @param lastActivityAt the latest accepted activity time
-     * @param idleTimeout the positive renewable idle timeout
+     * @param createdAt         the session creation time
+     * @param lastActivityAt    the latest accepted activity time
+     * @param idleTimeout       the positive renewable idle timeout
      * @param absoluteExpiresAt the non-renewable absolute expiration time
      */
     public SessionLifetime(
@@ -49,8 +65,8 @@ public final class SessionLifetime {
     /**
      * Starts a new session lifetime at one creation time.
      *
-     * @param createdAt the session creation and initial activity time
-     * @param idleTimeout the positive renewable idle timeout
+     * @param createdAt       the session creation and initial activity time
+     * @param idleTimeout     the positive renewable idle timeout
      * @param maximumLifetime the positive non-renewable maximum lifetime
      * @return the new session lifetime
      */
@@ -75,7 +91,7 @@ public final class SessionLifetime {
      * @param activityAt the new activity time
      * @return the renewed immutable lifetime, or this value when activity is unchanged
      * @throws IllegalArgumentException when activity moves backward
-     * @throws IllegalStateException when the session has already expired
+     * @throws IllegalStateException    when the session has already expired
      */
     public SessionLifetime renew(Instant activityAt) {
         Instant nonNullActivityAt = Objects.requireNonNull(activityAt, "activityAt");

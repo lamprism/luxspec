@@ -1,44 +1,76 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.authorization;
 
-import com.lamprism.luxspec.security.authentication.Authentication;
+import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.resource.Resource;
 import com.lamprism.luxspec.resource.ResourceProvider;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
-import java.util.ArrayList;
+import com.lamprism.luxspec.security.authentication.Authentication;
+
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * Combines resource loading with the fixed authorization pipeline for one resource type.
+ * Provides resources only after the supplied action has been authorized.
  *
  * @param <ID> the resource ID type
  * @author RollW
  */
-public final class AuthorizedResourceProvider<ID> {
-    private final ResourceProvider<ID> provider;
-    private final ResourceAuthorizer<ID> authorizer;
-    private final ResourceAccessController accessController;
+public interface AuthorizedResourceProvider<ID> {
+    /**
+     * Creates an authorized provider with no-op decision publication.
+     *
+     * @param provider   the resource-loading provider
+     * @param authorizer the instance-policy authorizer
+     * @param <ID>       the resource ID type
+     * @return the authorized provider
+     */
+    static <ID> AuthorizedResourceProvider<ID> of(
+            ResourceProvider<ID> provider,
+            ResourceAuthorizer<ID> authorizer
+    ) {
+        return new DefaultAuthorizedResourceProvider<>(
+                provider,
+                authorizer,
+                ResourceAuthorizationPipeline.defaults()
+        );
+    }
 
     /**
-     * Creates an authorized view over matching resource provider and authorizer roles.
+     * Creates an authorized provider with decision event publication.
      *
-     * @param provider the resource-loading provider
-     * @param authorizer the instance-policy authorizer
-     * @param accessController the baseline and instance-policy coordinator
+     * @param provider       the resource-loading provider
+     * @param authorizer     the instance-policy authorizer
+     * @param eventPublisher the provider-independent event publisher
+     * @param <ID>           the resource ID type
+     * @return the authorized provider
      */
-    public AuthorizedResourceProvider(
+    static <ID> AuthorizedResourceProvider<ID> of(
             ResourceProvider<ID> provider,
             ResourceAuthorizer<ID> authorizer,
-            ResourceAccessController accessController
+            EventPublisher eventPublisher
     ) {
-        this.provider = Objects.requireNonNull(provider, "provider");
-        this.authorizer = Objects.requireNonNull(authorizer, "authorizer");
-        this.accessController = Objects.requireNonNull(accessController, "accessController");
-        if (!provider.getResourceType().equals(authorizer.getResourceType())) {
-            throw new IllegalArgumentException("Resource provider and authorizer types must match");
-        }
+        return new DefaultAuthorizedResourceProvider<>(
+                provider,
+                authorizer,
+                ResourceAuthorizationPipeline.withEvents(eventPublisher)
+        );
     }
 
     /**
@@ -46,53 +78,33 @@ public final class AuthorizedResourceProvider<ID> {
      *
      * @return the resource type
      */
-    public ResourceType<ID> getResourceType() {
-        return provider.getResourceType();
-    }
+    ResourceType<ID> getResourceType();
 
     /**
      * Authorizes and loads one required resource.
      *
      * @param authentication the effective authenticated actor
-     * @param action the attempted resource action
-     * @param reference the required resource reference
+     * @param action         the attempted resource action
+     * @param reference      the required resource reference
      * @return the loaded resource
      */
-    public Resource<ID> provide(
+    Resource<ID> provide(
             Authentication authentication,
             ResourceAction<ID> action,
             ResourceReference<ID> reference
-    ) {
-        requireAllowed(authentication, action, reference);
-        return provider.provide(reference);
-    }
+    );
 
     /**
      * Authorizes every reference before loading the complete batch in input order.
      *
      * @param authentication the effective authenticated actor
-     * @param action the attempted resource action
-     * @param references the required resource references
+     * @param action         the attempted resource action
+     * @param references     the required resource references
      * @return loaded resources in input order
      */
-    public List<? extends Resource<ID>> provide(
+    List<? extends Resource<ID>> provide(
             Authentication authentication,
             ResourceAction<ID> action,
             Collection<ResourceReference<ID>> references
-    ) {
-        List<AuthorizationDecision> decisions = authorizer.authorize(authentication, action, references, accessController);
-        for (AuthorizationDecision decision : decisions) {
-            if (!decision.isAllowed()) {
-                throw new ResourceAccessDeniedException(decision.getReasonCode());
-            }
-        }
-        return provider.provide(references);
-    }
-
-    private void requireAllowed(Authentication authentication, ResourceAction<ID> action, ResourceReference<ID> reference) {
-        AuthorizationDecision decision = accessController.authorize(authentication, action, reference, authorizer);
-        if (!decision.isAllowed()) {
-            throw new ResourceAccessDeniedException(decision.getReasonCode());
-        }
-    }
+    );
 }

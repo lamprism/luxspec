@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
@@ -24,17 +22,27 @@ plugins {
     id("java-library")
     id("luxspec.dependency-management-conventions")
     id("maven-publish")
+    id("jacoco")
+    signing
 }
 
 val javaVersion = providers.gradleProperty("luxspec.java.version")
     .map(String::toInt)
     .get()
 
-val pathSegments = path.removePrefix(":").split(":")
+val modulePathSegments = if (project == rootProject) {
+    emptyList()
+} else {
+    project.projectDir
+        .relativeTo(rootProject.projectDir)
+        .invariantSeparatorsPath
+        .split("/")
+        .filter { it.isNotEmpty() }
+}
 val moduleArtifactId = when {
     project == rootProject -> rootProject.name
-    pathSegments == listOf("core", "base") -> "${rootProject.name}-core"
-    else -> (listOf(rootProject.name) + pathSegments).joinToString("-")
+    modulePathSegments == listOf("core", "base") -> "${rootProject.name}-core"
+    else -> (listOf(rootProject.name) + modulePathSegments).joinToString("-")
 }
 
 base {
@@ -53,6 +61,9 @@ java {
 val kotlinSources = fileTree("src/main/java") {
     include("**/*.kt")
 }
+val javaSources = fileTree("src/main/java") {
+    include("**/*.java")
+}
 
 if (!kotlinSources.isEmpty) {
     pluginManager.apply("org.jetbrains.kotlin.jvm")
@@ -66,7 +77,7 @@ if (!kotlinSources.isEmpty) {
     }
 
     tasks.named<KotlinJvmCompile>("compileKotlin") {
-        setSource(kotlinSources)
+        setSource(files(kotlinSources, javaSources))
     }
 }
 
@@ -87,6 +98,20 @@ tasks.withType<Javadoc>().configureEach {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+}
+
+tasks.named<JacocoReport>("jacocoTestReport") {
+    dependsOn(tasks.named("test"))
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+tasks.named("check") {
+    dependsOn(tasks.named("jacocoTestReport"))
 }
 
 tasks.withType<AbstractArchiveTask>().configureEach {
@@ -156,4 +181,9 @@ publishing {
             }
         }
     }
+}
+
+signing {
+    useGpgCmd()
+    sign(publishing.publications["mavenJava"])
 }

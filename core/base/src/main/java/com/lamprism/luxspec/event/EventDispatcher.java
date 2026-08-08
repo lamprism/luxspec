@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.event;
 
 import java.util.ArrayList;
@@ -32,12 +48,12 @@ public final class EventDispatcher implements EventPublisher {
      * Registers an exact-runtime-type listener with deterministic ordering.
      *
      * @param eventType the event type
-     * @param order the explicit listener order
-     * @param listener the listener to register
-     * @param <E> the event type
+     * @param order     the explicit listener order
+     * @param listener  the listener to register
+     * @param <E>       the event type
      * @return a subscription that unregisters the listener when closed
      */
-    public <E> EventSubscription subscribe(
+    public <E extends Event> EventSubscription subscribe(
             Class<E> eventType,
             int order,
             EventListener<? super E> listener
@@ -58,7 +74,7 @@ public final class EventDispatcher implements EventPublisher {
     }
 
     @Override
-    public void publish(Object event) {
+    public void publish(Event event) {
         Objects.requireNonNull(event, "event");
         List<ListenerRegistration<?>> snapshot = new ArrayList<>(registrations.getOrDefault(event.getClass(), new CopyOnWriteArrayList<>()));
         for (ListenerRegistration<?> registration : snapshot) {
@@ -67,7 +83,7 @@ public final class EventDispatcher implements EventPublisher {
     }
 
     @SuppressWarnings("unchecked")
-    private <E> void dispatch(Object event, ListenerRegistration<E> registration) {
+    private <E extends Event> void dispatch(Event event, ListenerRegistration<E> registration) {
         try {
             registration.getListener().onEvent((E) event);
         } catch (Throwable failure) {
@@ -75,7 +91,7 @@ public final class EventDispatcher implements EventPublisher {
         }
     }
 
-    private static final class ListenerRegistration<E> {
+    private static final class ListenerRegistration<E extends Event> {
         private final Class<E> eventType;
         private final int order;
         private final long sequence;

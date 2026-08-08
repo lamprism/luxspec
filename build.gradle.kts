@@ -17,3 +17,17 @@
 plugins {
     id("luxspec.project")
 }
+
+abstract class PrintVersionTask : DefaultTask() {
+    @get:Input
+    abstract val version: Property<String>
+
+    @TaskAction
+    fun printVersion() {
+        println(version.get())
+    }
+}
+
+tasks.register<PrintVersionTask>("printVersion") {
+    version.set(project.version.toString())
+}

@@ -8,7 +8,14 @@ import com.lamprism.luxspec.ErrorCode;
  * @author RollW
  */
 public enum ConfigErrorCode implements ErrorCode {
-    INVALID_VALUE("config:invalid-value");
+    /**
+     * The source value cannot be decoded for the requested type.
+     */
+    INVALID_VALUE("config:invalid-value"),
+    /**
+     * A source failed while applying a typed write.
+     */
+    SOURCE_WRITE_FAILED("config:source-write-failed");
 
     private final String code;
 

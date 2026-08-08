@@ -1,8 +1,24 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.resource;
 
-import com.lamprism.luxspec.data.QueryCriteria;
-import com.lamprism.luxspec.data.QueryResult;
-import com.lamprism.luxspec.data.QueryWindow;
+import com.lamprism.luxspec.data.pagination.QueryResult;
+import com.lamprism.luxspec.data.pagination.QueryWindow;
+import com.lamprism.luxspec.data.query.QueryCriteria;
 
 /**
  * An optional resource-provider capability for ordinary structured collection browsing.
@@ -15,7 +31,7 @@ public interface ResourceBrowser<ID> extends ResourceProvider<ID> {
      * Browses resources using validated structured criteria and an explicit result window.
      *
      * @param criteria the validated filters and ordering
-     * @param window the allowed result window
+     * @param window   the allowed result window
      * @return the resource query result
      */
     QueryResult<? extends Resource<ID>> browse(QueryCriteria criteria, QueryWindow window);

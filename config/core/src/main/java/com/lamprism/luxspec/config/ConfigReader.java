@@ -4,42 +4,40 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Resolves typed configuration values through configured layers.
+ * Resolves typed configuration values through configured sources.
  *
  * @author RollW
  */
 public interface ConfigReader {
     /**
-     * Resolves one fixed or bound configuration definition through configured layers.
+     * Resolves one validated concrete binding.
      *
-     * @param spec the complete configuration definition
-     * @param <T> the decoded value type
-     * @return the resolved value and origin
+     * @param binding the concrete configuration binding
+     * @param <T>     the decoded value type
+     * @return the resolved configuration value
      */
-    <T> ResolvedConfig<T> get(ConfigSpec<T> spec);
+    <T> ConfigValue<T> get(ConfigBinding<T> binding);
 
     /**
-     * Resolves a definition while selecting whether a configured cache may be used.
+     * Resolves a fixed or parameterized definition without exposing binding mechanics to callers.
      *
-     * @param spec the complete configuration definition
-     * @param option the read option
-     * @param <T> the decoded value type
-     * @return the resolved value and origin
+     * @param spec the configuration definition
+     * @param <T>  the decoded value type
+     * @return the resolved configuration value
      */
-    default <T> ResolvedConfig<T> get(ConfigSpec<T> spec, ConfigReadOption option) {
-        Objects.requireNonNull(option, "option");
-        return get(spec);
+    default <T> ConfigValue<T> get(ConfigSpec<T> spec) {
+        return get(Objects.requireNonNull(spec, "spec").bind());
     }
 
     /**
-     * Binds and resolves a parameterized definition.
+     * Resolves a definition for explicit path arguments.
      *
-     * @param spec the parameterized definition
-     * @param arguments the complete validated template arguments
-     * @param <T> the decoded value type
-     * @return the resolved value and origin
+     * @param spec      the configuration definition
+     * @param arguments the path arguments
+     * @param <T>       the decoded value type
+     * @return the resolved configuration value
      */
-    default <T> ResolvedConfig<T> get(TemplateConfigSpec<T> spec, Map<String, String> arguments) {
+    default <T> ConfigValue<T> get(ConfigSpec<T> spec, Map<String, String> arguments) {
         return get(Objects.requireNonNull(spec, "spec").bind(arguments));
     }
 }

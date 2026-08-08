@@ -19,7 +19,7 @@ package com.lamprism.luxspec.event;
 /**
  * @author RollW
  */
-public interface EventRegistry<R, M> {
+public interface EventRegistry<E extends Event, M> {
     /**
      * Register an event callback with a message pattern.
      * <p>
@@ -31,7 +31,7 @@ public interface EventRegistry<R, M> {
      * @return a unique event callback ID (can be used to unregister the event callback),
      * or the same if the event callback is already registered.
      */
-    String register(EventCallback<R> eventCallback,
+    String register(EventCallback<E> eventCallback,
                     M messagePattern);
 
     /**

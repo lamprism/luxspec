@@ -26,13 +26,14 @@ javaPlatform {
 }
 
 dependencies {
-    api(platform("org.springframework.boot:spring-boot-dependencies:4.0.7"))
+    api(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
 
     constraints {
-        api("org.jspecify:jspecify:1.0.0")
-        api("org.bouncycastle:bcprov-jdk18on:1.81.1")
-        api("io.jsonwebtoken:jjwt-api:0.13.0")
-        api("io.jsonwebtoken:jjwt-impl:0.13.0")
-        api("io.jsonwebtoken:jjwt-jackson:0.13.0")
+        api("org.jspecify:jspecify:1.0.1")
+        api("com.github.ben-manes.caffeine:caffeine:3.2.4")
+        api("com.github.f4b6a3:ulid-creator:5.2.4")
+        api("com.github.luben:zstd-jni:1.5.7-12")
+        api("org.bouncycastle:bcprov-jdk18on:1.85")
+        api("com.nimbusds:nimbus-jose-jwt:10.9.1")
     }
 }

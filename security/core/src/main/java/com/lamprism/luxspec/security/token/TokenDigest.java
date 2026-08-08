@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.security.token;
 
 import java.util.Arrays;
@@ -17,7 +33,7 @@ public final class TokenDigest<T extends Token> {
      * Creates a typed Digest with a defensive copy of its bytes.
      *
      * @param tokenKind the source Token kind
-     * @param value the non-empty Digest bytes
+     * @param value     the non-empty Digest bytes
      */
     public TokenDigest(TokenKind<T> tokenKind, byte[] value) {
         this.tokenKind = Objects.requireNonNull(tokenKind, "tokenKind");
