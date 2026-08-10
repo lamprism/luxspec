@@ -17,12 +17,16 @@
 package com.lamprism.luxspec.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
+import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.token.TokenVerifier;
 import com.lamprism.luxspec.security.token.access.AccessToken;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.access.NoOpAccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -38,6 +42,8 @@ public final class AccessTokenAuthenticator implements Authenticator<AccessToken
     private final TokenVerifier<AccessToken, VerifiedAccessToken> tokenVerifier;
     private final SubjectResolver subjectResolver;
     private final AccessTokenRevocationStore revocationStore;
+    private final EventPublisher eventPublisher;
+    private final Clock clock;
 
     /**
      * Creates an authenticator with Token verification and current-subject resolution roles.
@@ -64,9 +70,31 @@ public final class AccessTokenAuthenticator implements Authenticator<AccessToken
             SubjectResolver subjectResolver,
             AccessTokenRevocationStore revocationStore
     ) {
+        this(tokenVerifier, subjectResolver, revocationStore, event -> {
+        }, Clock.systemUTC());
+    }
+
+    /**
+     * Creates an access-token authenticator with explicit security event publication.
+     *
+     * @param tokenVerifier   the authoritative Access Token verifier
+     * @param subjectResolver the current subject and state resolver
+     * @param revocationStore the optional verified-token revocation store
+     * @param eventPublisher  the authentication event publisher
+     * @param clock           the authentication event timestamp clock
+     */
+    public AccessTokenAuthenticator(
+            TokenVerifier<AccessToken, VerifiedAccessToken> tokenVerifier,
+            SubjectResolver subjectResolver,
+            AccessTokenRevocationStore revocationStore,
+            EventPublisher eventPublisher,
+            Clock clock
+    ) {
         this.tokenVerifier = Objects.requireNonNull(tokenVerifier, "tokenVerifier");
         this.subjectResolver = Objects.requireNonNull(subjectResolver, "subjectResolver");
         this.revocationStore = Objects.requireNonNull(revocationStore, "revocationStore");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -88,6 +116,40 @@ public final class AccessTokenAuthenticator implements Authenticator<AccessToken
      */
     @Override
     public Authentication authenticate(AccessTokenCredentials credentials) {
+        Instant startedAt = clock.instant();
+        Authentication authentication;
+        try {
+            authentication = authenticateInternal(credentials);
+        } catch (AuthenticationException failure) {
+            Instant completedAt = clock.instant();
+            eventPublisher.publish(AuthenticationEvent.failed(
+                    CREDENTIAL_TYPE.getName(),
+                    failure.getErrorCode(),
+                    completedAt,
+                    elapsedSince(startedAt, completedAt)
+            ));
+            throw failure;
+        } catch (RuntimeException failure) {
+            Instant completedAt = clock.instant();
+            eventPublisher.publish(AuthenticationEvent.failed(
+                    CREDENTIAL_TYPE.getName(),
+                    AuthErrorCode.AUTHENTICATION_FAILURE,
+                    completedAt,
+                    elapsedSince(startedAt, completedAt)
+            ));
+            throw failure;
+        }
+        Instant completedAt = clock.instant();
+        eventPublisher.publish(AuthenticationEvent.succeeded(
+                CREDENTIAL_TYPE.getName(),
+                authentication,
+                completedAt,
+                elapsedSince(startedAt, completedAt)
+        ));
+        return authentication;
+    }
+
+    private Authentication authenticateInternal(AccessTokenCredentials credentials) {
         VerifiedAccessToken token = tokenVerifier.verify(
                 Objects.requireNonNull(credentials, "credentials").getAccessToken()
         );
@@ -99,5 +161,10 @@ public final class AccessTokenAuthenticator implements Authenticator<AccessToken
         }
         Subject subject = subjectResolver.resolve(token.getSubjectType(), token.getSubjectId());
         return new Authentication(subject, token.getGrants());
+    }
+
+    private static Duration elapsedSince(Instant startedAt, Instant completedAt) {
+        Duration elapsed = Duration.between(startedAt, completedAt);
+        return elapsed.isNegative() ? Duration.ZERO : elapsed;
     }
 }

@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.user.autoconfigure;
 
+import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.authorization.AuthorizationScopeHierarchy;
 import com.lamprism.luxspec.user.resource.UserProvider;
@@ -25,6 +26,7 @@ import com.lamprism.luxspec.user.security.authorization.AuthorizationProfileCont
 import com.lamprism.luxspec.user.security.authorization.UserAuthorizationProfiles;
 import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolver;
 import com.lamprism.luxspec.user.security.password.Argon2idPasswordScheme;
+import com.lamprism.luxspec.user.security.password.EventPublishingUserPasswordStore;
 import com.lamprism.luxspec.user.security.password.PasswordScheme;
 import com.lamprism.luxspec.user.security.password.UserPasswordStore;
 import com.lamprism.luxspec.user.spring.LuxspecPasswordEncoder;
@@ -36,6 +38,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -126,6 +129,8 @@ public class LuxspecUserAutoConfiguration {
      * @param passwordStore  the configured password store
      * @param passwordScheme the configured password scheme
      * @param grantResolver  the configured role grant resolver
+     * @param eventPublishers optional security event publishers
+     * @param clocks         optional event timestamp clocks
      * @return the password authenticator
      */
     @Bean
@@ -135,8 +140,20 @@ public class LuxspecUserAutoConfiguration {
             UserProvider userProvider,
             UserPasswordStore passwordStore,
             PasswordScheme passwordScheme,
-            UserRoleGrantResolver grantResolver
+            UserRoleGrantResolver grantResolver,
+            ObjectProvider<EventPublisher> eventPublishers,
+            ObjectProvider<Clock> clocks
     ) {
-        return new PasswordAuthenticator(userProvider, passwordStore, passwordScheme, grantResolver);
+        EventPublisher eventPublisher = eventPublishers.getIfAvailable(() -> event -> {
+        });
+        Clock clock = clocks.getIfAvailable(Clock::systemUTC);
+        return new PasswordAuthenticator(
+                userProvider,
+                new EventPublishingUserPasswordStore(passwordStore, eventPublisher, clock),
+                passwordScheme,
+                grantResolver,
+                eventPublisher,
+                clock
+        );
     }
 }

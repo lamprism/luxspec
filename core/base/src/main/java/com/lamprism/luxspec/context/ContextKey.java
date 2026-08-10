@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.context;
 
+import com.lamprism.luxspec.validation.ValidationRules;
 import java.util.Objects;
 
 /**
@@ -42,9 +43,7 @@ public final class ContextKey<T> {
      * @return the immutable context key
      */
     public static <T> ContextKey<T> of(String name, Class<T> valueType) {
-        if (name.isBlank()) {
-            throw new IllegalArgumentException("name must not be blank");
-        }
+        ValidationRules.nonBlank("Context key name").validate(Objects.requireNonNull(name, "name"));
         return new ContextKey<>(name, Objects.requireNonNull(valueType, "valueType"));
     }
 

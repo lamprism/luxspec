@@ -19,6 +19,8 @@ package com.lamprism.luxspec.security.firewall;
 import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,6 +33,7 @@ import java.util.Objects;
 public final class FirewallChain<R> {
     private final List<FirewallRule<R>> rules;
     private final EventPublisher eventPublisher;
+    private final Clock clock;
 
     /**
      * Creates a chain whose rule order is the supplied immutable order.
@@ -39,18 +42,30 @@ public final class FirewallChain<R> {
      */
     public FirewallChain(List<? extends FirewallRule<R>> rules) {
         this(rules, event -> {
-        });
+        }, Clock.systemUTC());
     }
 
     /**
      * Creates a chain with safe failure event publication.
      *
      * @param rules          firewall rules to evaluate
-     * @param eventPublisher the publisher notified when a rule fails unexpectedly
+     * @param eventPublisher the publisher notified for denials and unexpected failures
      */
     public FirewallChain(List<? extends FirewallRule<R>> rules, EventPublisher eventPublisher) {
+        this(rules, eventPublisher, Clock.systemUTC());
+    }
+
+    /**
+     * Creates a chain with denial and failure event publication using an explicit clock.
+     *
+     * @param rules          firewall rules to evaluate
+     * @param eventPublisher the publisher notified for denials and unexpected failures
+     * @param clock          the event timestamp clock
+     */
+    public FirewallChain(List<? extends FirewallRule<R>> rules, EventPublisher eventPublisher, Clock clock) {
         this.rules = List.copyOf(rules);
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -71,11 +86,22 @@ public final class FirewallChain<R> {
     }
 
     private FirewallDecision evaluate(FirewallRule<R> rule, R request) {
+        FirewallDecision decision;
         try {
-            return Objects.requireNonNull(rule.evaluate(request), "firewall decision");
+            decision = Objects.requireNonNull(rule.evaluate(request), "firewall decision");
         } catch (RuntimeException exception) {
             eventPublisher.publish(new FirewallRuleFailureEvent(rule.getClass().getName()));
             return FirewallDecision.deny(SecurityErrorCode.FIREWALL_RULE_FAILURE);
         }
+        if (!decision.passed()) {
+            Instant occurredAt = clock.instant();
+            eventPublisher.publish(new FirewallRuleDeniedEvent(
+                    rule.getClass().getName(),
+                    decision.getReasonCode(),
+                    decision.getRetryAfter().orElse(null),
+                    occurredAt
+            ));
+        }
+        return decision;
     }
 }

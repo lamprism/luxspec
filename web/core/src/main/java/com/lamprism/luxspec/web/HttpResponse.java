@@ -29,19 +29,19 @@ import java.util.Objects;
 public final class HttpResponse<T> {
     private final ResponseStatus status;
     private final T data;
-    private final String traceId;
+    private final String correlationId;
 
     /**
      * Creates one ordinary JSON response envelope.
      *
      * @param status  the response status
      * @param data    the optional response data
-     * @param traceId the optional safe trace identifier
+     * @param correlationId the optional safe correlation identifier
      */
-    public HttpResponse(ResponseStatus status, @Nullable T data, @Nullable String traceId) {
+    public HttpResponse(ResponseStatus status, @Nullable T data, @Nullable String correlationId) {
         this.status = Objects.requireNonNull(status, "status");
         this.data = data;
-        this.traceId = traceId;
+        this.correlationId = correlationId;
     }
 
     /**
@@ -63,24 +63,24 @@ public final class HttpResponse<T> {
     }
 
     /**
-     * Returns the optional request trace identifier.
+     * Returns the optional request correlation identifier.
      *
-     * @return the trace identifier, when present
+     * @return the correlation identifier, when present
      */
-    public @Nullable String traceId() {
-        return traceId;
+    public @Nullable String correlationId() {
+        return correlationId;
     }
 
     /**
      * Creates a successful response envelope.
      *
      * @param data    the optional response data
-     * @param traceId the optional safe trace identifier
+     * @param correlationId the optional safe correlation identifier
      * @param <T>     the response data type
      * @return the successful response
      */
-    public static <T> HttpResponse<T> success(@Nullable T data, @Nullable String traceId) {
-        return new HttpResponse<>(ResponseStatus.success(), data, traceId);
+    public static <T> HttpResponse<T> success(@Nullable T data, @Nullable String correlationId) {
+        return new HttpResponse<>(ResponseStatus.success(), data, correlationId);
     }
 
     /**
@@ -88,15 +88,15 @@ public final class HttpResponse<T> {
      *
      * @param status  the response status
      * @param data    the optional response data
-     * @param traceId the optional safe trace identifier
+     * @param correlationId the optional safe correlation identifier
      * @param <T>     the response data type
      * @return the failed response
      */
     public static <T> HttpResponse<T> failure(
             ResponseStatus status,
             @Nullable T data,
-            @Nullable String traceId
+            @Nullable String correlationId
     ) {
-        return new HttpResponse<>(status, data, traceId);
+        return new HttpResponse<>(status, data, correlationId);
     }
 }

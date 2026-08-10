@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.security.jwt.autoconfigure;
 
 import com.lamprism.luxspec.config.ConfigReader;
+import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.authentication.AccessTokenAuthenticator;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.crypto.DefaultPublicKeyDeriver;
@@ -25,6 +26,7 @@ import com.lamprism.luxspec.security.crypto.PublicKeyDeriver;
 import com.lamprism.luxspec.security.crypto.config.ConfigKeySetProvider;
 import com.lamprism.luxspec.security.jwt.ConfigJwtAccessTokenSettingsSource;
 import com.lamprism.luxspec.security.jwt.JwtAccessTokenAdapter;
+import com.lamprism.luxspec.security.token.access.NoOpAccessTokenRevocationStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -103,10 +105,11 @@ public class LuxspecJwtAutoConfiguration {
             KeySetProvider keySetProvider,
             ObjectProvider<Clock> clocks
     ) {
+        Clock clock = clocks.getIfAvailable(Clock::systemUTC);
         return new JwtAccessTokenAdapter(
                 keySetProvider,
                 settingsSource.getKeySetName(),
-                clocks.getIfAvailable(Clock::systemUTC),
+                clock,
                 settingsSource.getOptions()
         );
     }
@@ -123,8 +126,17 @@ public class LuxspecJwtAutoConfiguration {
     @ConditionalOnMissingBean(AccessTokenAuthenticator.class)
     public AccessTokenAuthenticator accessTokenAuthenticator(
             JwtAccessTokenAdapter adapter,
-            SubjectResolver subjectResolver
+            SubjectResolver subjectResolver,
+            ObjectProvider<EventPublisher> eventPublishers,
+            ObjectProvider<Clock> clocks
     ) {
-        return new AccessTokenAuthenticator(adapter, subjectResolver);
+        return new AccessTokenAuthenticator(
+                adapter,
+                subjectResolver,
+                NoOpAccessTokenRevocationStore.getInstance(),
+                eventPublishers.getIfAvailable(() -> event -> {
+                }),
+                clocks.getIfAvailable(Clock::systemUTC)
+        );
     }
 }

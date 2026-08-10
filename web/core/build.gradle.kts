@@ -22,5 +22,4 @@ description = "Web core contracts and defaults."
 
 dependencies {
     api(project(":core:core-base"))
-    api(project(":data:data-core"))
 }

@@ -19,17 +19,24 @@ package com.lamprism.luxspec.security.authentication;
 import com.lamprism.luxspec.AuthErrorCode;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import com.lamprism.luxspec.security.authorization.AuthorizationScope;
+import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
 import com.lamprism.luxspec.security.token.TokenVerifier;
 import com.lamprism.luxspec.security.token.access.AccessToken;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
+import com.lamprism.luxspec.security.token.access.EventPublishingAccessTokenRevocationStore;
+import com.lamprism.luxspec.security.token.access.NoOpAccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AccessTokenAuthenticatorTest {
@@ -76,6 +83,57 @@ class AccessTokenAuthenticatorTest {
         assertEquals(AuthErrorCode.ACCESS_TOKEN_REVOKED, exception.getErrorCode());
         assertEquals(1, revocationStore.getCheckCount());
         assertEquals(0, subjectResolver.getInvocationCount());
+    }
+
+    @Test
+    void publishesSafeAuthenticationEvents() {
+        List<AuthenticationEvent> events = new ArrayList<>();
+        TestSubjectResolver subjectResolver = new TestSubjectResolver();
+        AccessTokenAuthenticator successfulAuthenticator = new AccessTokenAuthenticator(
+                new TestTokenVerifier(),
+                subjectResolver,
+                NoOpAccessTokenRevocationStore.getInstance(),
+                event -> events.add((AuthenticationEvent) event),
+                Clock.fixed(Instant.parse("2026-08-09T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        successfulAuthenticator.authenticate(credentials());
+
+        TrackingRevocationStore revocationStore = new TrackingRevocationStore();
+        revocationStore.revoke(VERIFIED_TOKEN);
+        AccessTokenAuthenticator failedAuthenticator = new AccessTokenAuthenticator(
+                new TestTokenVerifier(),
+                subjectResolver,
+                revocationStore,
+                event -> events.add((AuthenticationEvent) event),
+                Clock.fixed(Instant.parse("2026-08-09T00:00:00Z"), ZoneOffset.UTC)
+        );
+        assertThrows(AuthenticationException.class, () -> failedAuthenticator.authenticate(credentials()));
+
+        assertEquals(2, events.size());
+        assertEquals(true, events.get(0).isSuccessful());
+        assertEquals("user", events.get(0).getSubject().getType());
+        assertEquals(false, events.get(1).isSuccessful());
+        assertEquals(AuthErrorCode.ACCESS_TOKEN_REVOKED, events.get(1).getErrorCode());
+    }
+
+    @Test
+    void publishesAccessTokenRevocationWithoutTheTokenIdentifier() {
+        List<TokenLifecycleEvent> events = new ArrayList<>();
+        TrackingRevocationStore delegate = new TrackingRevocationStore();
+        EventPublishingAccessTokenRevocationStore store = new EventPublishingAccessTokenRevocationStore(
+                delegate,
+                event -> events.add((TokenLifecycleEvent) event),
+                Clock.fixed(Instant.parse("2026-08-09T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        store.revoke(VERIFIED_TOKEN);
+
+        assertEquals(1, events.size());
+        assertEquals(TokenLifecycleEvent.Operation.REVOKE, events.get(0).getOperation());
+        assertEquals(TokenLifecycleEvent.Result.SUCCESS, events.get(0).getResult());
+        assertEquals(List.of(AccessToken.KIND.getName()), List.copyOf(events.get(0).getTokenKinds()));
+        assertNull(events.get(0).getSubject());
     }
 
     private static AccessTokenCredentials credentials() {

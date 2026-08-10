@@ -16,8 +16,6 @@
 
 package com.lamprism.luxspec.config;
 
-import com.lamprism.luxspec.config.provider.DelegatingConfigProvider;
-
 import java.util.Objects;
 
 /**

@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.security.token.refresh;
 
 import com.lamprism.luxspec.AuthErrorCode;
+import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
 import com.lamprism.luxspec.security.authentication.UserSubject;
@@ -26,6 +27,7 @@ import com.lamprism.luxspec.security.token.IssuedToken;
 import com.lamprism.luxspec.security.token.TokenDigest;
 import com.lamprism.luxspec.security.token.TokenIssuance;
 import com.lamprism.luxspec.security.token.TokenIssuer;
+import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
 import com.lamprism.luxspec.security.token.access.AccessToken;
 import com.lamprism.luxspec.security.token.refresh.support.StoredRefreshTokenLifecycle;
 import com.lamprism.luxspec.security.token.support.Sha256TokenHasher;
@@ -37,6 +39,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -225,6 +228,49 @@ class StoredRefreshTokenLifecycleTest {
     }
 
     @Test
+    void publishesTokenLifecycleResultsWithoutTokenValues() {
+        List<TokenLifecycleEvent> events = new ArrayList<>();
+        Fixture fixture = new Fixture(event -> events.add((TokenLifecycleEvent) event));
+
+        TokenIssuance initialIssuance = fixture.lifecycle.issue(initialAuthentication());
+        RefreshToken initialToken = initialIssuance.require(RefreshToken.KIND).getToken();
+        fixture.clock.setInstant(ISSUED_AT.plusSeconds(1L));
+        fixture.lifecycle.refresh(initialToken);
+        assertThrows(AuthenticationException.class, () -> fixture.lifecycle.refresh(new RefreshToken("unknown")));
+
+        assertEquals(3, events.size());
+        assertEquals(TokenLifecycleEvent.Result.SUCCESS, events.get(0).getResult());
+        assertEquals(TokenLifecycleEvent.Result.SUCCESS, events.get(1).getResult());
+        assertEquals(TokenLifecycleEvent.Result.REJECTED, events.get(2).getResult());
+        assertTrue(events.get(0).getTokenKinds().contains(AccessToken.KIND.getName()));
+        assertTrue(events.get(0).getTokenKinds().contains(RefreshToken.KIND.getName()));
+        assertFalse(events.get(0).getTokenKinds().contains(initialToken.getValue()));
+    }
+
+    @Test
+    void publishesRefreshSessionRevocationWithoutSessionIdentifiers() {
+        List<TokenLifecycleEvent> events = new ArrayList<>();
+        Fixture fixture = new Fixture();
+        RefreshToken initialToken = fixture.lifecycle.issue(initialAuthentication())
+                .require(RefreshToken.KIND)
+                .getToken();
+        RefreshTokenSessionId sessionId = fixture.store.getSessionId(fixture.hasher.hash(initialToken));
+        EventPublishingRefreshTokenSessionStore<RefreshTokenSession> store =
+                new EventPublishingRefreshTokenSessionStore<>(
+                        fixture.store,
+                        event -> events.add((TokenLifecycleEvent) event),
+                        Clock.fixed(ISSUED_AT, ZoneOffset.UTC)
+                );
+
+        store.revoke(sessionId, ISSUED_AT.plusSeconds(1L));
+
+        assertEquals(1, events.size());
+        assertEquals(TokenLifecycleEvent.Operation.REVOKE, events.get(0).getOperation());
+        assertEquals(List.of(RefreshToken.KIND.getName()), List.copyOf(events.get(0).getTokenKinds()));
+        assertTrue(fixture.store.isRevoked(sessionId));
+    }
+
+    @Test
     void revokesTheRotatedSessionWhenAuthenticationResolutionFails() {
         Fixture fixture = new Fixture();
         RefreshToken initialToken = fixture.lifecycle.issue(initialAuthentication())
@@ -316,10 +362,20 @@ class StoredRefreshTokenLifecycleTest {
         private final StoredRefreshTokenLifecycle<RefreshTokenSession> lifecycle;
 
         private Fixture() {
-            this(IDLE_TIMEOUT, MAXIMUM_LIFETIME);
+            this(IDLE_TIMEOUT, MAXIMUM_LIFETIME, event -> {
+            });
         }
 
         private Fixture(Duration idleTimeout, Duration maximumLifetime) {
+            this(idleTimeout, maximumLifetime, event -> {
+            });
+        }
+
+        private Fixture(EventPublisher eventPublisher) {
+            this(IDLE_TIMEOUT, MAXIMUM_LIFETIME, eventPublisher);
+        }
+
+        private Fixture(Duration idleTimeout, Duration maximumLifetime, EventPublisher eventPublisher) {
             lifecycle = new StoredRefreshTokenLifecycle<>(
                     store,
                     accessTokenIssuer,
@@ -334,7 +390,8 @@ class StoredRefreshTokenLifecycleTest {
                     new SecureRandom(),
                     clock,
                     idleTimeout,
-                    maximumLifetime
+                    maximumLifetime,
+                    eventPublisher
             );
         }
     }

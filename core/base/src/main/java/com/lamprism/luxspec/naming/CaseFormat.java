@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.naming;
 
+import com.lamprism.luxspec.validation.ValidationRules;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -185,14 +186,9 @@ public enum CaseFormat {
 
     private static String requireValue(String value) {
         String nonNullValue = Objects.requireNonNull(value, "value");
-        for (int index = 0; index < nonNullValue.length(); index++) {
-            char character = nonNullValue.charAt(index);
-            if (Character.isWhitespace(character)
-                    || Character.isSpaceChar(character)
-                    || Character.isISOControl(character)) {
-                throw new IllegalArgumentException("Name must not contain whitespace or control characters");
-            }
-        }
+        ValidationRules.noWhitespace("Name")
+                .and(ValidationRules.noControlCharacters("Name"))
+                .validate(nonNullValue);
         return nonNullValue;
     }
 }

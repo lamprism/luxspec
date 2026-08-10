@@ -18,10 +18,9 @@ plugins {
     id("luxspec.java-conventions")
 }
 
-description = "Core utilities for Luxspec."
+description = "Foundational utilities, data contracts, and validation for Luxspec."
 
 dependencies {
-    api(project(":data:data-core"))
     api("org.jspecify:jspecify")
     api("org.slf4j:slf4j-api")
 }

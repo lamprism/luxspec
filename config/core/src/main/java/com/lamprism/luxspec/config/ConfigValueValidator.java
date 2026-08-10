@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.config;
 
 import com.lamprism.luxspec.config.value.ConfigValueValidationException;
+import com.lamprism.luxspec.validation.Validator;
 
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -28,13 +29,14 @@ import java.util.function.Predicate;
  * @author RollW
  */
 @FunctionalInterface
-public interface ConfigValueValidator<T> {
+public interface ConfigValueValidator<T> extends Validator<T> {
     /**
      * Validates one non-null value.
      *
      * @param value the typed value
      * @throws ConfigValueValidationException when the value violates the rule
      */
+    @Override
     void validate(T value);
 
     /**
@@ -72,8 +74,9 @@ public interface ConfigValueValidator<T> {
      * @param other the additional validator
      * @return a validator that applies both rules in order
      */
-    default ConfigValueValidator<T> and(ConfigValueValidator<? super T> other) {
-        ConfigValueValidator<? super T> nonNullOther = Objects.requireNonNull(other, "other");
+    @Override
+    default ConfigValueValidator<T> and(Validator<? super T> other) {
+        Validator<? super T> nonNullOther = Objects.requireNonNull(other, "other");
         return value -> {
             validate(value);
             nonNullOther.validate(value);

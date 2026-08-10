@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
-final class ImmutableConfigValue<T> implements ConfigValue<T> {
+public final class ImmutableConfigValue<T> implements ConfigValue<T> {
     private final State state;
     private final @Nullable T value;
     private final ConfigValueOrigin origin;
@@ -22,7 +22,7 @@ final class ImmutableConfigValue<T> implements ConfigValue<T> {
         validateState();
     }
 
-    static <T> ConfigValue<T> of(
+    public static <T> ConfigValue<T> of(
             State state,
             @Nullable T value,
             ConfigValueOrigin origin

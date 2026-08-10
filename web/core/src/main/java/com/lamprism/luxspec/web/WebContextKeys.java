@@ -17,6 +17,8 @@
 package com.lamprism.luxspec.web;
 
 import com.lamprism.luxspec.context.ContextKey;
+import com.lamprism.luxspec.context.CorrelationId;
+import com.lamprism.luxspec.context.ExecutionContextKeys;
 
 /**
  * Typed execution-context keys owned by the Web domain.
@@ -33,12 +35,9 @@ public final class WebContextKeys {
     );
 
     /**
-     * Identifies the safe trace identifier for the current Web request.
+     * Identifies the shared correlation identifier for the current Web request.
      */
-    public static final ContextKey<TraceContext> TRACE = ContextKey.of(
-            "web.trace",
-            TraceContext.class
-    );
+    public static final ContextKey<CorrelationId> CORRELATION_ID = ExecutionContextKeys.CORRELATION_ID;
 
     private WebContextKeys() {
     }

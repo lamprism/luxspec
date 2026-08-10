@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
-final class DefaultConfigSpec<T> implements ConfigSpec<T> {
+public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
     private final ConfigKey key;
     private final ConfigCodec<T> codec;
     private final @Nullable T defaultValue;
@@ -17,7 +17,7 @@ final class DefaultConfigSpec<T> implements ConfigSpec<T> {
     private final ConfigPolicy policy;
     private final ConfigValueValidator<T> validator;
 
-    DefaultConfigSpec(
+    public DefaultConfigSpec(
             ConfigKey key,
             ConfigCodec<T> codec,
             @Nullable T defaultValue,

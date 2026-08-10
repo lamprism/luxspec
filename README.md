@@ -192,16 +192,15 @@ the remaining modules follow the `luxspec-<project-name>` naming convention.
 
 ### Core and data
 
-| Gradle project                               | Artifact                                       | Purpose                                                                                                |
-|----------------------------------------------|------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| `:core:core-base`                            | `luxspec-core`                                 | Core utilities and provider-independent context, resource, event, cache, error, and message contracts. |
-| `:core:core-cache`                           | `luxspec-core-cache`                           | Bounded local cache implementation backed by Caffeine.                                                 |
-| `:core:core-spring`                          | `luxspec-core-spring`                          | Spring adapters for core capabilities.                                                                 |
-| `:core:core-spring-boot-autoconfigure`       | `luxspec-core-spring-boot-autoconfigure`       | Spring Boot defaults for core Spring adapters, including execution-context task propagation.           |
-| `:core:core-cache-spring-boot-autoconfigure` | `luxspec-core-cache-spring-boot-autoconfigure` | Spring Boot properties and default cache assembly for the local Caffeine cache.                        |
-| `:data:data-core`                            | `luxspec-data-core`                            | Provider-independent query, filtering, ordering, and pagination contracts.                             |
-| `:data:data-jpa`                             | `luxspec-data-jpa`                             | JPA Criteria adapters for data contracts.                                                              |
-| `:data:data-jpa-spring-boot-autoconfigure`   | `luxspec-data-jpa-spring-boot-autoconfigure`   | Spring Boot defaults for JPA Criteria translation and the application-managed query executor factory.  |
+| Gradle project                               | Artifact                                       | Purpose                                                                                                    |
+|----------------------------------------------|------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `:core:core-base`                            | `luxspec-core`                                 | Foundational validation, query, pagination, resource, context, event, cache, error, and message contracts. |
+| `:core:core-cache`                           | `luxspec-core-cache`                           | Bounded local cache implementation backed by Caffeine.                                                     |
+| `:core:core-spring`                          | `luxspec-core-spring`                          | Spring adapters for core capabilities.                                                                     |
+| `:core:core-spring-boot-autoconfigure`       | `luxspec-core-spring-boot-autoconfigure`       | Spring Boot defaults for core Spring adapters, including execution-context task propagation.               |
+| `:core:core-cache-spring-boot-autoconfigure` | `luxspec-core-cache-spring-boot-autoconfigure` | Spring Boot properties and default cache assembly for the local Caffeine cache.                            |
+| `:data:data-jpa`                             | `luxspec-data-jpa`                             | JPA Criteria adapters for provider-independent query and pagination contracts.                             |
+| `:data:data-jpa-spring-boot-autoconfigure`   | `luxspec-data-jpa-spring-boot-autoconfigure`   | Spring Boot defaults for JPA Criteria translation and the application-managed query executor factory.      |
 
 ### Configuration
 
@@ -221,6 +220,14 @@ the remaining modules follow the `luxspec-<project-name>` naming convention.
 | `:security:security-jwt-nimbus`                           | `luxspec-security-jwt-nimbus`                           | Nimbus-backed access-token issuance and verification.                                                            |
 | `:security:security-jwt-nimbus-spring-boot-autoconfigure` | `luxspec-security-jwt-nimbus-spring-boot-autoconfigure` | Explicitly enabled Config-backed Nimbus JWT access-token assembly.                                               |
 | `:security:security-spring-boot-autoconfigure`            | `luxspec-security-spring-boot-autoconfigure`            | Spring Boot auto-configuration for security integration.                                                         |
+
+### Audit
+
+| Gradle project                           | Artifact                                  | Purpose                                                                                                     |
+|------------------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| `:audit:audit-core`                      | `luxspec-audit-core`                      | Provider-independent audit entries, publishers, sinks, readers, delivery policies, and query contracts.     |
+| `:audit:audit-integration`               | `luxspec-audit-integration`               | Standard audit translations and event subscriptions for configuration, security, and user lifecycle events. |
+| `:audit:audit-spring-boot-autoconfigure` | `luxspec-audit-spring-boot-autoconfigure` | Conditional audit runtime assembly when the application supplies an `AuditSink`.                            |
 
 ### Web and users
 

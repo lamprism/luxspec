@@ -22,7 +22,6 @@ description = "JPA adapters for Luxspec query and pagination contracts."
 
 dependencies {
     api(project(":core:core-base"))
-    api(project(":data:data-core"))
     api("jakarta.persistence:jakarta.persistence-api")
     implementation("com.github.luben:zstd-jni")
     implementation("tools.jackson.dataformat:jackson-dataformat-cbor")

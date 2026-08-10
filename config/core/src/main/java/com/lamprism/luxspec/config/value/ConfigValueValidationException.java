@@ -1,6 +1,6 @@
 package com.lamprism.luxspec.config.value;
 
-import java.util.Objects;
+import com.lamprism.luxspec.validation.ValidationException;
 
 /**
  * Indicates that a decoded or explicitly written configuration value violates its definition.
@@ -9,14 +9,14 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class ConfigValueValidationException extends IllegalArgumentException {
+public final class ConfigValueValidationException extends ValidationException {
     /**
      * Creates a value validation failure.
      *
      * @param detail a value-free explanation
      */
     public ConfigValueValidationException(String detail) {
-        super(requireDetail(detail));
+        super(detail);
     }
 
     /**
@@ -26,14 +26,6 @@ public final class ConfigValueValidationException extends IllegalArgumentExcepti
      * @param cause  the underlying validation failure
      */
     public ConfigValueValidationException(String detail, Throwable cause) {
-        super(requireDetail(detail), Objects.requireNonNull(cause, "cause"));
-    }
-
-    private static String requireDetail(String detail) {
-        String nonBlankDetail = Objects.requireNonNull(detail, "detail");
-        if (nonBlankDetail.isBlank()) {
-            throw new IllegalArgumentException("detail must not be blank");
-        }
-        return nonBlankDetail;
+        super(detail, cause);
     }
 }

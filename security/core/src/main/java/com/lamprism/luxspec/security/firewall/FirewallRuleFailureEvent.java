@@ -16,7 +16,9 @@
 
 package com.lamprism.luxspec.security.firewall;
 
+import com.lamprism.luxspec.ErrorCode;
 import com.lamprism.luxspec.event.Event;
+import com.lamprism.luxspec.security.SecurityErrorCode;
 
 import java.util.Objects;
 
@@ -27,6 +29,7 @@ import java.util.Objects;
  */
 public final class FirewallRuleFailureEvent implements Event {
     private final String ruleType;
+    private final ErrorCode reasonCode;
 
     /**
      * Creates safe failure metadata without retaining the request or throwable.
@@ -34,7 +37,18 @@ public final class FirewallRuleFailureEvent implements Event {
      * @param ruleType the failing rule implementation type name
      */
     public FirewallRuleFailureEvent(String ruleType) {
+        this(ruleType, SecurityErrorCode.FIREWALL_RULE_FAILURE);
+    }
+
+    /**
+     * Creates safe failure metadata with an explicit stable failure reason.
+     *
+     * @param ruleType   the failing rule implementation type name
+     * @param reasonCode the stable failure reason
+     */
+    public FirewallRuleFailureEvent(String ruleType, ErrorCode reasonCode) {
         this.ruleType = Objects.requireNonNull(ruleType, "ruleType");
+        this.reasonCode = Objects.requireNonNull(reasonCode, "reasonCode");
     }
 
     /**
@@ -44,5 +58,14 @@ public final class FirewallRuleFailureEvent implements Event {
      */
     public String getRuleType() {
         return ruleType;
+    }
+
+    /**
+     * Returns the stable failure reason.
+     *
+     * @return the failure reason
+     */
+    public ErrorCode getReasonCode() {
+        return reasonCode;
     }
 }

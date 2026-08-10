@@ -1,0 +1,83 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.lamprism.luxspec.audit.integration;
+
+import com.lamprism.luxspec.audit.AuditActor;
+import com.lamprism.luxspec.audit.AuditFieldSet;
+import com.lamprism.luxspec.audit.AuditMetadata;
+import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
+import com.lamprism.luxspec.context.ExecutionContext;
+import com.lamprism.luxspec.context.ExecutionContextKeys;
+import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.security.authentication.Authentication;
+import com.lamprism.luxspec.security.authentication.SecurityContextKeys;
+import com.lamprism.luxspec.security.authentication.Subject;
+
+import java.util.Locale;
+
+/**
+ * Captures correlation and security identity from the current immutable execution context.
+ *
+ * <p>No credentials, grants, or provider-specific security objects are copied into audit
+ * metadata. An absent context produces {@link AuditActor#UNKNOWN}.</p>
+ *
+ * @author RollW
+ */
+public final class ExecutionContextAuditMetadataProvider implements AuditMetadataProvider {
+    @Override
+    public AuditMetadata capture() {
+        ExecutionContext context = ExecutionContexts.current().orElse(null);
+        if (context == null) {
+            return unknownMetadata();
+        }
+        Authentication authentication = context.get(SecurityContextKeys.AUTHENTICATION).orElse(null);
+        AuditActor actor = authentication == null ? AuditActor.unknown() : actor(authentication);
+        return new AuditMetadata(
+                actor,
+                context.get(ExecutionContextKeys.CORRELATION_ID).orElse(null),
+                AuditFieldSet.empty()
+        );
+    }
+
+    private static AuditMetadata unknownMetadata() {
+        return new AuditMetadata(AuditActor.unknown(), null, AuditFieldSet.empty());
+    }
+
+    private static AuditActor actor(Authentication authentication) {
+        Subject subject = authentication.subject();
+        String subjectType = subject.getType();
+        String subjectId = subject.getId();
+        AuditActor.Kind kind = kind(subjectType);
+        if (subjectId == null || subjectId.isBlank()) {
+            return AuditActor.of(kind, null);
+        }
+        return AuditActor.of(kind, subjectId);
+    }
+
+    private static AuditActor.Kind kind(String subjectType) {
+        if (subjectType == null || subjectType.isBlank()) {
+            return AuditActor.Kind.UNKNOWN;
+        }
+        return switch (subjectType.toLowerCase(Locale.ROOT)) {
+            case "user" -> AuditActor.Kind.USER;
+            case "service" -> AuditActor.Kind.SERVICE;
+            case "system" -> AuditActor.Kind.SYSTEM;
+            case "anonymous" -> AuditActor.Kind.ANONYMOUS;
+            default -> AuditActor.Kind.UNKNOWN;
+        };
+    }
+}

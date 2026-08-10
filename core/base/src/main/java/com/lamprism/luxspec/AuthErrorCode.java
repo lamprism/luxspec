@@ -47,6 +47,10 @@ public enum AuthErrorCode implements ErrorCode {
      */
     INVALID_CREDENTIALS("security:invalid-credentials"),
     /**
+     * Authentication failed because a trusted backend or authenticator encountered an unexpected failure.
+     */
+    AUTHENTICATION_FAILURE("security:authentication-failure"),
+    /**
      * The authenticated subject does not exist.
      */
     SUBJECT_NOT_FOUND("security:subject-not-found"),

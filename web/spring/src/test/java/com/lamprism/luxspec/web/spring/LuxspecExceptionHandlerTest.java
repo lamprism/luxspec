@@ -47,7 +47,7 @@ class LuxspecExceptionHandlerTest {
         assertEquals("common:invalid-argument", body.status().code());
         assertNull(body.status().message());
         assertNull(body.data());
-        assertNull(body.traceId());
+        assertNull(body.correlationId());
     }
 
     @Test

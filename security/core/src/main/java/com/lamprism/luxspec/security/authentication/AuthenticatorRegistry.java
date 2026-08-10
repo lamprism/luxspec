@@ -17,7 +17,11 @@
 package com.lamprism.luxspec.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
+import com.lamprism.luxspec.event.EventPublisher;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -25,10 +29,17 @@ import java.util.Objects;
 /**
  * Dispatches credentials to one authoritative authenticator by exact Java type.
  *
+ * <p>Authentication events should be published at one boundary. Applications that pass the same
+ * publisher to this registry and to a registered authenticator will receive duplicate attempt
+ * events.</p>
+ *
  * @author RollW
  */
 public final class AuthenticatorRegistry {
+    private static final String UNSUPPORTED_CREDENTIAL_TYPE = "unsupported";
     private final Map<Class<? extends Credentials>, Authenticator<?>> authenticators;
+    private final EventPublisher eventPublisher;
+    private final Clock clock;
 
     /**
      * Creates immutable exact-type authenticator registrations.
@@ -36,12 +47,43 @@ public final class AuthenticatorRegistry {
      * @param authenticators the authoritative authenticators
      */
     public AuthenticatorRegistry(Iterable<? extends Authenticator<?>> authenticators) {
+        this(authenticators, event -> {
+        }, Clock.systemUTC());
+    }
+
+    /**
+     * Creates immutable exact-type registrations with authentication event publication.
+     *
+     * @param authenticators the authoritative authenticators
+     * @param eventPublisher the authentication event publisher
+     */
+    public AuthenticatorRegistry(
+            Iterable<? extends Authenticator<?>> authenticators,
+            EventPublisher eventPublisher
+    ) {
+        this(authenticators, eventPublisher, Clock.systemUTC());
+    }
+
+    /**
+     * Creates immutable exact-type registrations with explicit event timing.
+     *
+     * @param authenticators the authoritative authenticators
+     * @param eventPublisher the authentication event publisher
+     * @param clock          the authentication event timestamp clock
+     */
+    public AuthenticatorRegistry(
+            Iterable<? extends Authenticator<?>> authenticators,
+            EventPublisher eventPublisher,
+            Clock clock
+    ) {
         Map<Class<? extends Credentials>, Authenticator<?>> registrations = new HashMap<>();
         Map<String, Class<? extends Credentials>> names = new HashMap<>();
         for (Authenticator<?> authenticator : authenticators) {
             register(registrations, names, Objects.requireNonNull(authenticator, "authenticator"));
         }
         this.authenticators = Map.copyOf(registrations);
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -53,14 +95,53 @@ public final class AuthenticatorRegistry {
      */
     public Authentication authenticate(Credentials credentials) {
         Objects.requireNonNull(credentials, "credentials");
+        Instant startedAt = clock.instant();
         Authenticator<?> authenticator = authenticators.get(credentials.getClass());
         if (authenticator == null) {
-            throw new AuthenticationException(
+            AuthenticationException failure = new AuthenticationException(
                     AuthErrorCode.UNSUPPORTED_CREDENTIALS,
                     "No authenticator is registered for the credential type"
             );
+            Instant completedAt = clock.instant();
+            eventPublisher.publish(AuthenticationEvent.failed(
+                    UNSUPPORTED_CREDENTIAL_TYPE,
+                    failure.getErrorCode(),
+                    completedAt,
+                    elapsedSince(startedAt, completedAt)
+            ));
+            throw failure;
         }
-        return authenticate(authenticator, credentials);
+        String credentialType = authenticator.getCredentialType().getName();
+        Authentication authentication;
+        try {
+            authentication = authenticate(authenticator, credentials);
+        } catch (AuthenticationException failure) {
+            Instant completedAt = clock.instant();
+            eventPublisher.publish(AuthenticationEvent.failed(
+                    credentialType,
+                    failure.getErrorCode(),
+                    completedAt,
+                    elapsedSince(startedAt, completedAt)
+            ));
+            throw failure;
+        } catch (RuntimeException failure) {
+            Instant completedAt = clock.instant();
+            eventPublisher.publish(AuthenticationEvent.failed(
+                    credentialType,
+                    AuthErrorCode.AUTHENTICATION_FAILURE,
+                    completedAt,
+                    elapsedSince(startedAt, completedAt)
+            ));
+            throw failure;
+        }
+        Instant completedAt = clock.instant();
+        eventPublisher.publish(AuthenticationEvent.succeeded(
+                credentialType,
+                authentication,
+                completedAt,
+                elapsedSince(startedAt, completedAt)
+        ));
+        return authentication;
     }
 
     private void register(
@@ -82,5 +163,10 @@ public final class AuthenticatorRegistry {
     @SuppressWarnings("unchecked")
     private <C extends Credentials> Authentication authenticate(Authenticator<C> authenticator, Credentials credentials) {
         return authenticator.authenticate((C) credentials);
+    }
+
+    private static Duration elapsedSince(Instant startedAt, Instant completedAt) {
+        Duration elapsed = Duration.between(startedAt, completedAt);
+        return elapsed.isNegative() ? Duration.ZERO : elapsed;
     }
 }

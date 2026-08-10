@@ -189,10 +189,11 @@ class JwtAccessTokenAdapterTest {
 
     private static final class Fixture {
         private final SecretKey activeKey = key("01234567890123456789012345678901");
+        private final KeySet keySet;
         private final JwtAccessTokenAdapter adapter;
 
         private Fixture() {
-            KeySet keySet = KeySet.withActiveKey(
+            keySet = KeySet.withActiveKey(
                     "active",
                     List.of(new KeyEntry("active", activeKey, activeKey))
             );

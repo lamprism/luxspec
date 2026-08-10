@@ -17,9 +17,10 @@
 package com.lamprism.luxspec.web.spring;
 
 import com.lamprism.luxspec.context.ContextKey;
+import com.lamprism.luxspec.context.CorrelationId;
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContexts;
-import com.lamprism.luxspec.web.TraceContext;
+import com.lamprism.luxspec.context.Slf4jMdcScope;
 import com.lamprism.luxspec.web.WebContextKeys;
 import com.lamprism.luxspec.web.WebRequestContext;
 import jakarta.servlet.FilterChain;
@@ -34,7 +35,7 @@ import java.util.Objects;
 /**
  * Creates and cleans the immutable Web request scope around one servlet request.
  *
- * <p>The filter retains request facts and a safe trace identifier, never the mutable servlet
+ * <p>The filter retains request facts and a safe correlation identifier, never the mutable servlet
  * request or response objects.</p>
  *
  * @author RollW
@@ -48,17 +49,18 @@ public final class LuxspecRequestContextFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        TraceContext traceContext = resolveTraceContext(request.getHeader(TRACE_ID_HEADER));
-        response.setHeader(TRACE_ID_HEADER, traceContext.traceId());
-        ExecutionContext context = createContext(request, traceContext);
-        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(context)) {
+        CorrelationId correlationId = resolveCorrelationId(request.getHeader(TRACE_ID_HEADER));
+        response.setHeader(TRACE_ID_HEADER, correlationId.value());
+        ExecutionContext context = createContext(request, correlationId);
+        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(context);
+             Slf4jMdcScope mdcScope = Slf4jMdcScope.open(context)) {
             filterChain.doFilter(request, response);
         }
     }
 
     private static ExecutionContext createContext(
             HttpServletRequest request,
-            TraceContext traceContext
+            CorrelationId correlationId
     ) {
         HttpServletRequest nonNullRequest = Objects.requireNonNull(request, "request");
         WebRequestContext requestContext = new WebRequestContext(
@@ -72,17 +74,17 @@ public final class LuxspecRequestContextFilter extends OncePerRequestFilter {
                 WebContextKeys.REQUEST,
                 requestContext
         );
-        return addOrReplace(withRequest, WebContextKeys.TRACE, traceContext);
+        return addOrReplace(withRequest, WebContextKeys.CORRELATION_ID, correlationId);
     }
 
-    private static TraceContext resolveTraceContext(String headerValue) {
+    private static CorrelationId resolveCorrelationId(String headerValue) {
         if (headerValue == null) {
-            return TraceContext.generated();
+            return CorrelationId.generated();
         }
         try {
-            return TraceContext.of(headerValue);
+            return CorrelationId.of(headerValue);
         } catch (IllegalArgumentException exception) {
-            return TraceContext.generated();
+            return CorrelationId.generated();
         }
     }
 

@@ -17,6 +17,10 @@
 package com.lamprism.luxspec.security.token.refresh.support;
 
 import com.lamprism.luxspec.AuthErrorCode;
+import com.lamprism.luxspec.CommonErrorCode;
+import com.lamprism.luxspec.ErrorCode;
+import com.lamprism.luxspec.ErrorCodeCarrier;
+import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
 import com.lamprism.luxspec.security.authentication.Subject;
@@ -26,6 +30,7 @@ import com.lamprism.luxspec.security.token.Token;
 import com.lamprism.luxspec.security.token.TokenHasher;
 import com.lamprism.luxspec.security.token.TokenIssuance;
 import com.lamprism.luxspec.security.token.TokenIssuer;
+import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
 import com.lamprism.luxspec.security.token.TokenRefresher;
 import com.lamprism.luxspec.security.token.TokenRotation;
 import com.lamprism.luxspec.security.token.TokenRotationResult;
@@ -66,6 +71,7 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
     private final Clock clock;
     private final Duration idleTimeout;
     private final Duration maximumLifetime;
+    private final EventPublisher eventPublisher;
 
     /**
      * Creates a store-backed Refresh Token lifecycle.
@@ -91,6 +97,47 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
             Duration idleTimeout,
             Duration maximumLifetime
     ) {
+        this(
+                sessionStore,
+                accessTokenIssuer,
+                tokenHasher,
+                sessionFactory,
+                authenticationResolver,
+                secureRandom,
+                clock,
+                idleTimeout,
+                maximumLifetime,
+                event -> {
+                }
+        );
+    }
+
+    /**
+     * Creates a store-backed Refresh Token lifecycle with security event publication.
+     *
+     * @param sessionStore           the authoritative Refresh Token Session store
+     * @param accessTokenIssuer      the issuer used for access-side Tokens
+     * @param tokenHasher            the one-way Refresh Token hasher
+     * @param sessionFactory         the application Session projection factory
+     * @param authenticationResolver the current Authentication resolver
+     * @param secureRandom           the cryptographically secure random source
+     * @param clock                  the lifecycle clock
+     * @param idleTimeout            the positive renewable idle timeout
+     * @param maximumLifetime        the positive non-renewable maximum lifetime
+     * @param eventPublisher         the token lifecycle event publisher
+     */
+    public StoredRefreshTokenLifecycle(
+            RefreshTokenSessionStore<S> sessionStore,
+            TokenIssuer accessTokenIssuer,
+            TokenHasher<RefreshToken> tokenHasher,
+            RefreshTokenSessionFactory<S> sessionFactory,
+            RefreshTokenAuthenticationResolver<S> authenticationResolver,
+            SecureRandom secureRandom,
+            Clock clock,
+            Duration idleTimeout,
+            Duration maximumLifetime,
+            EventPublisher eventPublisher
+    ) {
         this.sessionStore = Objects.requireNonNull(sessionStore, "sessionStore");
         this.accessTokenIssuer = Objects.requireNonNull(accessTokenIssuer, "accessTokenIssuer");
         this.tokenHasher = Objects.requireNonNull(tokenHasher, "tokenHasher");
@@ -100,12 +147,14 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
         this.clock = Objects.requireNonNull(clock, "clock");
         this.idleTimeout = requirePositive(idleTimeout, "idleTimeout");
         this.maximumLifetime = requirePositive(maximumLifetime, "maximumLifetime");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
     }
 
     @Override
     public TokenIssuance issue(Authentication authentication) {
         Authentication nonNullAuthentication = Objects.requireNonNull(authentication, "authentication");
-        Instant issuedAt = clock.instant();
+        Instant startedAt = clock.instant();
+        Instant issuedAt = startedAt;
         RefreshToken refreshToken = createRefreshToken();
         SessionLifetime lifetime = SessionLifetime.start(issuedAt, idleTimeout, maximumLifetime);
         S session = createSession(nonNullAuthentication, lifetime);
@@ -117,13 +166,21 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
                 lifetime.getIdleExpiresAt()
         );
         sessionStore.create(session, tokenHasher.hash(refreshToken));
+        Instant completedAt = clock.instant();
+        eventPublisher.publish(TokenLifecycleEvent.issued(
+                nonNullAuthentication.subject(),
+                completeIssuance,
+                completedAt,
+                elapsedSince(startedAt, completedAt)
+        ));
         return completeIssuance;
     }
 
     @Override
     public TokenIssuance refresh(RefreshToken refreshToken) {
         RefreshToken nonNullRefreshToken = Objects.requireNonNull(refreshToken, "refreshToken");
-        Instant rotatedAt = clock.instant();
+        Instant startedAt = clock.instant();
+        Instant rotatedAt = startedAt;
         RefreshToken successor = createRefreshToken();
         TokenRotation<RefreshToken> rotation = new TokenRotation<>(
                 tokenHasher.hash(nonNullRefreshToken),
@@ -132,16 +189,28 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
         );
         TokenRotationResult<S> result = sessionStore.rotate(rotation);
         if (result instanceof TokenRotationResult.Rejected<S>) {
-            throw rejected();
+            AuthenticationException failure = rejected();
+            publishRejected(startedAt, failure);
+            throw failure;
         }
         TokenRotationResult.Succeeded<S> succeeded = (TokenRotationResult.Succeeded<S>) result;
         S session = succeeded.getState();
+        TokenIssuance issuance;
         try {
-            return issueSuccessor(session, successor, rotatedAt);
+            issuance = issueSuccessor(session, successor, rotatedAt);
         } catch (RuntimeException | Error failure) {
             revokeAfterFailure(session, rotatedAt, failure);
+            publishFailed(startedAt, session.getSubject(), failure);
             throw failure;
         }
+        Instant completedAt = clock.instant();
+        eventPublisher.publish(TokenLifecycleEvent.refreshed(
+                session.getSubject(),
+                issuance,
+                completedAt,
+                elapsedSince(startedAt, completedAt)
+        ));
+        return issuance;
     }
 
     private TokenIssuance issueSuccessor(S session, RefreshToken successor, Instant issuedAt) {
@@ -252,5 +321,39 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
                 AuthErrorCode.REFRESH_TOKEN_REJECTED,
                 "Refresh Token was rejected"
         );
+    }
+
+    private void publishRejected(Instant startedAt, AuthenticationException failure) {
+        Instant completedAt = clock.instant();
+        eventPublisher.publish(TokenLifecycleEvent.rejected(
+                TokenLifecycleEvent.Operation.REFRESH,
+                null,
+                failure.getErrorCode(),
+                completedAt,
+                elapsedSince(startedAt, completedAt)
+        ));
+    }
+
+    private void publishFailed(Instant startedAt, Subject subject, Throwable failure) {
+        Instant completedAt = clock.instant();
+        eventPublisher.publish(TokenLifecycleEvent.failed(
+                TokenLifecycleEvent.Operation.REFRESH,
+                subject,
+                errorCode(failure),
+                completedAt,
+                elapsedSince(startedAt, completedAt)
+        ));
+    }
+
+    private static ErrorCode errorCode(Throwable failure) {
+        if (failure instanceof ErrorCodeCarrier carrier) {
+            return carrier.getErrorCode();
+        }
+        return CommonErrorCode.INTERNAL;
+    }
+
+    private static Duration elapsedSince(Instant startedAt, Instant completedAt) {
+        Duration elapsed = Duration.between(startedAt, completedAt);
+        return elapsed.isNegative() ? Duration.ZERO : elapsed;
     }
 }
