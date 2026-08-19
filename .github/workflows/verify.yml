@@ -3,7 +3,8 @@ name: Verify
 on:
   push:
     branches:
-      - "**"
+      - master
+      - main
     paths-ignore:
       - "**/*.md"
       - "docs/**"
