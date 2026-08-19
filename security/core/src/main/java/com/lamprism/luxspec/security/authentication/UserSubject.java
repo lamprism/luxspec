@@ -23,7 +23,10 @@ package com.lamprism.luxspec.security.authentication;
  * @author RollW
  */
 public final class UserSubject implements Subject {
+    public static final String TYPE = "user";
+
     private final long userId;
+    private final String id;
 
     /**
      * Creates a user subject with a positive stable user identifier.
@@ -35,6 +38,7 @@ public final class UserSubject implements Subject {
             throw new IllegalArgumentException("userId must be positive");
         }
         this.userId = userId;
+        this.id = Long.toString(userId);
     }
 
     /**
@@ -48,11 +52,11 @@ public final class UserSubject implements Subject {
 
     @Override
     public String getType() {
-        return "user";
+        return TYPE;
     }
 
     @Override
     public String getId() {
-        return Long.toString(userId);
+        return id;
     }
 }

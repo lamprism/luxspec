@@ -1,6 +1,7 @@
 package com.lamprism.luxspec.config;
 
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 
 import java.util.Objects;
 
@@ -11,6 +12,11 @@ final class DelegatingConfigProvider implements ConfigProvider {
     DelegatingConfigProvider(ConfigReader reader, ConfigWriter writer) {
         this.reader = Objects.requireNonNull(reader, "reader");
         this.writer = Objects.requireNonNull(writer, "writer");
+    }
+
+    @Override
+    public ConfigSourceScope getSourceScope() {
+        return reader.getSourceScope();
     }
 
     @Override

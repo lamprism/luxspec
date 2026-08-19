@@ -62,6 +62,16 @@ public final class AuditFieldSet {
         return Optional.of(nonNullField.getValueType().cast(value));
     }
 
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof AuditFieldSet fieldSet && values.equals(fieldSet.values);
+    }
+
+    @Override
+    public int hashCode() {
+        return values.hashCode();
+    }
+
     /**
      * Builds an immutable field set.
      */

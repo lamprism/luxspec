@@ -18,8 +18,8 @@ package com.lamprism.luxspec.security.firewall;
 
 import com.lamprism.luxspec.ErrorCode;
 import com.lamprism.luxspec.event.Event;
-import com.lamprism.luxspec.security.SecurityErrorCode;
 
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -30,25 +30,19 @@ import java.util.Objects;
 public final class FirewallRuleFailureEvent implements Event {
     private final String ruleType;
     private final ErrorCode reasonCode;
+    private final Instant occurredAt;
 
     /**
      * Creates safe failure metadata without retaining the request or throwable.
      *
-     * @param ruleType the failing rule implementation type name
-     */
-    public FirewallRuleFailureEvent(String ruleType) {
-        this(ruleType, SecurityErrorCode.FIREWALL_RULE_FAILURE);
-    }
-
-    /**
-     * Creates safe failure metadata with an explicit stable failure reason.
-     *
      * @param ruleType   the failing rule implementation type name
      * @param reasonCode the stable failure reason
+     * @param occurredAt the failure completion time
      */
-    public FirewallRuleFailureEvent(String ruleType, ErrorCode reasonCode) {
+    public FirewallRuleFailureEvent(String ruleType, ErrorCode reasonCode, Instant occurredAt) {
         this.ruleType = Objects.requireNonNull(ruleType, "ruleType");
         this.reasonCode = Objects.requireNonNull(reasonCode, "reasonCode");
+        this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
     }
 
     /**
@@ -67,5 +61,14 @@ public final class FirewallRuleFailureEvent implements Event {
      */
     public ErrorCode getReasonCode() {
         return reasonCode;
+    }
+
+    /**
+     * Returns the failure completion time.
+     *
+     * @return the completion time
+     */
+    public Instant getOccurredAt() {
+        return occurredAt;
     }
 }

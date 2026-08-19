@@ -21,7 +21,6 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.authentication.AuthenticationEvent;
 
@@ -30,18 +29,19 @@ import com.lamprism.luxspec.security.authentication.AuthenticationEvent;
  *
  * @author RollW
  */
-public final class AuthenticationAuditTranslator implements AuditEventTranslator<AuthenticationEvent> {
+public class AuthenticationAuditTranslator implements AuditEventTranslator<AuthenticationEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<AuthenticationEvent> envelope) {
         AuthenticationEvent event = envelope.event();
         AuditFieldSet.Builder fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.SECURITY_CREDENTIAL_TYPE, event.getCredentialType())
-                .put(LuxspecAuditFields.SECURITY_DURATION_MILLIS, event.getDuration().toMillis());
-        SecurityAuditTranslationSupport.putSubject(fields, event.getSubject());
+                .put(SecurityAuditFields.SECURITY_CREDENTIAL_TYPE, event.getCredentialType())
+                .put(SecurityAuditFields.SECURITY_DURATION_MILLIS, event.getDuration().toMillis());
+        SubjectAuditProjection.putSubject(fields, event.getSubject());
         if (event.getErrorCode() != null) {
-            fields.put(LuxspecAuditFields.SECURITY_REASON_CODE, event.getErrorCode().getCode());
+            fields.put(SecurityAuditFields.SECURITY_REASON_CODE, event.getErrorCode().getCode());
         }
         return AuditEntryContent.of(
+                event.getOccurredAt(),
                 AuditAction.of("security.authentication"),
                 event.isSuccessful() ? AuditOutcome.SUCCESS : AuditOutcome.FAILURE,
                 null,

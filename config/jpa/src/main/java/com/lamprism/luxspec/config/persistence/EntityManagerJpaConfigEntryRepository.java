@@ -29,7 +29,7 @@ import java.util.Optional;
  *
  * @author RollW
  */
-public final class EntityManagerJpaConfigEntryRepository implements JpaConfigEntryRepository {
+public class EntityManagerJpaConfigEntryRepository implements JpaConfigEntryRepository {
     private final EntityManager entityManager;
 
     /**

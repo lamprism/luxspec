@@ -16,24 +16,35 @@
 
 package com.lamprism.luxspec.audit.integration.user;
 
+import com.lamprism.luxspec.audit.AuditAction;
 import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
+import com.lamprism.luxspec.audit.AuditFieldSet;
+import com.lamprism.luxspec.audit.AuditOutcome;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
+import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.lifecycle.UserRenamedEvent;
+import com.lamprism.luxspec.user.resource.UserResourceTypes;
 
 /**
  * Translates a user rename without exposing the new username.
  *
  * @author RollW
  */
-public final class UserRenamedAuditTranslator implements AuditEventTranslator<UserRenamedEvent> {
+public class UserRenamedAuditTranslator implements AuditEventTranslator<UserRenamedEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserRenamedEvent> envelope) {
         UserRenamedEvent event = envelope.event();
-        return UserAuditTranslationSupport.userEntry(
-                "user.rename",
-                event.getUserId(),
-                UserAuditTranslationSupport.userIdFields(event.getUserId())
+        AuditFieldSet fields = AuditFieldSet.builder()
+                .put(UserAuditFields.USER_ID, event.getUserId())
+                .build();
+        return AuditEntryContent.of(
+                event.getOccurredAt(),
+                AuditAction.of("user.rename"),
+                AuditOutcome.SUCCESS,
+                new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
+                fields,
+                null
         );
     }
 }

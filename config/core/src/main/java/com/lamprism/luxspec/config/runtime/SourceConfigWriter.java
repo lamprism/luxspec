@@ -2,10 +2,10 @@ package com.lamprism.luxspec.config.runtime;
 
 import com.lamprism.luxspec.cache.CacheInvalidator;
 import com.lamprism.luxspec.config.ConfigBinding;
+import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.ConfigReader;
 import com.lamprism.luxspec.config.ConfigValue;
 import com.lamprism.luxspec.config.ConfigWriter;
-import com.lamprism.luxspec.config.cache.ConfigCacheKey;
 import com.lamprism.luxspec.config.cache.FreshConfigReader;
 import com.lamprism.luxspec.config.event.ConfigChangedEvent;
 import com.lamprism.luxspec.config.event.ConfigSourceChangeType;
@@ -36,7 +36,7 @@ public class SourceConfigWriter implements ConfigWriter {
     private final @Nullable ConfigSourceId defaultSourceId;
     private final EventPublisher eventPublisher;
     private final @Nullable ConfigReader effectiveReader;
-    private final CacheInvalidator<ConfigCacheKey> cacheInvalidator;
+    private final CacheInvalidator<ConfigKey> cacheInvalidator;
 
     /**
      * Creates a writer with no default source and a no-op event publisher.
@@ -98,7 +98,7 @@ public class SourceConfigWriter implements ConfigWriter {
             @Nullable ConfigSourceId defaultSourceId,
             EventPublisher eventPublisher,
             @Nullable ConfigReader effectiveReader,
-            CacheInvalidator<ConfigCacheKey> cacheInvalidator
+            CacheInvalidator<ConfigKey> cacheInvalidator
     ) {
         Map<ConfigSourceId, ConfigSource> indexed = new LinkedHashMap<>();
         for (ConfigSource source : Objects.requireNonNull(sources, "sources")) {
@@ -213,11 +213,7 @@ public class SourceConfigWriter implements ConfigWriter {
             throw new ConfigValueValidationException("Configuration value failed validation");
         }
         try {
-            RawConfigValue rawValue = binding.getSpec().getCodec().encode(value);
-            if (rawValue == null) {
-                throw new IllegalStateException("Codec returned no raw value");
-            }
-            return rawValue;
+            return binding.getSpec().getCodec().encode(value);
         } catch (RuntimeException exception) {
             throw new ConfigValueValidationException("Configuration value could not be encoded");
         }
@@ -239,8 +235,8 @@ public class SourceConfigWriter implements ConfigWriter {
             @Nullable ConfigValue<?> previous,
             ConfigSourceChangeType changeType
     ) {
+        cacheInvalidator.invalidate(binding.getKey());
         eventPublisher.publish(new ConfigSourceChangedEvent(source.getId(), binding.getKey(), changeType));
-        cacheInvalidator.invalidate(ConfigCacheKey.of(binding));
         if (previous == null || effectiveReader == null) {
             return;
         }

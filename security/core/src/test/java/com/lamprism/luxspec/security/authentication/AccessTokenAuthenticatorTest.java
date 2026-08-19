@@ -20,11 +20,10 @@ import com.lamprism.luxspec.AuthErrorCode;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import com.lamprism.luxspec.security.authorization.AuthorizationScope;
 import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
-import com.lamprism.luxspec.security.token.TokenVerifier;
 import com.lamprism.luxspec.security.token.access.AccessToken;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
+import com.lamprism.luxspec.security.token.access.AccessTokenVerifier;
 import com.lamprism.luxspec.security.token.access.EventPublishingAccessTokenRevocationStore;
-import com.lamprism.luxspec.security.token.access.NoOpAccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
 import org.junit.jupiter.api.Test;
 
@@ -50,16 +49,19 @@ class AccessTokenAuthenticatorTest {
     );
 
     @Test
-    void authenticatesWithoutAnOptionalRevocationStore() {
+    void authenticatesWithAnExplicitRevocationStore() {
         TestSubjectResolver subjectResolver = new TestSubjectResolver();
+        TrackingRevocationStore revocationStore = new TrackingRevocationStore();
         AccessTokenAuthenticator authenticator = new AccessTokenAuthenticator(
                 new TestTokenVerifier(),
-                subjectResolver
+                subjectResolver,
+                revocationStore
         );
 
         Authentication authentication = authenticator.authenticate(credentials());
 
-        assertEquals(new UserSubject(42L).getId(), authentication.subject().getId());
+        assertEquals("user", authentication.subject().getType());
+        assertEquals("42", authentication.subject().getId());
         assertEquals(VERIFIED_TOKEN.getGrants(), authentication.grants());
         assertEquals(1, subjectResolver.getInvocationCount());
     }
@@ -86,38 +88,6 @@ class AccessTokenAuthenticatorTest {
     }
 
     @Test
-    void publishesSafeAuthenticationEvents() {
-        List<AuthenticationEvent> events = new ArrayList<>();
-        TestSubjectResolver subjectResolver = new TestSubjectResolver();
-        AccessTokenAuthenticator successfulAuthenticator = new AccessTokenAuthenticator(
-                new TestTokenVerifier(),
-                subjectResolver,
-                NoOpAccessTokenRevocationStore.getInstance(),
-                event -> events.add((AuthenticationEvent) event),
-                Clock.fixed(Instant.parse("2026-08-09T00:00:00Z"), ZoneOffset.UTC)
-        );
-
-        successfulAuthenticator.authenticate(credentials());
-
-        TrackingRevocationStore revocationStore = new TrackingRevocationStore();
-        revocationStore.revoke(VERIFIED_TOKEN);
-        AccessTokenAuthenticator failedAuthenticator = new AccessTokenAuthenticator(
-                new TestTokenVerifier(),
-                subjectResolver,
-                revocationStore,
-                event -> events.add((AuthenticationEvent) event),
-                Clock.fixed(Instant.parse("2026-08-09T00:00:00Z"), ZoneOffset.UTC)
-        );
-        assertThrows(AuthenticationException.class, () -> failedAuthenticator.authenticate(credentials()));
-
-        assertEquals(2, events.size());
-        assertEquals(true, events.get(0).isSuccessful());
-        assertEquals("user", events.get(0).getSubject().getType());
-        assertEquals(false, events.get(1).isSuccessful());
-        assertEquals(AuthErrorCode.ACCESS_TOKEN_REVOKED, events.get(1).getErrorCode());
-    }
-
-    @Test
     void publishesAccessTokenRevocationWithoutTheTokenIdentifier() {
         List<TokenLifecycleEvent> events = new ArrayList<>();
         TrackingRevocationStore delegate = new TrackingRevocationStore();
@@ -140,8 +110,7 @@ class AccessTokenAuthenticatorTest {
         return new AccessTokenCredentials(new AccessToken("encoded-access-token"));
     }
 
-    private static final class TestTokenVerifier
-            implements TokenVerifier<AccessToken, VerifiedAccessToken> {
+    private static final class TestTokenVerifier implements AccessTokenVerifier {
         @Override
         public VerifiedAccessToken verify(AccessToken accessToken) {
             Objects.requireNonNull(accessToken, "accessToken");
@@ -153,12 +122,12 @@ class AccessTokenAuthenticatorTest {
         private int invocationCount;
 
         @Override
-        public Subject resolve(String subjectType, String subjectId) {
-            if (!"user".equals(subjectType)) {
+        public Subject resolve(String type, String id) {
+            if (!"user".equals(type)) {
                 throw new IllegalArgumentException("Unexpected subject type");
             }
             invocationCount++;
-            return new UserSubject(Long.parseLong(subjectId));
+            return new UserSubject(Long.parseLong(id));
         }
 
         private int getInvocationCount() {

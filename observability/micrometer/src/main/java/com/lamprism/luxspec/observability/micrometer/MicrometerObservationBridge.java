@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author RollW
  */
-public final class MicrometerObservationBridge implements AutoCloseable {
+public class MicrometerObservationBridge implements AutoCloseable {
     private final io.micrometer.observation.ObservationRegistry observationRegistry;
     private final ObservationRegistryEventSource events;
     private final Map<ObservationId, ProviderObservation> observations = new ConcurrentHashMap<>();
@@ -92,6 +92,7 @@ public final class MicrometerObservationBridge implements AutoCloseable {
             if (parent != null) {
                 providerObservation.parentObservation(parent.observation);
             }
+            MicrometerObservationLinkContext.put(providerObservation.getContext(), view.links());
             applyAttributes(providerObservation, view.attributes());
             providerObservation.start();
             observations.put(view.id(), new ProviderObservation(providerObservation));

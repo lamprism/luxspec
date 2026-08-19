@@ -23,7 +23,7 @@ import com.lamprism.luxspec.audit.AuditEventId;
  *
  * @author RollW
  */
-public final class UuidAuditEventIdGenerator implements AuditEventIdGenerator {
+public class UuidAuditEventIdGenerator implements AuditEventIdGenerator {
     @Override
     public AuditEventId nextId(String eventName) {
         return AuditEventId.generated();

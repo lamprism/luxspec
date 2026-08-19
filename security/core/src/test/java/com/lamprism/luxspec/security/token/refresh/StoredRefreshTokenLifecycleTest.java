@@ -73,7 +73,7 @@ class StoredRefreshTokenLifecycleTest {
         assertEquals(List.of(AccessToken.KIND), List.copyOf(accessOnly.getKinds()));
         assertTrue(refreshEnabled.find(AccessToken.KIND).isPresent());
         assertTrue(refreshEnabled.find(RefreshToken.KIND).isPresent());
-        assertEquals(1, fixture.store.getSessionCount());
+        assertEquals(1, fixture.store.sessionCount());
     }
 
     @Test
@@ -86,11 +86,12 @@ class StoredRefreshTokenLifecycleTest {
         RefreshTokenSessionId sessionId = fixture.store.getSessionId(digest);
         RefreshTokenSession session = fixture.store.getSession(sessionId);
 
+        assertEquals(new UserSubject(42L).getType(), session.getSubject().getType());
         assertEquals(new UserSubject(42L).getId(), session.getSubject().getId());
         assertEquals(initialAuthentication().grants(), session.getAuthorizationCeiling());
         assertEquals(ISSUED_AT, session.getLifetime().getCreatedAt());
         assertEquals(ISSUED_AT.plus(IDLE_TIMEOUT), issuedRefreshToken.getExpiresAt());
-        assertEquals(1, fixture.store.getDigestCount());
+        assertEquals(1, fixture.store.digestCount());
         assertFalse(digest.toString().contains(issuedRefreshToken.getToken().getValue()));
     }
 
@@ -137,7 +138,7 @@ class StoredRefreshTokenLifecycleTest {
         );
 
         assertEquals(AuthErrorCode.REFRESH_TOKEN_REJECTED, exception.getErrorCode());
-        assertEquals(1, fixture.store.getDigestCount());
+        assertEquals(1, fixture.store.digestCount());
         assertFalse(fixture.store.isConsumed(digest));
     }
 
@@ -159,7 +160,7 @@ class StoredRefreshTokenLifecycleTest {
         assertEquals(ISSUED_AT.plus(MAXIMUM_LIFETIME), session.getLifetime().getIdleExpiresAt());
         assertEquals(ISSUED_AT.plus(MAXIMUM_LIFETIME), session.getLifetime().getAbsoluteExpiresAt());
         assertThrows(AuthenticationException.class, () -> fixture.lifecycle.refresh(successor));
-        assertEquals(2, fixture.store.getDigestCount());
+        assertEquals(2, fixture.store.digestCount());
     }
 
     @Test
@@ -207,7 +208,7 @@ class StoredRefreshTokenLifecycleTest {
 
             assertEquals(1, successCount);
             assertTrue(fixture.store.isRevoked(fixture.store.getSessionId(initialDigest)));
-            assertEquals(2, fixture.store.getDigestCount());
+            assertEquals(2, fixture.store.digestCount());
         } finally {
             executor.shutdownNow();
         }
@@ -223,8 +224,8 @@ class StoredRefreshTokenLifecycleTest {
         );
 
         assertEquals(AuthErrorCode.REFRESH_TOKEN_REJECTED, exception.getErrorCode());
-        assertEquals(0, fixture.store.getSessionCount());
-        assertEquals(0, fixture.store.getDigestCount());
+        assertEquals(0, fixture.store.sessionCount());
+        assertEquals(0, fixture.store.digestCount());
     }
 
     @Test

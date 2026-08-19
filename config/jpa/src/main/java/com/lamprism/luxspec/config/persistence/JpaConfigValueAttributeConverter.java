@@ -44,7 +44,7 @@ import java.util.List;
  * @author RollW
  */
 @Converter
-public final class JpaConfigValueAttributeConverter implements AttributeConverter<RawConfigValue, String> {
+public class JpaConfigValueAttributeConverter implements AttributeConverter<RawConfigValue, String> {
     private static final String KIND_FIELD = "kind";
     private static final String VALUE_FIELD = "value";
     private static final String VALUES_FIELD = "values";

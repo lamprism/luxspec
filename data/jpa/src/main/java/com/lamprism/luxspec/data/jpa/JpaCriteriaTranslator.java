@@ -41,7 +41,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class JpaCriteriaTranslator {
+public class JpaCriteriaTranslator {
     /**
      * Creates a stateless typed Criteria API translator.
      */
@@ -62,7 +62,7 @@ public final class JpaCriteriaTranslator {
             Root<T> root,
             QueryCriteria criteria
     ) {
-        return predicate(builder, root, criteria, JpaFieldResolver.byAttributeName());
+        return predicate(builder, root, criteria, JpaQueryFieldResolver.byAttributeName());
     }
 
     /**
@@ -81,11 +81,14 @@ public final class JpaCriteriaTranslator {
             QueryCriteria criteria,
             JpaFieldNamingStrategy namingStrategy
     ) {
-        return predicate(builder, root, criteria, JpaFieldResolver.byAttributeName(namingStrategy));
+        return predicate(builder, root, criteria, JpaQueryFieldResolver.byAttributeName(namingStrategy));
     }
 
     /**
      * Creates a predicate for the complete structured filter expression.
+     *
+     * <p>This overload is an advanced mapping extension point. Use the overload without a
+     * resolver for direct same-name attributes.</p>
      *
      * @param builder       the JPA criteria builder
      * @param root          the query entity root
@@ -98,7 +101,7 @@ public final class JpaCriteriaTranslator {
             CriteriaBuilder builder,
             Root<T> root,
             QueryCriteria criteria,
-            JpaFieldResolver<T> fieldResolver
+            JpaQueryFieldResolver<T> fieldResolver
     ) {
         return new PredicateTranslator<>(builder, root, criteria, fieldResolver).translate();
     }
@@ -117,7 +120,7 @@ public final class JpaCriteriaTranslator {
             Root<T> root,
             QueryCriteria criteria
     ) {
-        return orders(builder, root, criteria, JpaFieldResolver.byAttributeName());
+        return orders(builder, root, criteria, JpaQueryFieldResolver.byAttributeName());
     }
 
     /**
@@ -136,11 +139,14 @@ public final class JpaCriteriaTranslator {
             QueryCriteria criteria,
             JpaFieldNamingStrategy namingStrategy
     ) {
-        return orders(builder, root, criteria, JpaFieldResolver.byAttributeName(namingStrategy));
+        return orders(builder, root, criteria, JpaQueryFieldResolver.byAttributeName(namingStrategy));
     }
 
     /**
      * Creates JPA ordering terms for the supplied explicit typed ordering.
+     *
+     * <p>This overload is an advanced mapping extension point. Use the overload without a
+     * resolver for direct same-name attributes.</p>
      *
      * @param builder       the JPA criteria builder
      * @param root          the query entity root
@@ -153,12 +159,12 @@ public final class JpaCriteriaTranslator {
             CriteriaBuilder builder,
             Root<T> root,
             QueryCriteria criteria,
-            JpaFieldResolver<T> fieldResolver
+            JpaQueryFieldResolver<T> fieldResolver
     ) {
         CriteriaBuilder nonNullBuilder = Objects.requireNonNull(builder, "builder");
         Root<T> nonNullRoot = Objects.requireNonNull(root, "root");
         QueryCriteria nonNullCriteria = Objects.requireNonNull(criteria, "criteria");
-        JpaFieldResolver<T> nonNullFieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
+        JpaQueryFieldResolver<T> nonNullFieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
         List<Order> orders = new ArrayList<>();
         for (OrderBy<?> order : nonNullCriteria.getOrders()) {
             orders.add(order(nonNullBuilder, nonNullRoot, order, nonNullFieldResolver));
@@ -170,7 +176,7 @@ public final class JpaCriteriaTranslator {
             CriteriaBuilder builder,
             Root<T> root,
             OrderBy<V> order,
-            JpaFieldResolver<T> fieldResolver
+            JpaQueryFieldResolver<T> fieldResolver
     ) {
         Expression<V> expression = fieldResolver.resolve(root, order.getField());
         if (order.getDirection() == OrderBy.Direction.ASCENDING) {
@@ -183,13 +189,13 @@ public final class JpaCriteriaTranslator {
         private final CriteriaBuilder builder;
         private final Root<T> root;
         private final QueryCriteria criteria;
-        private final JpaFieldResolver<T> fieldResolver;
+        private final JpaQueryFieldResolver<T> fieldResolver;
 
         private PredicateTranslator(
                 CriteriaBuilder builder,
                 Root<T> root,
                 QueryCriteria criteria,
-                JpaFieldResolver<T> fieldResolver
+                JpaQueryFieldResolver<T> fieldResolver
         ) {
             this.builder = Objects.requireNonNull(builder, "builder");
             this.root = Objects.requireNonNull(root, "root");

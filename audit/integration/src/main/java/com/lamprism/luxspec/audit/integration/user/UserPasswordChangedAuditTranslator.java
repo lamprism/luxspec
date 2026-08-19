@@ -16,9 +16,14 @@
 
 package com.lamprism.luxspec.audit.integration.user;
 
+import com.lamprism.luxspec.audit.AuditAction;
 import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
+import com.lamprism.luxspec.audit.AuditFieldSet;
+import com.lamprism.luxspec.audit.AuditOutcome;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
+import com.lamprism.luxspec.resource.ResourceReference;
+import com.lamprism.luxspec.user.resource.UserResourceTypes;
 import com.lamprism.luxspec.user.security.password.UserPasswordChangedEvent;
 
 /**
@@ -27,14 +32,20 @@ import com.lamprism.luxspec.user.security.password.UserPasswordChangedEvent;
  *
  * @author RollW
  */
-public final class UserPasswordChangedAuditTranslator implements AuditEventTranslator<UserPasswordChangedEvent> {
+public class UserPasswordChangedAuditTranslator implements AuditEventTranslator<UserPasswordChangedEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserPasswordChangedEvent> envelope) {
         UserPasswordChangedEvent event = envelope.event();
-        return UserAuditTranslationSupport.userEntry(
-                "user.password.change",
-                event.getUserId(),
-                UserAuditTranslationSupport.userIdFields(event.getUserId())
+        AuditFieldSet fields = AuditFieldSet.builder()
+                .put(UserAuditFields.USER_ID, event.getUserId())
+                .build();
+        return AuditEntryContent.of(
+                event.getOccurredAt(),
+                AuditAction.of("user.password.change"),
+                AuditOutcome.SUCCESS,
+                new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
+                fields,
+                null
         );
     }
 }

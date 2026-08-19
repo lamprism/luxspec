@@ -1,6 +1,7 @@
 package com.lamprism.luxspec.config.definition;
 
 import com.lamprism.luxspec.config.ConfigCodec;
+import com.lamprism.luxspec.config.ConfigDescription;
 import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.ConfigSpec;
 import com.lamprism.luxspec.config.ConfigValueValidator;
@@ -12,6 +13,7 @@ import java.util.Objects;
 public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
     private final ConfigKey key;
     private final ConfigCodec<T> codec;
+    private final ConfigDescription description;
     private final @Nullable T defaultValue;
     private final boolean sensitive;
     private final ConfigPolicy policy;
@@ -20,6 +22,7 @@ public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
     public DefaultConfigSpec(
             ConfigKey key,
             ConfigCodec<T> codec,
+            ConfigDescription description,
             @Nullable T defaultValue,
             boolean sensitive,
             ConfigValueValidator<T> validator,
@@ -27,6 +30,7 @@ public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
     ) {
         this.key = Objects.requireNonNull(key, "key");
         this.codec = Objects.requireNonNull(codec, "codec");
+        this.description = Objects.requireNonNull(description, "description");
         this.defaultValue = defaultValue;
         this.sensitive = sensitive;
         this.policy = Objects.requireNonNull(policy, "policy");
@@ -44,6 +48,11 @@ public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
     @Override
     public ConfigCodec<T> getCodec() {
         return codec;
+    }
+
+    @Override
+    public ConfigDescription getDescription() {
+        return description;
     }
 
     @Override

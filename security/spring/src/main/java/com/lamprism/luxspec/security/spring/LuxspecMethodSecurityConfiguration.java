@@ -30,5 +30,5 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
  */
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity(securedEnabled = true)
-public final class LuxspecMethodSecurityConfiguration {
+public class LuxspecMethodSecurityConfiguration {
 }

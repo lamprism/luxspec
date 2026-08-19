@@ -19,11 +19,14 @@ package com.lamprism.luxspec.observability.runtime.health;
 import com.lamprism.luxspec.observability.health.HealthContributor;
 import com.lamprism.luxspec.observability.health.HealthGroup;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
+import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -37,6 +40,7 @@ public final class HealthRegistryBuilder {
     private final Executor executor;
     private final Map<String, HealthContributor> contributors = new LinkedHashMap<>();
     private final Map<HealthGroup, LinkedHashSet<String>> groups = new EnumMap<>(HealthGroup.class);
+    private final List<ObservabilitySet> sets = new ArrayList<>();
     private Duration timeout;
 
     private HealthRegistryBuilder(Executor executor) {
@@ -67,6 +71,17 @@ public final class HealthRegistryBuilder {
         return this;
     }
 
+    /**
+     * Selects one domain contribution for this health registry.
+     *
+     * @param set the selected observability set
+     * @return this builder
+     */
+    public HealthRegistryBuilder set(ObservabilitySet set) {
+        sets.add(Objects.requireNonNull(set, "set"));
+        return this;
+    }
+
     public HealthRegistryBuilder timeout(Duration timeout) {
         Duration nonNullTimeout = Objects.requireNonNull(timeout, "timeout");
         if (nonNullTimeout.isZero() || nonNullTimeout.isNegative()) {
@@ -82,6 +97,10 @@ public final class HealthRegistryBuilder {
     }
 
     public HealthRegistry build() {
+        for (ObservabilitySet set : sets) {
+            set.registerHealth(this);
+        }
+        sets.clear();
         for (Map.Entry<HealthGroup, LinkedHashSet<String>> entry : groups.entrySet()) {
             for (String name : entry.getValue()) {
                 if (!contributors.containsKey(name)) {

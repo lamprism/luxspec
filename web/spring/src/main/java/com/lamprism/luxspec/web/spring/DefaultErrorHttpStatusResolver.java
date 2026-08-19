@@ -27,7 +27,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class DefaultErrorHttpStatusResolver implements ErrorHttpStatusResolver {
+public class DefaultErrorHttpStatusResolver implements ErrorHttpStatusResolver {
     @Override
     public HttpStatusCode resolve(ErrorCode errorCode) {
         ErrorCode nonNullErrorCode = Objects.requireNonNull(errorCode, "errorCode");

@@ -31,7 +31,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class EventPublishingAccessTokenRevocationStore implements AccessTokenRevocationStore {
+public class EventPublishingAccessTokenRevocationStore implements AccessTokenRevocationStore {
     private final AccessTokenRevocationStore delegate;
     private final EventPublisher eventPublisher;
     private final Clock clock;

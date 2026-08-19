@@ -22,6 +22,7 @@ import com.lamprism.luxspec.context.ExecutionContexts;
 import com.lamprism.luxspec.web.WebContextKeys;
 import com.lamprism.luxspec.web.WebRequestContext;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.Ordered;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -35,6 +36,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LuxspecRequestContextFilterTest {
+    @Test
+    void runsBeforeSecurityFilters() {
+        assertEquals(Ordered.HIGHEST_PRECEDENCE, new LuxspecRequestContextFilter().getOrder());
+    }
+
     @Test
     void opensRequestAndCorrelationValuesAndReturnsTheCorrelationHeader() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/accounts");
@@ -60,7 +66,7 @@ class LuxspecRequestContextFilterTest {
     }
 
     @Test
-    void preservesAnOuterContextAndCleansUpWhenTheChainFails() throws Exception {
+    void isolatesTheRequestContextFromAnOuterContextAndRestoresItWhenTheChainFails() throws Exception {
         ContextKey<String> outerKey = ContextKey.of("outer", String.class);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/failure");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -73,9 +79,7 @@ class LuxspecRequestContextFilterTest {
             RuntimeException thrown = assertThrows(
                     RuntimeException.class,
                     () -> filter.doFilter(request, response, (servletRequest, servletResponse) -> {
-                        assertEquals("outer-value", ExecutionContexts.requireCurrent()
-                                .get(outerKey)
-                                .orElseThrow());
+                        assertFalse(ExecutionContexts.requireCurrent().get(outerKey).isPresent());
                         throw failure;
                     })
             );

@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.message;
 
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Resolves localized messages without coupling callers to a message provider.
@@ -33,4 +34,21 @@ public interface MessageResolver {
      * @return the resolved message or the provider's configured safe fallback
      */
     String resolve(String key, Locale locale, Object... arguments);
+
+    /**
+     * Resolves a message resource for an explicit locale.
+     *
+     * <p>The default maps the resource to a qualified flat key for providers such as Spring's
+     * {@code MessageSource}. Catalog-backed resolvers override this method to preserve namespace
+     * ownership.</p>
+     *
+     * @param resource  the message resource
+     * @param locale    the locale used for resolution
+     * @param arguments the values used by message placeholders
+     * @return the resolved message or the provider's configured safe fallback
+     */
+    default String resolve(MessageResource resource, Locale locale, Object... arguments) {
+        MessageResource nonNullResource = Objects.requireNonNull(resource, "resource");
+        return resolve(nonNullResource.getQualifiedKey(), locale, arguments);
+    }
 }

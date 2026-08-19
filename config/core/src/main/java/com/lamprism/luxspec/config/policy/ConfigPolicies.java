@@ -1,5 +1,7 @@
 package com.lamprism.luxspec.config.policy;
 
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +79,25 @@ public final class ConfigPolicies {
                 Map.of(),
                 ConfigSourceSelector.any()
         );
+    }
+
+    /**
+     * Creates a policy that accepts only Sources from the required lifecycle scope.
+     *
+     * @param scope the required Source scope
+     * @return the scope policy
+     */
+    public static ConfigPolicy sourceScope(ConfigSourceScope scope) {
+        ConfigSourceScope requiredScope = Objects.requireNonNull(scope, "scope");
+        return context -> {
+            ConfigSourceScope sourceScope = context.getSourceScope();
+            if (sourceScope == null || requiredScope == sourceScope) {
+                return ConfigPolicyDecision.ALLOW;
+            }
+            return context.getOperation() == ConfigPolicyOperation.RESOLVE_SOURCE
+                    ? ConfigPolicyDecision.SKIP
+                    : ConfigPolicyDecision.DENY;
+        };
     }
 
     /**

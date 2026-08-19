@@ -16,17 +16,20 @@
 
 package com.lamprism.luxspec.user.autoconfigure;
 
-import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.authorization.AuthorizationScopeHierarchy;
+import com.lamprism.luxspec.user.query.UserBrowser;
+import com.lamprism.luxspec.user.resource.InMemoryUserStore;
 import com.lamprism.luxspec.user.resource.UserProvider;
+import com.lamprism.luxspec.user.resource.UserRegistry;
 import com.lamprism.luxspec.user.security.authentication.PasswordAuthenticator;
 import com.lamprism.luxspec.user.security.authentication.UserSubjectResolver;
 import com.lamprism.luxspec.user.security.authorization.AuthorizationProfileContributor;
 import com.lamprism.luxspec.user.security.authorization.UserAuthorizationProfiles;
 import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolver;
+import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolverImpl;
 import com.lamprism.luxspec.user.security.password.Argon2idPasswordScheme;
-import com.lamprism.luxspec.user.security.password.EventPublishingUserPasswordStore;
+import com.lamprism.luxspec.user.security.password.InMemoryUserPasswordStore;
 import com.lamprism.luxspec.user.security.password.PasswordScheme;
 import com.lamprism.luxspec.user.security.password.UserPasswordStore;
 import com.lamprism.luxspec.user.spring.LuxspecPasswordEncoder;
@@ -35,6 +38,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -50,6 +54,34 @@ import java.util.List;
 @AutoConfiguration
 @ConditionalOnClass({PasswordScheme.class, PasswordEncoder.class})
 public class LuxspecUserAutoConfiguration {
+    /**
+     * Creates the opt-in aggregate in-memory user service.
+     *
+     * <p>The store is not enabled by default because its state is process-local and volatile. One
+     * bean supplies the registry, provider, and browser roles together.</p>
+     *
+     * @param clocks optional application clock
+     * @return the in-memory user service
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "luxspec.user.memory", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean({UserRegistry.class, UserProvider.class, UserBrowser.class})
+    public InMemoryUserStore inMemoryUserStore(ObjectProvider<Clock> clocks) {
+        return new InMemoryUserStore(clocks.getIfAvailable(Clock::systemUTC));
+    }
+
+    /**
+     * Creates the opt-in in-memory protected-password store.
+     *
+     * @return the in-memory password store
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "luxspec.user.memory", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean(UserPasswordStore.class)
+    public InMemoryUserPasswordStore inMemoryUserPasswordStore() {
+        return new InMemoryUserPasswordStore();
+    }
+
     /**
      * Creates the default Argon2id password scheme when an application has not supplied one.
      *
@@ -93,7 +125,7 @@ public class LuxspecUserAutoConfiguration {
      * @return the role grant resolver
      */
     @Bean
-    @ConditionalOnBean({UserProvider.class, AuthorizationScopeHierarchy.class})
+    @ConditionalOnBean(UserProvider.class)
     @ConditionalOnMissingBean(UserRoleGrantResolver.class)
     public UserRoleGrantResolver userRoleGrantResolver(
             AuthorizationScopeHierarchy scopeHierarchy,
@@ -102,7 +134,7 @@ public class LuxspecUserAutoConfiguration {
         List<AuthorizationProfileContributor> allContributors = new ArrayList<>();
         allContributors.add(UserAuthorizationProfiles.defaults());
         contributors.orderedStream().forEach(allContributors::add);
-        return new UserRoleGrantResolver(
+        return new UserRoleGrantResolverImpl(
                 UserAuthorizationProfiles.defaultRoleProfiles(),
                 allContributors,
                 scopeHierarchy
@@ -129,8 +161,6 @@ public class LuxspecUserAutoConfiguration {
      * @param passwordStore  the configured password store
      * @param passwordScheme the configured password scheme
      * @param grantResolver  the configured role grant resolver
-     * @param eventPublishers optional security event publishers
-     * @param clocks         optional event timestamp clocks
      * @return the password authenticator
      */
     @Bean
@@ -140,20 +170,13 @@ public class LuxspecUserAutoConfiguration {
             UserProvider userProvider,
             UserPasswordStore passwordStore,
             PasswordScheme passwordScheme,
-            UserRoleGrantResolver grantResolver,
-            ObjectProvider<EventPublisher> eventPublishers,
-            ObjectProvider<Clock> clocks
+            UserRoleGrantResolver grantResolver
     ) {
-        EventPublisher eventPublisher = eventPublishers.getIfAvailable(() -> event -> {
-        });
-        Clock clock = clocks.getIfAvailable(Clock::systemUTC);
         return new PasswordAuthenticator(
                 userProvider,
-                new EventPublishingUserPasswordStore(passwordStore, eventPublisher, clock),
+                passwordStore,
                 passwordScheme,
-                grantResolver,
-                eventPublisher,
-                clock
+                grantResolver
         );
     }
 }

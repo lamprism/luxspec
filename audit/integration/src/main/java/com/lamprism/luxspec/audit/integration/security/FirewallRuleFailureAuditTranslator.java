@@ -21,7 +21,6 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
 
@@ -30,15 +29,16 @@ import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
  *
  * @author RollW
  */
-public final class FirewallRuleFailureAuditTranslator implements AuditEventTranslator<FirewallRuleFailureEvent> {
+public class FirewallRuleFailureAuditTranslator implements AuditEventTranslator<FirewallRuleFailureEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<FirewallRuleFailureEvent> envelope) {
         FirewallRuleFailureEvent event = envelope.event();
         AuditFieldSet fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.SECURITY_RULE_TYPE, event.getRuleType())
-                .put(LuxspecAuditFields.SECURITY_REASON_CODE, event.getReasonCode().getCode())
+                .put(SecurityAuditFields.SECURITY_RULE_TYPE, event.getRuleType())
+                .put(SecurityAuditFields.SECURITY_REASON_CODE, event.getReasonCode().getCode())
                 .build();
         return AuditEntryContent.of(
+                event.getOccurredAt(),
                 AuditAction.of("security.firewall.evaluate"),
                 AuditOutcome.FAILURE,
                 null,

@@ -26,7 +26,7 @@ import java.util.Optional;
  *
  * @author RollW
  */
-public final class ResourceRegistry {
+public class ResourceRegistry {
     private final Map<String, ResourceProvider<?>> providers;
     private final Map<String, ResourceBrowser<?>> browsers;
 

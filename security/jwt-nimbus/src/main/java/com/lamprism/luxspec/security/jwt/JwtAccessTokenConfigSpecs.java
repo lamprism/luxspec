@@ -19,9 +19,11 @@ package com.lamprism.luxspec.security.jwt;
 import com.lamprism.luxspec.config.ConfigCodecs;
 import com.lamprism.luxspec.config.ConfigSpec;
 import com.lamprism.luxspec.config.ConfigValueValidator;
+import com.lamprism.luxspec.message.LocalizedText;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Defines standard Config specifications for JWT access-token settings.
@@ -49,54 +51,91 @@ public final class JwtAccessTokenConfigSpecs {
     /**
      * Controls the lifetime of newly issued access tokens.
      */
-    public static final ConfigSpec<Duration> ACCESS_TTL = ConfigSpec.of(
-            "security.token.access.ttl",
-            ConfigCodecs.duration(),
-            Duration.ofMinutes(15),
-            false,
-            POSITIVE_DURATION
-    );
+    public static final ConfigSpec<Duration> ACCESS_TTL = ConfigSpec.builder(
+                    "security.token.access.ttl",
+                    ConfigCodecs.duration()
+            )
+            .localizedDescription(localized(
+                    "Lifetime of newly issued access tokens. Defaults to 15 minutes.",
+                    "新签发访问令牌的有效期。默认值为 15 分钟。"
+            ))
+            .defaultValue(Duration.ofMinutes(15))
+            .validator(POSITIVE_DURATION)
+            .build();
     /**
      * Identifies the trusted issuer of newly issued and parsed access tokens.
      */
-    public static final ConfigSpec<String> ACCESS_ISSUER = ConfigSpec.of(
-            "security.token.access.issuer",
-            ConfigCodecs.string(),
-            null,
-            false,
-            NON_BLANK_TEXT
-    );
+    public static final ConfigSpec<String> ACCESS_ISSUER = ConfigSpec.builder(
+                    "security.token.access.issuer",
+                    ConfigCodecs.string()
+            )
+            .localizedDescription(localized(
+                    "Trusted issuer required on newly issued and parsed access tokens.",
+                    "新签发和已解析访问令牌必须信任的签发者。"
+            ))
+            .validator(NON_BLANK_TEXT)
+            .build();
     /**
      * Defines accepted audience values for access tokens.
      */
-    public static final ConfigSpec<List<String>> ACCESS_AUDIENCES = ConfigSpec.of(
-            "security.token.access.audiences",
-            ConfigCodecs.list(ConfigCodecs.string()),
-            List.of(),
-            false,
-            NON_BLANK_AUDIENCES
-    );
+    public static final ConfigSpec<List<String>> ACCESS_AUDIENCES = ConfigSpec.builder(
+                    "security.token.access.audiences",
+                    ConfigCodecs.list(ConfigCodecs.string())
+            )
+            .localizedDescription(localized(
+                    "Audience values accepted by access token consumers. Defaults to an empty list.",
+                    "访问令牌使用者接受的受众值。默认值为空列表。"
+            ))
+            .defaultValue(List.of())
+            .validator(NON_BLANK_AUDIENCES)
+            .build();
     /**
      * Defines whole-second clock tolerance when verifying access tokens.
      */
-    public static final ConfigSpec<Duration> ACCESS_CLOCK_SKEW = ConfigSpec.of(
-            "security.token.access.clock-skew",
-            ConfigCodecs.duration(),
-            Duration.ZERO,
-            false,
-            NON_NEGATIVE_DURATION
-    );
+    public static final ConfigSpec<Duration> ACCESS_CLOCK_SKEW = ConfigSpec.builder(
+                    "security.token.access.clock-skew",
+                    ConfigCodecs.duration()
+            )
+            .localizedDescription(localized(
+                    "Clock tolerance used when verifying access tokens. Defaults to zero.",
+                    "验证访问令牌时允许的时钟偏差。默认值为零。"
+            ))
+            .defaultValue(Duration.ZERO)
+            .validator(NON_NEGATIVE_DURATION)
+            .build();
     /**
      * References the provider-owned key set used to sign and verify access tokens.
      */
-    public static final ConfigSpec<String> KEY_SET_NAME = ConfigSpec.of(
-            "security.token.access.key-set",
-            ConfigCodecs.string(),
-            null,
-            false,
-            NON_BLANK_TEXT
-    );
+    public static final ConfigSpec<String> KEY_SET_NAME = ConfigSpec.builder(
+                    "security.token.access.key-set",
+                    ConfigCodecs.string()
+            )
+            .localizedDescription(localized(
+                    "Name of the configured key set used to sign and verify access tokens.",
+                    "用于签发和验证访问令牌的已配置密钥集名称。"
+            ))
+            .validator(NON_BLANK_TEXT)
+            .build();
 
     private JwtAccessTokenConfigSpecs() {
+    }
+
+    /**
+     * Returns every configuration definition owned by JWT access-token settings.
+     *
+     * @return the immutable definitions in declaration order
+     */
+    public static List<ConfigSpec<?>> all() {
+        return List.of(
+                ACCESS_TTL,
+                ACCESS_ISSUER,
+                ACCESS_AUDIENCES,
+                ACCESS_CLOCK_SKEW,
+                KEY_SET_NAME
+        );
+    }
+
+    private static LocalizedText localized(String defaultText, String simplifiedChineseText) {
+        return LocalizedText.of(defaultText, Locale.SIMPLIFIED_CHINESE, simplifiedChineseText);
     }
 }

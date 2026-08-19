@@ -41,12 +41,14 @@ project(":dependency-management").projectDir = file("gradle/dependency-managemen
 
 listOf(
     "core:base",
-    "core:cache",
     "core:cache-spring-boot-autoconfigure",
     "core:spring",
     "core:spring-boot-autoconfigure",
     "data:jpa",
     "data:jpa-spring-boot-autoconfigure",
+    "database:core",
+    "database:hikari",
+    "database:spring-boot-autoconfigure",
     "config:core",
     "config:jpa",
     "config:jpa-spring-boot-autoconfigure",

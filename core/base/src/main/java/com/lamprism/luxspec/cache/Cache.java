@@ -18,8 +18,8 @@ package com.lamprism.luxspec.cache;
 
 import org.jspecify.annotations.Nullable;
 
-import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Provides synchronous, successful-value caching without exposing a mutable map.
@@ -63,24 +63,10 @@ public interface Cache<K, V> extends CacheInvalidator<K> {
     void invalidateAll();
 
     /**
-     * Validates a cache key at an API boundary.
+     * Invalidates every cached entry accepted by a predicate.
      *
-     * @param key the candidate key
-     * @param <K> the cache key type
-     * @return the same non-null key
+     * @param predicate the non-null entry selector
      */
-    static <K> K requireKey(K key) {
-        return Objects.requireNonNull(key, "key");
-    }
+    void invalidateAll(Predicate<? super K> predicate);
 
-    /**
-     * Validates a cache value at an API boundary.
-     *
-     * @param value the candidate value
-     * @param <V>   the cache value type
-     * @return the same non-null value
-     */
-    static <V> V requireValue(V value) {
-        return Objects.requireNonNull(value, "value");
-    }
 }

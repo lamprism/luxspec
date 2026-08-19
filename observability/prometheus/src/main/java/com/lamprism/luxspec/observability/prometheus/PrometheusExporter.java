@@ -43,7 +43,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public final class PrometheusExporter {
+public class PrometheusExporter {
     private final MetricRegistry registry;
 
     public PrometheusExporter(MetricRegistry registry) {

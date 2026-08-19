@@ -37,4 +37,14 @@ public final class AuditDetail<D> {
     public D value() {
         return value;
     }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof AuditDetail<?> detail && Objects.equals(value, detail.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(value);
+    }
 }

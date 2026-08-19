@@ -23,6 +23,7 @@ package com.lamprism.luxspec.security.authentication;
  * @author RollW
  */
 public final class AnonymousSubject implements Subject {
+    private static final String TYPE = "anonymous";
     private static final AnonymousSubject INSTANCE = new AnonymousSubject();
 
     private AnonymousSubject() {
@@ -39,11 +40,11 @@ public final class AnonymousSubject implements Subject {
 
     @Override
     public String getType() {
-        return "anonymous";
+        return TYPE;
     }
 
     @Override
     public String getId() {
-        return "anonymous";
+        return TYPE;
     }
 }

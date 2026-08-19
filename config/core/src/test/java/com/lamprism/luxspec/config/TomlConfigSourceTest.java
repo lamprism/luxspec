@@ -2,6 +2,7 @@ package com.lamprism.luxspec.config;
 
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import com.lamprism.luxspec.config.source.RawConfigValue;
 import com.lamprism.luxspec.config.source.toml.TomlConfigSource;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ class TomlConfigSourceTest {
     void preservesNativeTomlScalarKinds() {
         TomlConfigSource source = new TomlConfigSource(
                 ConfigSourceId.of("toml"),
+                ConfigSourceScope.BOOTSTRAP,
                 new ByteArrayInputStream(
                         "numeric-size = 1000\ntext-size = \"1KB\"\n".getBytes(StandardCharsets.UTF_8)
                 )
@@ -94,6 +96,7 @@ class TomlConfigSourceTest {
     private static TomlConfigSource source(String content) {
         return new TomlConfigSource(
                 ConfigSourceId.of("toml"),
+                ConfigSourceScope.BOOTSTRAP,
                 new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8))
         );
     }

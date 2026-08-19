@@ -16,10 +16,59 @@
 
 package com.lamprism.luxspec.observability.observation;
 
+import java.util.Map;
+
 /**
- * Opaque provider-neutral link supplied when an observation starts.
+ * Provider-neutral link context supplied when an observation starts.
+ *
+ * <p>The identifiers are deliberately not interpreted as a particular tracing vendor's format.
+ * An adapter may translate them to its native link type, or preserve the complete value in its
+ * provider context for a tracing handler.</p>
  *
  * @author RollW
  */
 public interface ObservationLink {
+    /**
+     * Creates a link without additional attributes.
+     *
+     * @param traceId the non-blank trace identity
+     * @param spanId  the non-blank span identity
+     * @return the immutable link
+     */
+    static ObservationLink of(String traceId, String spanId) {
+        return new SimpleObservationLink(traceId, spanId, Map.of());
+    }
+
+    /**
+     * Creates a link with provider-neutral attributes.
+     *
+     * @param traceId    the non-blank trace identity
+     * @param spanId     the non-blank span identity
+     * @param attributes the optional link attributes
+     * @return the immutable link
+     */
+    static ObservationLink of(String traceId, String spanId, Map<String, String> attributes) {
+        return new SimpleObservationLink(traceId, spanId, attributes);
+    }
+
+    /**
+     * Returns the opaque trace identity.
+     *
+     * @return the trace identity
+     */
+    String traceId();
+
+    /**
+     * Returns the opaque span identity.
+     *
+     * @return the span identity
+     */
+    String spanId();
+
+    /**
+     * Returns immutable link attributes.
+     *
+     * @return the link attributes
+     */
+    Map<String, String> attributes();
 }

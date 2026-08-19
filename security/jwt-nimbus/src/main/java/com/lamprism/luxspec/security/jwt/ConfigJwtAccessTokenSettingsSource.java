@@ -28,7 +28,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public final class ConfigJwtAccessTokenSettingsSource {
+public class ConfigJwtAccessTokenSettingsSource {
     private final ConfigReader reader;
 
     /**

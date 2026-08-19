@@ -21,7 +21,10 @@ import com.lamprism.luxspec.observability.SystemObservabilityClock;
 import com.lamprism.luxspec.observability.metric.MetricActivation;
 import com.lamprism.luxspec.observability.metric.MetricActivations;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
+import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -32,6 +35,7 @@ import java.util.Objects;
 public final class MetricRegistryBuilder {
     private ObservabilityClock clock = new SystemObservabilityClock();
     private MetricActivation activation = MetricActivations.all();
+    private final List<ObservabilitySet> sets = new ArrayList<>();
 
     private MetricRegistryBuilder() {
     }
@@ -50,7 +54,27 @@ public final class MetricRegistryBuilder {
         return this;
     }
 
+    /**
+     * Selects one domain contribution for this registry.
+     *
+     * @param set the selected observability set
+     * @return this builder
+     */
+    public MetricRegistryBuilder set(ObservabilitySet set) {
+        sets.add(Objects.requireNonNull(set, "set"));
+        return this;
+    }
+
     public MetricRegistry build() {
-        return new DefaultMetricRegistry(clock, activation);
+        MetricRegistry registry = new DefaultMetricRegistry(clock, activation);
+        try {
+            for (ObservabilitySet set : sets) {
+                set.registerMetrics(registry);
+            }
+            return registry;
+        } catch (RuntimeException | Error failure) {
+            registry.close();
+            throw failure;
+        }
     }
 }

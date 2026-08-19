@@ -23,6 +23,7 @@ import com.lamprism.luxspec.observability.observation.ObservationFilter;
 import com.lamprism.luxspec.observability.observation.ObservationHandler;
 import com.lamprism.luxspec.observability.observation.ObservationPredicate;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
+import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,7 @@ public final class ObservationRegistryBuilder {
     private final List<ObservationPredicate> predicates = new ArrayList<>();
     private final List<ObservationFilter> filters = new ArrayList<>();
     private final List<ObservationHandler> handlers = new ArrayList<>();
+    private final List<ObservabilitySet> sets = new ArrayList<>();
 
     private ObservationRegistryBuilder() {
     }
@@ -72,7 +74,33 @@ public final class ObservationRegistryBuilder {
         return this;
     }
 
+    /**
+     * Selects one domain contribution for this registry.
+     *
+     * @param set the selected observability set
+     * @return this builder
+     */
+    public ObservationRegistryBuilder set(ObservabilitySet set) {
+        sets.add(Objects.requireNonNull(set, "set"));
+        return this;
+    }
+
     public ObservationRegistry build() {
-        return new DefaultObservationRegistry(clock, activation, predicates, filters, handlers);
+        ObservationRegistry registry = new DefaultObservationRegistry(
+                clock,
+                activation,
+                predicates,
+                filters,
+                handlers
+        );
+        try {
+            for (ObservabilitySet set : sets) {
+                set.registerObservations(registry);
+            }
+            return registry;
+        } catch (RuntimeException | Error failure) {
+            registry.close();
+            throw failure;
+        }
     }
 }

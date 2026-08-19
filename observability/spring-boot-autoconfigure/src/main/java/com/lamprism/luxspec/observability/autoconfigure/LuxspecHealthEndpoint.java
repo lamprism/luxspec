@@ -39,7 +39,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/health")
-public final class LuxspecHealthEndpoint {
+public class LuxspecHealthEndpoint {
     private final HealthRegistry registry;
 
     public LuxspecHealthEndpoint(HealthRegistry registry) {

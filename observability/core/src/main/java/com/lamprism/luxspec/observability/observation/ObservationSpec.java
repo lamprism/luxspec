@@ -49,24 +49,12 @@ public final class ObservationSpec {
         return new Builder(Objects.requireNonNull(name, "name"));
     }
 
-    public ObservationName name() {
-        return name;
-    }
-
     public ObservationName getName() {
         return name;
     }
 
-    public ObservationKind kind() {
-        return kind;
-    }
-
     public ObservationKind getKind() {
         return kind;
-    }
-
-    public @Nullable String description() {
-        return description;
     }
 
     public @Nullable String getDescription() {

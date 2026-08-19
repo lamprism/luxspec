@@ -57,21 +57,50 @@ class SpringExecutionContextTaskDecoratorTest {
     }
 
     @Test
-    void doesNotCreateAContextWhenNoContextWasCaptured() throws Exception {
+    void installsAnEmptyContextWhenNoContextWasCaptured() throws Exception {
         SpringExecutionContextTaskDecorator decorator = new SpringExecutionContextTaskDecorator();
         ExecutorService executor = Executors.newSingleThreadExecutor();
+        AtomicReference<Boolean> emptyRootPresent = new AtomicReference<>();
 
         try {
             Runnable decorated = decorator.decorate(() -> {
-                if (!ExecutionContexts.current().isEmpty()) {
-                    throw new AssertionError("The task should not inherit an absent context");
-                }
+                emptyRootPresent.set(ExecutionContexts.current().isPresent());
             });
             boolean contextIsAbsent = executor.submit(() -> {
                 decorated.run();
                 return ExecutionContexts.current().isEmpty();
             }).get(5L, TimeUnit.SECONDS);
+            assertTrue(emptyRootPresent.get());
             assertTrue(contextIsAbsent);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void replacesAWorkerContextWhenNoContextWasCaptured() throws Exception {
+        ContextKey<String> key = ContextKey.of("request-id", String.class);
+        SpringExecutionContextTaskDecorator decorator = new SpringExecutionContextTaskDecorator();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        AtomicReference<ExecutionContexts.Scope> workerScope = new AtomicReference<>();
+        AtomicReference<Boolean> inheritedValue = new AtomicReference<>();
+
+        try {
+            executor.submit(() -> workerScope.set(ExecutionContexts.open(
+                    ExecutionContext.empty().with(key, "stale-request")
+            ))).get(5L, TimeUnit.SECONDS);
+
+            Runnable decorated = decorator.decorate(() -> inheritedValue.set(
+                    ExecutionContexts.requireCurrent().get(key).isPresent()
+            ));
+            executor.submit(decorated).get(5L, TimeUnit.SECONDS);
+
+            executor.submit(() -> workerScope.get().close()).get(5L, TimeUnit.SECONDS);
+            boolean workerIsClean = executor.submit(() -> ExecutionContexts.current().isEmpty())
+                    .get(5L, TimeUnit.SECONDS);
+
+            assertEquals(false, inheritedValue.get());
+            assertTrue(workerIsClean);
         } finally {
             executor.shutdownNow();
         }

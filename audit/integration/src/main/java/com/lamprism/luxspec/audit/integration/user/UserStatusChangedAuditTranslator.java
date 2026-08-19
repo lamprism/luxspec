@@ -16,26 +16,36 @@
 
 package com.lamprism.luxspec.audit.integration.user;
 
+import com.lamprism.luxspec.audit.AuditAction;
 import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
+import com.lamprism.luxspec.audit.AuditOutcome;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
+import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.lifecycle.UserStatusChangedEvent;
+import com.lamprism.luxspec.user.resource.UserResourceTypes;
 
 /**
  * Translates a user status mutation.
  *
  * @author RollW
  */
-public final class UserStatusChangedAuditTranslator implements AuditEventTranslator<UserStatusChangedEvent> {
+public class UserStatusChangedAuditTranslator implements AuditEventTranslator<UserStatusChangedEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserStatusChangedEvent> envelope) {
         UserStatusChangedEvent event = envelope.event();
         AuditFieldSet fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.USER_ID, event.getUserId())
-                .put(LuxspecAuditFields.USER_STATUS, event.getStatus().name())
+                .put(UserAuditFields.USER_ID, event.getUserId())
+                .put(UserAuditFields.USER_STATUS, event.getStatus().name())
                 .build();
-        return UserAuditTranslationSupport.userEntry("user.status.change", event.getUserId(), fields);
+        return AuditEntryContent.of(
+                event.getOccurredAt(),
+                AuditAction.of("user.status.change"),
+                AuditOutcome.SUCCESS,
+                new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
+                fields,
+                null
+        );
     }
 }

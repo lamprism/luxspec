@@ -15,7 +15,7 @@
  */
 
 /**
- * Provider-neutral cache contracts and invalidation capabilities.
+ * Provider-neutral cache contracts and the default Caffeine-backed implementation.
  */
 @NullMarked
 package com.lamprism.luxspec.cache;

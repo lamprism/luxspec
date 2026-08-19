@@ -16,11 +16,13 @@
 
 package com.lamprism.luxspec.data.jpa.converter;
 
+import com.github.luben.zstd.Zstd;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BinaryObjectAttributeConverterTest {
@@ -39,13 +41,41 @@ class BinaryObjectAttributeConverterTest {
     }
 
     @Test
-    void preservesNullAndUsesFallbackForUnknownFormat() {
+    void preservesNullAndRejectsAnUnknownFormat() {
         assertNull(converter.convertToDatabaseColumn(null));
         assertNull(converter.convertToEntityAttribute(null));
 
-        Payload fallback = converter.convertToEntityAttribute(new byte[]{9, 9, 9, 9});
+        assertFailure(
+                BinaryObjectConversionException.Reason.UNSUPPORTED_FORMAT,
+                () -> converter.convertToEntityAttribute(new byte[]{9, 9, 9, 9})
+        );
+    }
 
-        assertEquals(new Payload("fallback", -1), fallback);
+    @Test
+    void rejectsEmptyAndIncompleteStoredValues() {
+        assertFailure(
+                BinaryObjectConversionException.Reason.EMPTY_VALUE,
+                () -> converter.convertToEntityAttribute(new byte[0])
+        );
+        assertFailure(
+                BinaryObjectConversionException.Reason.INCOMPLETE_HEADER,
+                () -> converter.convertToEntityAttribute(new byte[]{0, 0, 0})
+        );
+    }
+
+    @Test
+    void rejectsInvalidCompressedAndDeserializedPayloads() {
+        BinaryObjectConversionException decompressionFailure = assertFailure(
+                BinaryObjectConversionException.Reason.DECOMPRESSION_FAILED,
+                () -> converter.convertToEntityAttribute(v1Payload(new byte[]{1, 2, 3}))
+        );
+        BinaryObjectConversionException deserializationFailure = assertFailure(
+                BinaryObjectConversionException.Reason.DESERIALIZATION_FAILED,
+                () -> converter.convertToEntityAttribute(v1Payload(Zstd.compress(new byte[]{0x5f})))
+        );
+
+        assertTrue(decompressionFailure.getCause() != null);
+        assertTrue(deserializationFailure.getCause() != null);
     }
 
     @Test
@@ -69,10 +99,30 @@ class BinaryObjectAttributeConverterTest {
             return Payload.class;
         }
 
-        @Override
-        protected Payload fallbackConvert(byte[] dbData) {
-            return new Payload("fallback", -1);
-        }
+    }
+
+    private static BinaryObjectConversionException assertFailure(
+            BinaryObjectConversionException.Reason expectedReason,
+            ThrowingOperation operation
+    ) {
+        BinaryObjectConversionException exception = assertThrows(
+                BinaryObjectConversionException.class,
+                operation::run
+        );
+        assertEquals(expectedReason, exception.getReason());
+        return exception;
+    }
+
+    private static byte[] v1Payload(byte[] compressed) {
+        byte[] payload = new byte[4 + compressed.length];
+        payload[3] = 1;
+        System.arraycopy(compressed, 0, payload, 4, compressed.length);
+        return payload;
+    }
+
+    @FunctionalInterface
+    private interface ThrowingOperation {
+        void run();
     }
 
     public static final class Payload {

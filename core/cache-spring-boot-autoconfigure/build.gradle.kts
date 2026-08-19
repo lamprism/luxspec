@@ -21,7 +21,7 @@ plugins {
 description = "Spring Boot auto-configuration for the Luxspec local cache."
 
 dependencies {
-    api(project(":core:core-cache"))
+    api(project(":core:core-base"))
     testImplementation("org.springframework.boot:spring-boot-test")
     testImplementation("org.assertj:assertj-core")
 }

@@ -31,7 +31,7 @@ import java.util.Optional;
  *
  * @author RollW
  */
-public final class AuthorizationHeaderBearerTokenResolver {
+public class AuthorizationHeaderBearerTokenResolver {
     private static final String BEARER_SCHEME = "Bearer";
 
     /**

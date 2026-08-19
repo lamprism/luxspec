@@ -13,6 +13,8 @@ import com.lamprism.luxspec.config.runtime.LayeredConfigReader;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -21,9 +23,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayeredConfigReaderTest {
     @Test
@@ -135,7 +137,11 @@ class LayeredConfigReaderTest {
                 () -> new LayeredConfigReader(List.of(higher, lower)).get(spec)
         );
 
-        assertTrue(exception.getMessage().contains("Value must be positive"));
+        assertEquals(ConfigErrorCode.INVALID_VALUE, exception.getErrorCode());
+        assertEquals("Configuration value is invalid", exception.getMessage());
+        assertFalse(exception.getMessage().contains("sample.limit"));
+        assertFalse(exception.getMessage().contains("higher"));
+        assertFalse(exception.getMessage().contains("Value must be positive"));
         assertNull(exception.getCause());
     }
 
@@ -299,6 +305,19 @@ class LayeredConfigReaderTest {
         assertEquals(ConfigValueOrigin.DefaultOrigin.INSTANCE, values.get(2).getOrigin());
     }
 
+    @Test
+    void skipsSourcesOutsideTheSpecScope() {
+        ConfigSpec<String> spec = ConfigSpec.builder("database.type", ConfigCodecs.string())
+                .policy(ConfigPolicies.sourceScope(ConfigSourceScope.BOOTSTRAP))
+                .build();
+
+        ConfigValue<String> value = new LayeredConfigReader(List.of(
+                new MemorySource("runtime", ConfigEntry.present("postgresql"))
+        )).get(spec);
+
+        assertEquals(ConfigValue.State.ABSENT, value.getState());
+    }
+
     private static final class MemorySource implements ConfigSource {
         private final ConfigSourceId id;
         private final ConfigEntry entry;
@@ -320,12 +339,17 @@ class LayeredConfigReaderTest {
         }
 
         @Override
+        public ConfigSourceScope getScope() {
+            return ConfigSourceScope.RUNTIME;
+        }
+
+        @Override
         public Map<String, String> getAttributes() {
             return attributes;
         }
 
         @Override
-        public ConfigEntry get(ConfigKey key) {
+        public ConfigEntry get(@NonNull ConfigKey key) {
             return entry;
         }
     }

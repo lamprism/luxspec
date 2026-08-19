@@ -27,8 +27,8 @@ import java.util.Objects;
  *
  * <p>The event name is normalized by {@link AuditNameValidator#require(String)}. The
  * entry preserves the envelope ID, publication time, and metadata while the
- * translator supplies the action, outcome, resource, fields, and optional
- * details.
+ * translator supplies the occurrence time, action, outcome, resource, fields,
+ * and optional details.
  *
  * @author RollW
  */
@@ -36,6 +36,7 @@ public final class AuditEntry {
     private final AuditEventId id;
     private final String eventName;
     private final Instant occurredAt;
+    private final Instant publishedAt;
     private final AuditMetadata metadata;
     private final AuditAction action;
     private final AuditOutcome outcome;
@@ -47,6 +48,7 @@ public final class AuditEntry {
             AuditEventId id,
             String eventName,
             Instant occurredAt,
+            Instant publishedAt,
             AuditMetadata metadata,
             AuditAction action,
             AuditOutcome outcome,
@@ -57,6 +59,7 @@ public final class AuditEntry {
         this.id = Objects.requireNonNull(id, "id");
         this.eventName = AuditNameValidator.require(eventName);
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
+        this.publishedAt = Objects.requireNonNull(publishedAt, "publishedAt");
         this.metadata = Objects.requireNonNull(metadata, "metadata");
         this.action = Objects.requireNonNull(action, "action");
         this.outcome = Objects.requireNonNull(outcome, "outcome");
@@ -75,6 +78,10 @@ public final class AuditEntry {
 
     public Instant occurredAt() {
         return occurredAt;
+    }
+
+    public Instant publishedAt() {
+        return publishedAt;
     }
 
     public AuditMetadata metadata() {
@@ -99,5 +106,38 @@ public final class AuditEntry {
 
     public @Nullable AuditDetail<?> details() {
         return details;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (!(other instanceof AuditEntry entry)) {
+            return false;
+        }
+        return id.equals(entry.id)
+                && eventName.equals(entry.eventName)
+                && occurredAt.equals(entry.occurredAt)
+                && publishedAt.equals(entry.publishedAt)
+                && metadata.equals(entry.metadata)
+                && action.equals(entry.action)
+                && outcome == entry.outcome
+                && Objects.equals(resource, entry.resource)
+                && fields.equals(entry.fields)
+                && Objects.equals(details, entry.details);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+                id,
+                eventName,
+                occurredAt,
+                publishedAt,
+                metadata,
+                action,
+                outcome,
+                resource,
+                fields,
+                details
+        );
     }
 }

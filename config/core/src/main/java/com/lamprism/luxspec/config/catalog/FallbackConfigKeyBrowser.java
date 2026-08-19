@@ -15,7 +15,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class FallbackConfigKeyBrowser implements ConfigKeyBrowser {
+public class FallbackConfigKeyBrowser implements ConfigKeyBrowser {
     private final List<ConfigKeyBrowser> browsers;
 
     /**

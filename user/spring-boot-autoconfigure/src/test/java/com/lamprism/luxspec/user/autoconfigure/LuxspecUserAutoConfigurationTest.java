@@ -16,8 +16,17 @@
 
 package com.lamprism.luxspec.user.autoconfigure;
 
+import com.lamprism.luxspec.resource.ResourceReference;
+import com.lamprism.luxspec.resource.ResourceType;
+import com.lamprism.luxspec.user.User;
+import com.lamprism.luxspec.user.resource.InMemoryUserStore;
+import com.lamprism.luxspec.user.resource.UserProvider;
+import com.lamprism.luxspec.user.resource.UserResourceTypes;
+import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolver;
+import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolverImpl;
 import com.lamprism.luxspec.user.security.password.Argon2idPasswordScheme;
 import com.lamprism.luxspec.user.security.password.EncodedPassword;
+import com.lamprism.luxspec.user.security.password.InMemoryUserPasswordStore;
 import com.lamprism.luxspec.user.security.password.PasswordScheme;
 import com.lamprism.luxspec.user.spring.LuxspecPasswordEncoder;
 import org.junit.jupiter.api.Test;
@@ -26,6 +35,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.Collection;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -41,6 +53,17 @@ class LuxspecUserAutoConfigurationTest {
             assertThat(context.getBean(PasswordScheme.class)).isInstanceOf(Argon2idPasswordScheme.class);
             assertThat(context.getBean(PasswordEncoder.class)).isInstanceOf(LuxspecPasswordEncoder.class);
         });
+    }
+
+    @Test
+    void createsTheOptInInMemoryUserServicesAsOneAggregateStore() {
+        contextRunner
+                .withPropertyValues("luxspec.user.memory.enabled=true")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(InMemoryUserStore.class);
+                    assertThat(context).hasSingleBean(UserProvider.class);
+                    assertThat(context).hasSingleBean(InMemoryUserPasswordStore.class);
+                });
     }
 
     @Test
@@ -69,6 +92,17 @@ class LuxspecUserAutoConfigurationTest {
                 });
     }
 
+    @Test
+    void createsTheDefaultRoleGrantResolverForAnApplicationUserProvider() {
+        contextRunner
+                .withBean(UserProvider.class, UnsupportedUserProvider::new)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(UserRoleGrantResolver.class);
+                    assertThat(context.getBean(UserRoleGrantResolver.class))
+                            .isInstanceOf(UserRoleGrantResolverImpl.class);
+                });
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class CustomPasswordSchemeConfiguration {
         @Bean
@@ -82,6 +116,28 @@ class LuxspecUserAutoConfigurationTest {
         @Bean
         PasswordEncoder passwordEncoder() {
             return new CustomPasswordEncoder();
+        }
+    }
+
+    private static final class UnsupportedUserProvider implements UserProvider {
+        @Override
+        public ResourceType<Long> getResourceType() {
+            return UserResourceTypes.USER;
+        }
+
+        @Override
+        public User provide(ResourceReference<Long> reference) {
+            throw new UnsupportedOperationException("Context tests do not resolve users");
+        }
+
+        @Override
+        public List<User> provide(Collection<ResourceReference<Long>> references) {
+            throw new UnsupportedOperationException("Context tests do not resolve users");
+        }
+
+        @Override
+        public User provideByUsername(String username) {
+            throw new UnsupportedOperationException("Context tests do not resolve users");
         }
     }
 

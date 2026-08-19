@@ -3,6 +3,7 @@ package com.lamprism.luxspec.config.persistence;
 import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import com.lamprism.luxspec.config.source.RawConfigValue;
 import com.lamprism.luxspec.config.source.TombstoneConfigSource;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,11 @@ public class JpaConfigSource implements TombstoneConfigSource {
     @Override
     public ConfigSourceId getId() {
         return id;
+    }
+
+    @Override
+    public ConfigSourceScope getScope() {
+        return ConfigSourceScope.RUNTIME;
     }
 
     @Override

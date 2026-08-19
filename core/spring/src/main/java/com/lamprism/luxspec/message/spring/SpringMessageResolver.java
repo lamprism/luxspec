@@ -17,6 +17,8 @@
 package com.lamprism.luxspec.message.spring;
 
 import com.lamprism.luxspec.message.MessageResolver;
+import com.lamprism.luxspec.message.MessageResource;
+import com.lamprism.luxspec.message.ResourceBundleMessageResolver;
 import org.springframework.context.MessageSource;
 
 import java.util.Locale;
@@ -30,8 +32,9 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class SpringMessageResolver implements MessageResolver {
+public class SpringMessageResolver implements MessageResolver {
     private final MessageSource messageSource;
+    private final MessageResolver fallbackResolver;
     private final String missingMessage;
 
     /**
@@ -41,7 +44,30 @@ public final class SpringMessageResolver implements MessageResolver {
      * @param missingMessage the non-blank fallback returned when a key is not found
      */
     public SpringMessageResolver(MessageSource messageSource, String missingMessage) {
+        this(
+                messageSource,
+                new ResourceBundleMessageResolver(missingMessage),
+                missingMessage
+        );
+    }
+
+    /**
+     * Creates a resolver with an application message source and a library-message fallback.
+     *
+     * <p>The message source receives qualified resource keys, allowing applications to override a
+     * library message without depending on the library catalog implementation.</p>
+     *
+     * @param messageSource    the Spring message provider
+     * @param fallbackResolver the resolver used when the application has no resource override
+     * @param missingMessage   the non-blank fallback returned when a key is not found
+     */
+    public SpringMessageResolver(
+            MessageSource messageSource,
+            MessageResolver fallbackResolver,
+            String missingMessage
+    ) {
         this.messageSource = Objects.requireNonNull(messageSource, "messageSource");
+        this.fallbackResolver = Objects.requireNonNull(fallbackResolver, "fallbackResolver");
         this.missingMessage = requireMissingMessage(missingMessage);
     }
 
@@ -51,6 +77,23 @@ public final class SpringMessageResolver implements MessageResolver {
         Locale nonNullLocale = Objects.requireNonNull(locale, "locale");
         Object[] nonNullArguments = Objects.requireNonNull(arguments, "arguments");
         return messageSource.getMessage(nonBlankKey, nonNullArguments, missingMessage, nonNullLocale);
+    }
+
+    @Override
+    public String resolve(MessageResource resource, Locale locale, Object... arguments) {
+        MessageResource nonNullResource = Objects.requireNonNull(resource, "resource");
+        Locale nonNullLocale = Objects.requireNonNull(locale, "locale");
+        Object[] nonNullArguments = Objects.requireNonNull(arguments, "arguments");
+        String applicationMessage = messageSource.getMessage(
+                nonNullResource.getQualifiedKey(),
+                nonNullArguments,
+                null,
+                nonNullLocale
+        );
+        if (applicationMessage != null) {
+            return applicationMessage;
+        }
+        return fallbackResolver.resolve(nonNullResource, nonNullLocale, nonNullArguments);
     }
 
     private static String requireKey(String key) {

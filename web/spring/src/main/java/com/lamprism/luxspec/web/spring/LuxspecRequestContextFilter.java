@@ -16,7 +16,6 @@
 
 package com.lamprism.luxspec.web.spring;
 
-import com.lamprism.luxspec.context.ContextKey;
 import com.lamprism.luxspec.context.CorrelationId;
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContexts;
@@ -27,6 +26,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -40,8 +40,18 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class LuxspecRequestContextFilter extends OncePerRequestFilter {
+public class LuxspecRequestContextFilter extends OncePerRequestFilter implements Ordered {
     private static final String TRACE_ID_HEADER = "X-Request-ID";
+
+    /**
+     * Runs before the Security filter chain so downstream authentication augments the request root.
+     *
+     * @return the highest servlet filter precedence
+     */
+    @Override
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
+    }
 
     @Override
     protected void doFilterInternal(
@@ -68,13 +78,9 @@ public final class LuxspecRequestContextFilter extends OncePerRequestFilter {
                 nonNullRequest.getRequestURI(),
                 nonNullRequest.getLocale()
         );
-        ExecutionContext currentContext = ExecutionContexts.current().orElse(ExecutionContext.empty());
-        ExecutionContext withRequest = addOrReplace(
-                currentContext,
-                WebContextKeys.REQUEST,
-                requestContext
-        );
-        return addOrReplace(withRequest, WebContextKeys.CORRELATION_ID, correlationId);
+        return ExecutionContext.empty()
+                .with(WebContextKeys.REQUEST, requestContext)
+                .with(WebContextKeys.CORRELATION_ID, correlationId);
     }
 
     private static CorrelationId resolveCorrelationId(String headerValue) {
@@ -88,14 +94,4 @@ public final class LuxspecRequestContextFilter extends OncePerRequestFilter {
         }
     }
 
-    private static <T> ExecutionContext addOrReplace(
-            ExecutionContext context,
-            ContextKey<T> key,
-            T value
-    ) {
-        if (context.get(key).isPresent()) {
-            return context.replace(key, value);
-        }
-        return context.with(key, value);
-    }
 }

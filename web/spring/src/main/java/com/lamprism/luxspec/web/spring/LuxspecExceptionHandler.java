@@ -34,7 +34,7 @@ import java.util.Objects;
  * @author RollW
  */
 @RestControllerAdvice
-public final class LuxspecExceptionHandler {
+public class LuxspecExceptionHandler {
     private final ErrorHttpStatusResolver statusResolver;
     private final @Nullable MessageResolver messageResolver;
 

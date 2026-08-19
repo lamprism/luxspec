@@ -59,7 +59,7 @@ class RefreshTokenSessionStoreTest {
         assertEquals(CREATED_AT.plus(Duration.ofMinutes(15)), succeeded.getState().getLifetime().getIdleExpiresAt());
         assertTrue(store.isConsumed(presented));
         assertFalse(store.isConsumed(successor));
-        assertEquals(2, store.getDigestCount());
+        assertEquals(2, store.digestCount());
     }
 
     @Test
@@ -100,7 +100,7 @@ class RefreshTokenSessionStoreTest {
         ));
 
         assertEquals(TokenRotationRejection.EXPIRED, rejected.getReason());
-        assertEquals(1, store.getDigestCount());
+        assertEquals(1, store.digestCount());
         assertFalse(store.isConsumed(presented));
     }
 
@@ -115,8 +115,8 @@ class RefreshTokenSessionStoreTest {
 
         assertThrows(IllegalStateException.class, () -> store.create(duplicateId, digest(2)));
         assertThrows(IllegalStateException.class, () -> store.create(second, digest));
-        assertEquals(1, store.getSessionCount());
-        assertEquals(1, store.getDigestCount());
+        assertEquals(1, store.sessionCount());
+        assertEquals(1, store.digestCount());
     }
 
     @Test

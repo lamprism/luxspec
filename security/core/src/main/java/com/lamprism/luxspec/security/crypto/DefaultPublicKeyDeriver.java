@@ -47,7 +47,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class DefaultPublicKeyDeriver implements PublicKeyDeriver {
+public class DefaultPublicKeyDeriver implements PublicKeyDeriver {
     /**
      * Creates the default public-key deriver.
      */

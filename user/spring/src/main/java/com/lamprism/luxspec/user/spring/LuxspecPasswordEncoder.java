@@ -28,7 +28,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class LuxspecPasswordEncoder implements PasswordEncoder {
+public class LuxspecPasswordEncoder implements PasswordEncoder {
     private final PasswordScheme passwordScheme;
 
     /**

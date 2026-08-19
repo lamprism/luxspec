@@ -36,7 +36,10 @@ public final class Authentication {
      * @param grants  the immutable effective authorization grants
      */
     public Authentication(Subject subject, AuthorizationGrantSet grants) {
-        this.subject = Objects.requireNonNull(subject, "subject");
+        Subject nonNullSubject = Objects.requireNonNull(subject, "subject");
+        requireText(nonNullSubject.getType(), "subject.type");
+        requireText(nonNullSubject.getId(), "subject.id");
+        this.subject = nonNullSubject;
         this.grants = Objects.requireNonNull(grants, "grants");
     }
 
@@ -56,5 +59,13 @@ public final class Authentication {
      */
     public AuthorizationGrantSet grants() {
         return grants;
+    }
+
+    private static String requireText(String value, String name) {
+        String nonNullValue = Objects.requireNonNull(value, name);
+        if (nonNullValue.isBlank()) {
+            throw new IllegalArgumentException(name + " must not be blank");
+        }
+        return nonNullValue;
     }
 }

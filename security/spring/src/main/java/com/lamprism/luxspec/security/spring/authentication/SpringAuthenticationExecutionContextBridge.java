@@ -28,7 +28,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class SpringAuthenticationExecutionContextBridge {
+public class SpringAuthenticationExecutionContextBridge {
     /**
      * Opens a derived context that exposes the authenticated actor for downstream work.
      *

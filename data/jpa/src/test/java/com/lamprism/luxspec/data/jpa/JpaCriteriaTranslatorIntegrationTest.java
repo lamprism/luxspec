@@ -206,7 +206,7 @@ class JpaCriteriaTranslatorIntegrationTest {
 
     private List<QueryableItemEntity> query(
             QueryCriteria criteria,
-            JpaFieldResolver<QueryableItemEntity> fieldResolver
+            JpaQueryFieldResolver<QueryableItemEntity> fieldResolver
     ) {
         return new JpaQueryExecutor<>(entityManager, QueryableItemEntity.class, fieldResolver)
                 .query(criteria, UnboundedWindow.getInstance())
@@ -238,7 +238,7 @@ class JpaCriteriaTranslatorIntegrationTest {
         entityManager.clear();
     }
 
-    private static final class ItemFieldResolver implements JpaFieldResolver<QueryableItemEntity> {
+    private static final class ItemFieldResolver implements JpaQueryFieldResolver<QueryableItemEntity> {
         @Override
         @NonNull
         public <V> Expression<V> resolve(@NonNull Root<QueryableItemEntity> root, @NonNull QueryField<V> field) {

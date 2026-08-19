@@ -74,4 +74,38 @@ class ContextPropagatingExecutorTest {
         assertEquals(false, inheritedValue.get());
         assertEquals(true, rootContextPresent.get());
     }
+
+    @Test
+    void replacesAWorkerContextWhenTheSubmittingThreadHasNoContext() throws Exception {
+        ContextKey<String> key = ContextKey.of("request-id", String.class);
+        ExecutorService delegate = Executors.newSingleThreadExecutor();
+        ContextPropagatingExecutor executor = new ContextPropagatingExecutor(delegate);
+        AtomicReference<ExecutionContexts.Scope> workerScope = new AtomicReference<>();
+        AtomicReference<Boolean> rootContextPresent = new AtomicReference<>();
+        AtomicReference<Boolean> inheritedValue = new AtomicReference<>();
+
+        try {
+            delegate.submit(() -> workerScope.set(ExecutionContexts.open(
+                    ExecutionContext.empty().with(key, "stale-request")
+            ))).get(5L, TimeUnit.SECONDS);
+
+            executor.execute(() -> {
+                ExecutionContext context = ExecutionContexts.requireCurrent();
+                rootContextPresent.set(true);
+                inheritedValue.set(context.get(key).isPresent());
+            });
+            delegate.submit(() -> {
+            }).get(5L, TimeUnit.SECONDS);
+
+            delegate.submit(() -> workerScope.get().close()).get(5L, TimeUnit.SECONDS);
+            boolean workerIsClean = delegate.submit(() -> ExecutionContexts.current().isEmpty())
+                    .get(5L, TimeUnit.SECONDS);
+
+            assertEquals(true, rootContextPresent.get());
+            assertEquals(false, inheritedValue.get());
+            assertTrue(workerIsClean);
+        } finally {
+            delegate.shutdownNow();
+        }
+    }
 }

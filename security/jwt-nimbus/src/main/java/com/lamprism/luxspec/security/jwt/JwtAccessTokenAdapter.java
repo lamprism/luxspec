@@ -19,6 +19,7 @@ package com.lamprism.luxspec.security.jwt;
 import com.lamprism.luxspec.AuthErrorCode;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
+import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import com.lamprism.luxspec.security.authorization.AuthorizationScope;
 import com.lamprism.luxspec.security.crypto.KeyEntry;
@@ -27,8 +28,8 @@ import com.lamprism.luxspec.security.crypto.KeySetProvider;
 import com.lamprism.luxspec.security.token.IssuedToken;
 import com.lamprism.luxspec.security.token.TokenIssuance;
 import com.lamprism.luxspec.security.token.TokenIssuer;
-import com.lamprism.luxspec.security.token.TokenVerifier;
 import com.lamprism.luxspec.security.token.access.AccessToken;
+import com.lamprism.luxspec.security.token.access.AccessTokenVerifier;
 import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -66,8 +67,7 @@ import java.util.UUID;
  *
  * @author RollW
  */
-public final class JwtAccessTokenAdapter
-        implements TokenIssuer, TokenVerifier<AccessToken, VerifiedAccessToken> {
+public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
     private static final String SUBJECT_TYPE = "subject_type";
     private static final String SCOPES = "scopes";
     private static final String TOKEN_PURPOSE = "token_purpose";
@@ -112,9 +112,10 @@ public final class JwtAccessTokenAdapter
         Instant expiresAt = issuedAt.plus(options.getLifetime());
         List<String> scopes = scopeNames(nonNullAuthentication);
         JWSAlgorithm algorithm = signingAlgorithm(signingKey);
+        Subject subject = nonNullAuthentication.subject();
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
-                .subject(nonNullAuthentication.subject().getId())
-                .claim(SUBJECT_TYPE, nonNullAuthentication.subject().getType())
+                .subject(subject.getId())
+                .claim(SUBJECT_TYPE, subject.getType())
                 .claim(SCOPES, scopes)
                 .claim(TOKEN_PURPOSE, AccessToken.KIND.getName())
                 .jwtID(UUID.randomUUID().toString())

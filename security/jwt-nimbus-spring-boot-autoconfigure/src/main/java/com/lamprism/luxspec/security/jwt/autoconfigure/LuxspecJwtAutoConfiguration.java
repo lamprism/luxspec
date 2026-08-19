@@ -17,16 +17,12 @@
 package com.lamprism.luxspec.security.jwt.autoconfigure;
 
 import com.lamprism.luxspec.config.ConfigReader;
-import com.lamprism.luxspec.event.EventPublisher;
-import com.lamprism.luxspec.security.authentication.AccessTokenAuthenticator;
-import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.crypto.DefaultPublicKeyDeriver;
 import com.lamprism.luxspec.security.crypto.KeySetProvider;
 import com.lamprism.luxspec.security.crypto.PublicKeyDeriver;
 import com.lamprism.luxspec.security.crypto.config.ConfigKeySetProvider;
 import com.lamprism.luxspec.security.jwt.ConfigJwtAccessTokenSettingsSource;
 import com.lamprism.luxspec.security.jwt.JwtAccessTokenAdapter;
-import com.lamprism.luxspec.security.token.access.NoOpAccessTokenRevocationStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -50,19 +46,6 @@ import java.time.Clock;
 @ConditionalOnClass(JwtAccessTokenAdapter.class)
 @ConditionalOnProperty(prefix = "luxspec.security.jwt", name = "enabled", havingValue = "true")
 public class LuxspecJwtAutoConfiguration {
-    /**
-     * Creates the Config-backed JWT settings source when one has not been supplied.
-     *
-     * @param reader the configured Luxspec Config reader
-     * @return the JWT settings source
-     */
-    @Bean
-    @ConditionalOnBean(ConfigReader.class)
-    @ConditionalOnMissingBean(ConfigJwtAccessTokenSettingsSource.class)
-    public ConfigJwtAccessTokenSettingsSource jwtSettingsSource(ConfigReader reader) {
-        return new ConfigJwtAccessTokenSettingsSource(reader);
-    }
-
     /**
      * Creates the default private-key public-key deriver when one has not been supplied.
      *
@@ -92,51 +75,26 @@ public class LuxspecJwtAutoConfiguration {
     /**
      * Creates the Nimbus JWT issuer and verifier from the configured trusted settings.
      *
-     * @param settingsSource the Config-backed JWT settings source
+     * @param reader         the configured Luxspec Config reader
      * @param keySetProvider the configured named key-set provider
      * @param clocks         the optional application clock
      * @return the Nimbus JWT access-token adapter
      */
     @Bean
-    @ConditionalOnBean({ConfigJwtAccessTokenSettingsSource.class, KeySetProvider.class})
+    @ConditionalOnBean({ConfigReader.class, KeySetProvider.class})
     @ConditionalOnMissingBean(JwtAccessTokenAdapter.class)
     public JwtAccessTokenAdapter jwtAccessTokenAdapter(
-            ConfigJwtAccessTokenSettingsSource settingsSource,
+            ConfigReader reader,
             KeySetProvider keySetProvider,
             ObjectProvider<Clock> clocks
     ) {
         Clock clock = clocks.getIfAvailable(Clock::systemUTC);
+        ConfigJwtAccessTokenSettingsSource settingsSource = new ConfigJwtAccessTokenSettingsSource(reader);
         return new JwtAccessTokenAdapter(
                 keySetProvider,
                 settingsSource.getKeySetName(),
                 clock,
                 settingsSource.getOptions()
-        );
-    }
-
-    /**
-     * Creates an access-token authenticator when a subject resolver is available.
-     *
-     * @param adapter         the configured JWT verifier
-     * @param subjectResolver the current-subject resolver
-     * @return the access-token authenticator
-     */
-    @Bean
-    @ConditionalOnBean({JwtAccessTokenAdapter.class, SubjectResolver.class})
-    @ConditionalOnMissingBean(AccessTokenAuthenticator.class)
-    public AccessTokenAuthenticator accessTokenAuthenticator(
-            JwtAccessTokenAdapter adapter,
-            SubjectResolver subjectResolver,
-            ObjectProvider<EventPublisher> eventPublishers,
-            ObjectProvider<Clock> clocks
-    ) {
-        return new AccessTokenAuthenticator(
-                adapter,
-                subjectResolver,
-                NoOpAccessTokenRevocationStore.getInstance(),
-                eventPublishers.getIfAvailable(() -> event -> {
-                }),
-                clocks.getIfAvailable(Clock::systemUTC)
         );
     }
 }

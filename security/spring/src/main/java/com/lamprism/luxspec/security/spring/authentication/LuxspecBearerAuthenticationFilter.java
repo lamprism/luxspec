@@ -48,7 +48,7 @@ import java.util.Optional;
  *
  * @author RollW
  */
-public final class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
+public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
     private final AuthenticationManager authenticationManager;
     private final AuthorizationHeaderBearerTokenResolver tokenResolver;
     private final SpringAuthenticationExecutionContextBridge contextBridge;

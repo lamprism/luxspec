@@ -24,7 +24,7 @@ import java.util.UUID;
  *
  * @author RollW
  */
-public final class UuidResourceIdGenerator implements ResourceIdGenerator<String> {
+public class UuidResourceIdGenerator implements ResourceIdGenerator<String> {
     @Override
     public String nextId(ResourceType<String> resourceType) {
         Objects.requireNonNull(resourceType, "resourceType");

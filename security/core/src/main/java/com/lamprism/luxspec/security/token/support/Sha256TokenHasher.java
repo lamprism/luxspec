@@ -32,7 +32,7 @@ import java.util.Objects;
  * @param <T> the Token value type
  * @author RollW
  */
-public final class Sha256TokenHasher<T extends Token> implements TokenHasher<T> {
+public class Sha256TokenHasher<T extends Token> implements TokenHasher<T> {
     private static final String ALGORITHM = "SHA-256";
 
     private final TokenKind<T> tokenKind;

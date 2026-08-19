@@ -20,7 +20,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class CombinedConfigProvider implements ConfigProvider {
+public class CombinedConfigProvider implements ConfigProvider {
     private final List<ConfigReader> readers;
     private final ConfigWriter writer;
 

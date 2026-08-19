@@ -25,7 +25,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class JpaQueryExecutorFactory {
+public class JpaQueryExecutorFactory {
     private final EntityManager entityManager;
     private final JpaCriteriaTranslator translator;
     private final JpaFieldNamingStrategy namingStrategy;
@@ -103,12 +103,16 @@ public final class JpaQueryExecutorFactory {
                 entityManager,
                 entityType,
                 translator,
-                JpaFieldResolver.byAttributeName(entityNamingStrategy)
+                JpaQueryFieldResolver.byAttributeName(entityNamingStrategy)
         );
     }
 
     /**
      * Creates an executor with an explicit field resolver.
+     *
+     * <p>Use this overload only when query fields do not map through the configured naming
+     * strategy. The regular {@link #forEntity(Class)} path assembles the default resolver
+     * internally.</p>
      *
      * @param entityType    the managed entity type
      * @param fieldResolver the field-to-attribute resolver
@@ -117,7 +121,7 @@ public final class JpaQueryExecutorFactory {
      */
     public <T> JpaQueryExecutor<T> forEntity(
             Class<T> entityType,
-            JpaFieldResolver<T> fieldResolver
+            JpaQueryFieldResolver<T> fieldResolver
     ) {
         return new JpaQueryExecutor<>(entityManager, entityType, translator, fieldResolver);
     }

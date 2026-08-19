@@ -217,6 +217,15 @@ public interface ConfigSpec<T> {
     ConfigCodec<T> getCodec();
 
     /**
+     * Returns the optional localized description of this definition.
+     *
+     * @return the immutable description metadata
+     */
+    default ConfigDescription getDescription() {
+        return ConfigDescription.EMPTY;
+    }
+
+    /**
      * Returns the fallback used when every usable source is absent.
      *
      * @return the default value, or {@code null} when no fallback exists

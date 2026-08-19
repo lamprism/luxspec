@@ -25,6 +25,7 @@ import com.lamprism.luxspec.data.pagination.SliceResult;
 import com.lamprism.luxspec.data.pagination.SliceWindow;
 import com.lamprism.luxspec.data.pagination.UnboundedWindow;
 import com.lamprism.luxspec.data.query.QueryCriteria;
+import com.lamprism.luxspec.data.query.QueryExecutor;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NonUniqueResultException;
 import jakarta.persistence.TypedQuery;
@@ -50,11 +51,11 @@ import java.util.Optional;
  * @param <T> the persistence entity type
  * @author RollW
  */
-public final class JpaQueryExecutor<T> {
+public class JpaQueryExecutor<T> implements QueryExecutor<T> {
     private final EntityManager entityManager;
     private final Class<T> entityType;
     private final JpaCriteriaTranslator translator;
-    private final JpaFieldResolver<T> fieldResolver;
+    private final JpaQueryFieldResolver<T> fieldResolver;
 
     /**
      * Creates an executor with direct same-name entity attribute mapping.
@@ -63,7 +64,7 @@ public final class JpaQueryExecutor<T> {
      * @param entityType    the managed entity type
      */
     public JpaQueryExecutor(EntityManager entityManager, Class<T> entityType) {
-        this(entityManager, entityType, new JpaCriteriaTranslator(), JpaFieldResolver.byAttributeName());
+        this(entityManager, entityType, new JpaCriteriaTranslator(), JpaQueryFieldResolver.byAttributeName());
     }
 
     /**
@@ -78,11 +79,14 @@ public final class JpaQueryExecutor<T> {
             Class<T> entityType,
             JpaFieldNamingStrategy namingStrategy
     ) {
-        this(entityManager, entityType, new JpaCriteriaTranslator(), JpaFieldResolver.byAttributeName(namingStrategy));
+        this(entityManager, entityType, new JpaCriteriaTranslator(), JpaQueryFieldResolver.byAttributeName(namingStrategy));
     }
 
     /**
      * Creates an executor with an explicit field resolver for complex mappings.
+     *
+     * <p>This is an advanced mapping extension point. Use the constructor that accepts only an
+     * entity type for the standard direct attribute mapping.</p>
      *
      * @param entityManager the entity manager used for query execution
      * @param entityType    the managed entity type
@@ -91,13 +95,16 @@ public final class JpaQueryExecutor<T> {
     public JpaQueryExecutor(
             EntityManager entityManager,
             Class<T> entityType,
-            JpaFieldResolver<T> fieldResolver
+            JpaQueryFieldResolver<T> fieldResolver
     ) {
         this(entityManager, entityType, new JpaCriteriaTranslator(), fieldResolver);
     }
 
     /**
      * Creates an executor with the supplied stateless translation collaborators.
+     *
+     * <p>This is an advanced mapping extension point. Standard callers can use the constructor
+     * that accepts only an entity type.</p>
      *
      * @param entityManager the entity manager used for query execution
      * @param entityType    the managed entity type
@@ -108,7 +115,7 @@ public final class JpaQueryExecutor<T> {
             EntityManager entityManager,
             Class<T> entityType,
             JpaCriteriaTranslator translator,
-            JpaFieldResolver<T> fieldResolver
+            JpaQueryFieldResolver<T> fieldResolver
     ) {
         this.entityManager = Objects.requireNonNull(entityManager, "entityManager");
         this.entityType = Objects.requireNonNull(entityType, "entityType");
@@ -130,7 +137,7 @@ public final class JpaQueryExecutor<T> {
             JpaCriteriaTranslator translator,
             JpaFieldNamingStrategy namingStrategy
     ) {
-        this(entityManager, entityType, translator, JpaFieldResolver.byAttributeName(namingStrategy));
+        this(entityManager, entityType, translator, JpaQueryFieldResolver.byAttributeName(namingStrategy));
     }
 
     /**
@@ -143,6 +150,7 @@ public final class JpaQueryExecutor<T> {
      * @param window   requested result window
      * @return the complete, page, or slice result
      */
+    @Override
     public QueryResult<T> query(QueryCriteria criteria, QueryWindow window) {
         QueryCriteria nonNullCriteria = Objects.requireNonNull(criteria, "criteria");
         QueryWindow nonNullWindow = Objects.requireNonNull(window, "window");

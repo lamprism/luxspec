@@ -20,13 +20,17 @@ import com.lamprism.luxspec.security.authentication.AccessTokenAuthenticator;
 import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecBearerAuthenticationFilter;
-import com.lamprism.luxspec.security.token.TokenVerifier;
 import com.lamprism.luxspec.security.token.access.AccessToken;
+import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
+import com.lamprism.luxspec.security.token.access.AccessTokenVerifier;
+import com.lamprism.luxspec.security.token.access.InMemoryAccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
+import com.lamprism.luxspec.security.token.refresh.InMemoryRefreshTokenSessionStore;
 import jakarta.servlet.Filter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,11 +45,44 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class LuxspecSecurityAutoConfigurationTest {
+    private final ApplicationContextRunner runtimeContextRunner = new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(LuxspecSecurityAutoConfiguration.class));
+
     private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
                     ServletWebSecurityAutoConfiguration.class,
                     LuxspecSecurityAutoConfiguration.class
             ));
+
+    @Test
+    void createsTheDefaultAuthenticatorWhenAllRuntimeRolesAreAvailable() {
+        runtimeContextRunner
+                .withBean(AccessTokenVerifier.class, UnsupportedTokenVerifier::new)
+                .withBean(SubjectResolver.class, UnsupportedSubjectResolver::new)
+                .withBean(AccessTokenRevocationStore.class, UnsupportedAccessTokenRevocationStore::new)
+                .run(context -> assertThat(context).hasSingleBean(AccessTokenAuthenticator.class));
+    }
+
+    @Test
+    void createsOptInInMemoryTokenStoresOnlyWhenSelected() {
+        runtimeContextRunner
+                .withPropertyValues(
+                        "luxspec.security.memory.revocation.enabled=true",
+                        "luxspec.security.memory.refresh.enabled=true"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(InMemoryAccessTokenRevocationStore.class);
+                    assertThat(context).hasSingleBean(InMemoryRefreshTokenSessionStore.class);
+                });
+    }
+
+    @Test
+    void doesNotCreateTheDefaultAuthenticatorWithoutARevocationStore() {
+        runtimeContextRunner
+                .withBean(AccessTokenVerifier.class, UnsupportedTokenVerifier::new)
+                .withBean(SubjectResolver.class, UnsupportedSubjectResolver::new)
+                .run(context -> assertThat(context).doesNotHaveBean(AccessTokenAuthenticator.class));
+    }
 
     @Test
     void createsAStatelessBearerChainWhenAnAccessTokenAuthenticatorIsAvailable() {
@@ -106,7 +143,8 @@ class LuxspecSecurityAutoConfigurationTest {
         AccessTokenAuthenticator accessTokenAuthenticator() {
             return new AccessTokenAuthenticator(
                     new UnsupportedTokenVerifier(),
-                    new UnsupportedSubjectResolver()
+                    new UnsupportedSubjectResolver(),
+                    new UnsupportedAccessTokenRevocationStore()
             );
         }
     }
@@ -120,8 +158,7 @@ class LuxspecSecurityAutoConfigurationTest {
         }
     }
 
-    private static final class UnsupportedTokenVerifier
-            implements TokenVerifier<AccessToken, VerifiedAccessToken> {
+    private static final class UnsupportedTokenVerifier implements AccessTokenVerifier {
         @Override
         public VerifiedAccessToken verify(AccessToken accessToken) {
             throw new UnsupportedOperationException("Context tests do not verify access tokens");
@@ -130,8 +167,20 @@ class LuxspecSecurityAutoConfigurationTest {
 
     private static final class UnsupportedSubjectResolver implements SubjectResolver {
         @Override
-        public Subject resolve(String subjectType, String subjectId) {
+        public Subject resolve(String type, String id) {
             throw new UnsupportedOperationException("Context tests do not resolve subjects");
+        }
+    }
+
+    private static final class UnsupportedAccessTokenRevocationStore implements AccessTokenRevocationStore {
+        @Override
+        public void revoke(VerifiedAccessToken accessToken) {
+            throw new UnsupportedOperationException("Context tests do not revoke access tokens");
+        }
+
+        @Override
+        public boolean isRevoked(VerifiedAccessToken accessToken) {
+            throw new UnsupportedOperationException("Context tests do not check access token revocation");
         }
     }
 }

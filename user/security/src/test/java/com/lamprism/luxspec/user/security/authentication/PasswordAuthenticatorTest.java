@@ -22,7 +22,6 @@ import com.lamprism.luxspec.resource.ResourceException;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
 import com.lamprism.luxspec.security.authentication.Authentication;
-import com.lamprism.luxspec.security.authentication.AuthenticationEvent;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
 import com.lamprism.luxspec.security.authentication.UserSubject;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
@@ -34,15 +33,13 @@ import com.lamprism.luxspec.user.resource.UserProvider;
 import com.lamprism.luxspec.user.resource.UserResourceTypes;
 import com.lamprism.luxspec.user.security.authorization.UserAuthorizationProfiles;
 import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolver;
+import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolverImpl;
 import com.lamprism.luxspec.user.security.password.EncodedPassword;
 import com.lamprism.luxspec.user.security.password.PasswordScheme;
 import com.lamprism.luxspec.user.security.password.UserPasswordStore;
 import org.junit.jupiter.api.Test;
 
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -78,41 +75,6 @@ class PasswordAuthenticatorTest {
         assertEquals("old", store.replacedCurrent.getValue());
         assertEquals("new", store.replacedValue.getValue());
         assertEquals(AuthorizationGrantSet.of(Set.of()), authentication.grants());
-    }
-
-    @Test
-    void publishesSafeAuthenticationEvents() {
-        List<AuthenticationEvent> events = new ArrayList<>();
-        Clock clock = Clock.fixed(TIME, ZoneOffset.UTC);
-        PasswordAuthenticator successfulAuthenticator = new PasswordAuthenticator(
-                new FixedUserProvider(user(UserStatus.ACTIVE)),
-                new RecordingPasswordStore(new EncodedPassword("old")),
-                new RecordingPasswordScheme(),
-                grantResolver(),
-                event -> events.add((AuthenticationEvent) event),
-                clock
-        );
-
-        successfulAuthenticator.authenticate(new UsernamePasswordCredentials("ada", "secret"));
-
-        PasswordAuthenticator failedAuthenticator = new PasswordAuthenticator(
-                new FixedUserProvider(user(UserStatus.ACTIVE)),
-                new RecordingPasswordStore(new EncodedPassword("old")),
-                new RecordingPasswordScheme(false, false),
-                grantResolver(),
-                event -> events.add((AuthenticationEvent) event),
-                clock
-        );
-        assertThrows(
-                AuthenticationException.class,
-                () -> failedAuthenticator.authenticate(new UsernamePasswordCredentials("ada", "secret"))
-        );
-
-        assertEquals(2, events.size());
-        assertTrue(events.get(0).isSuccessful());
-        assertEquals("user", events.get(0).getSubject().getType());
-        assertFalse(events.get(1).isSuccessful());
-        assertEquals(AuthErrorCode.INVALID_CREDENTIALS, events.get(1).getErrorCode());
     }
 
     @Test
@@ -184,7 +146,7 @@ class PasswordAuthenticatorTest {
     }
 
     private static UserRoleGrantResolver grantResolver() {
-        return new UserRoleGrantResolver(
+        return new UserRoleGrantResolverImpl(
                 UserAuthorizationProfiles.defaultRoleProfiles(),
                 List.of(UserAuthorizationProfiles.defaults()),
                 AuthorizationScopeHierarchy.empty()

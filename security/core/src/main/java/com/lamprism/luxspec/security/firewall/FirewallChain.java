@@ -30,7 +30,7 @@ import java.util.Objects;
  * @param <R> the request-fact type evaluated by this chain
  * @author RollW
  */
-public final class FirewallChain<R> {
+public class FirewallChain<R> {
     private final List<FirewallRule<R>> rules;
     private final EventPublisher eventPublisher;
     private final Clock clock;
@@ -90,7 +90,11 @@ public final class FirewallChain<R> {
         try {
             decision = Objects.requireNonNull(rule.evaluate(request), "firewall decision");
         } catch (RuntimeException exception) {
-            eventPublisher.publish(new FirewallRuleFailureEvent(rule.getClass().getName()));
+            eventPublisher.publish(new FirewallRuleFailureEvent(
+                    rule.getClass().getName(),
+                    SecurityErrorCode.FIREWALL_RULE_FAILURE,
+                    clock.instant()
+            ));
             return FirewallDecision.deny(SecurityErrorCode.FIREWALL_RULE_FAILURE);
         }
         if (!decision.passed()) {

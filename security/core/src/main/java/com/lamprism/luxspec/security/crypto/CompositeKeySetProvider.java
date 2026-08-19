@@ -25,7 +25,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class CompositeKeySetProvider implements KeySetProvider {
+public class CompositeKeySetProvider implements KeySetProvider {
     private final List<KeySetProvider> providers;
 
     /**

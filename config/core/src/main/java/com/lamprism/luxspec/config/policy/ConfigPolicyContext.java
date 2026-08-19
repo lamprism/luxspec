@@ -4,6 +4,7 @@ import com.lamprism.luxspec.config.ConfigBinding;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Map;
@@ -22,6 +23,7 @@ public final class ConfigPolicyContext {
     private final ConfigPolicyPhase phase;
     private final ConfigBinding<?> binding;
     private final @Nullable ConfigSourceId sourceId;
+    private final @Nullable ConfigSourceScope sourceScope;
     private final @Nullable Map<String, String> sourceAttributes;
     private final ConfigEntry.@Nullable State sourceState;
 
@@ -30,6 +32,7 @@ public final class ConfigPolicyContext {
             ConfigPolicyPhase phase,
             ConfigBinding<?> binding,
             @Nullable ConfigSourceId sourceId,
+            @Nullable ConfigSourceScope sourceScope,
             @Nullable Map<String, String> sourceAttributes,
             ConfigEntry.@Nullable State sourceState
     ) {
@@ -37,10 +40,12 @@ public final class ConfigPolicyContext {
         this.phase = Objects.requireNonNull(phase, "phase");
         this.binding = Objects.requireNonNull(binding, "binding");
         this.sourceId = sourceId;
+        this.sourceScope = sourceScope;
         this.sourceAttributes = sourceAttributes;
         this.sourceState = sourceState;
-        boolean hasSource = sourceId != null;
-        if (hasSource != (sourceAttributes != null)) {
+        boolean hasSourceId = sourceId != null;
+        boolean hasSourceMetadata = sourceScope != null && sourceAttributes != null;
+        if (hasSourceId != hasSourceMetadata) {
             throw new IllegalArgumentException("Source metadata must be complete");
         }
         if (phase == ConfigPolicyPhase.AFTER_SOURCE_READ && sourceState == null) {
@@ -72,6 +77,7 @@ public final class ConfigPolicyContext {
                 operation,
                 ConfigPolicyPhase.OPERATION,
                 binding,
+                null,
                 null,
                 null,
                 null
@@ -183,6 +189,15 @@ public final class ConfigPolicyContext {
     }
 
     /**
+     * Returns the lifecycle scope of the candidate Source.
+     *
+     * @return the Source scope, or {@code null} for definition-level operations
+     */
+    public @Nullable ConfigSourceScope getSourceScope() {
+        return sourceScope;
+    }
+
+    /**
      * Returns an immutable snapshot of Source attributes.
      *
      * @return Source attributes, or {@code null} for definition-level operations
@@ -213,6 +228,7 @@ public final class ConfigPolicyContext {
                 phase,
                 binding,
                 Objects.requireNonNull(nonNullSource.getId(), "source ID"),
+                Objects.requireNonNull(nonNullSource.getScope(), "source scope"),
                 Map.copyOf(Objects.requireNonNull(nonNullSource.getAttributes(), "source attributes")),
                 sourceState
         );

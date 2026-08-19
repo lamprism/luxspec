@@ -21,7 +21,6 @@ import com.lamprism.luxspec.context.ExecutionContexts;
 import org.springframework.core.task.TaskDecorator;
 
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Propagates the complete Luxspec execution context through a Spring task executor.
@@ -31,20 +30,16 @@ import java.util.Optional;
  *
  * @author RollW
  */
-public final class SpringExecutionContextTaskDecorator implements TaskDecorator {
+public class SpringExecutionContextTaskDecorator implements TaskDecorator {
     @Override
     public Runnable decorate(Runnable runnable) {
         Runnable nonNullRunnable = Objects.requireNonNull(runnable, "runnable");
-        Optional<ExecutionContext> capturedContext = ExecutionContexts.snapshot();
+        ExecutionContext capturedContext = ExecutionContexts.snapshot().orElseGet(ExecutionContext::empty);
         return () -> run(capturedContext, nonNullRunnable);
     }
 
-    private static void run(Optional<ExecutionContext> capturedContext, Runnable runnable) {
-        if (capturedContext.isEmpty()) {
-            runnable.run();
-            return;
-        }
-        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(capturedContext.orElseThrow())) {
+    private static void run(ExecutionContext capturedContext, Runnable runnable) {
+        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(capturedContext)) {
             runnable.run();
         }
     }

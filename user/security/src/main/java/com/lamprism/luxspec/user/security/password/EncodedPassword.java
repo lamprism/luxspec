@@ -54,6 +54,16 @@ public final class EncodedPassword {
         return "EncodedPassword[redacted]";
     }
 
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof EncodedPassword password && value.equals(password.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
+    }
+
     private static String requireValue(String candidate) {
         String nonNullValue = Objects.requireNonNull(candidate, "value");
         if (nonNullValue.isBlank()) {

@@ -1,5 +1,5 @@
 /**
- * Layered configuration runtime implementations and internal coordination roles.
+ * Layered configuration runtime implementations and scoped reader coordination roles.
  */
 @NullMarked
 package com.lamprism.luxspec.config.runtime;

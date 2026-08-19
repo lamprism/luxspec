@@ -4,6 +4,7 @@ import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import com.lamprism.luxspec.config.source.RawConfigValue;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.core.JacksonException;
@@ -11,6 +12,8 @@ import tools.jackson.dataformat.toml.TomlMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,26 +25,56 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class TomlConfigSource implements ConfigSource {
+public class TomlConfigSource implements ConfigSource {
     private static final TomlMapper TOML_MAPPER = TomlMapper.builder().build();
 
     private final ConfigSourceId id;
+    private final ConfigSourceScope scope;
     private final Map<String, Object> document;
 
     /**
      * Reads one TOML document and assigns it a stable source ID.
      *
      * @param id    the configured source instance ID
+     * @param scope the lifecycle scope in which the source is available
      * @param input the TOML input to consume
      */
-    public TomlConfigSource(ConfigSourceId id, InputStream input) {
+    public TomlConfigSource(ConfigSourceId id, ConfigSourceScope scope, InputStream input) {
         this.id = Objects.requireNonNull(id, "id");
+        this.scope = Objects.requireNonNull(scope, "scope");
         this.document = readDocument(input);
+    }
+
+    /**
+     * Reads one TOML document from a file.
+     *
+     * @param id    the configured source instance ID
+     * @param scope the lifecycle scope in which the source is available
+     * @param path  the TOML file path
+     * @return the file-backed TOML source
+     */
+    public static TomlConfigSource fromPath(
+            ConfigSourceId id,
+            ConfigSourceScope scope,
+            Path path
+    ) {
+        try {
+            return new TomlConfigSource(id, scope, Files.newInputStream(
+                    Objects.requireNonNull(path, "path")
+            ));
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("Unable to open TOML configuration file", exception);
+        }
     }
 
     @Override
     public ConfigSourceId getId() {
         return id;
+    }
+
+    @Override
+    public ConfigSourceScope getScope() {
+        return scope;
     }
 
     @Override

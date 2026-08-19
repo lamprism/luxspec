@@ -19,6 +19,7 @@ package com.lamprism.luxspec.config;
 import com.lamprism.luxspec.config.definition.DefaultConfigSpec;
 import com.lamprism.luxspec.config.policy.ConfigPolicies;
 import com.lamprism.luxspec.config.policy.ConfigPolicy;
+import com.lamprism.luxspec.message.LocalizedText;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import java.util.Objects;
 public final class ConfigSpecBuilder<T> {
     private final String key;
     private final ConfigCodec<T> codec;
+    private ConfigDescription description = ConfigDescription.EMPTY;
     private List<ConfigParameter> parameters = List.of();
     private @Nullable T defaultValue;
     private boolean sensitive;
@@ -69,6 +71,37 @@ public final class ConfigSpecBuilder<T> {
     public ConfigSpecBuilder<T> parameters(List<? extends ConfigParameter> parameters) {
         this.parameters = List.copyOf(Objects.requireNonNull(parameters, "parameters"));
         return this;
+    }
+
+    /**
+     * Sets the description metadata.
+     *
+     * @param description the optional localized description
+     * @return this builder
+     */
+    public ConfigSpecBuilder<T> description(ConfigDescription description) {
+        this.description = Objects.requireNonNull(description, "description");
+        return this;
+    }
+
+    /**
+     * Sets an inline description.
+     *
+     * @param description the description text
+     * @return this builder
+     */
+    public ConfigSpecBuilder<T> textDescription(String description) {
+        return description(ConfigDescription.text(description));
+    }
+
+    /**
+     * Sets a locally translated description.
+     *
+     * @param description the local description text
+     * @return this builder
+     */
+    public ConfigSpecBuilder<T> localizedDescription(LocalizedText description) {
+        return description(ConfigDescription.localized(description));
     }
 
     /**
@@ -153,6 +186,7 @@ public final class ConfigSpecBuilder<T> {
         return new DefaultConfigSpec<>(
                 ConfigKey.template(key, parameters),
                 codec,
+                description,
                 defaultValue,
                 sensitive,
                 validator,

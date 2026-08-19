@@ -37,7 +37,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public final class EventPublishingUserRegistry implements UserRegistry {
+public class EventPublishingUserRegistry implements UserRegistry {
     private final UserRegistry delegate;
     private final EventPublisher eventPublisher;
     private final Clock clock;

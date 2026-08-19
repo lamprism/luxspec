@@ -18,6 +18,13 @@ public interface ConfigSource {
     ConfigSourceId getId();
 
     /**
+     * Returns the lifecycle scope in which this source is available.
+     *
+     * @return the source scope
+     */
+    ConfigSourceScope getScope();
+
+    /**
      * Returns provider-defined attributes used by source-selection policies.
      *
      * @return immutable source attributes

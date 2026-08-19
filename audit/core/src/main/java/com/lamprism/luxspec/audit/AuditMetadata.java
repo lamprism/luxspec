@@ -56,4 +56,19 @@ public final class AuditMetadata {
     public AuditFieldSet fields() {
         return fields;
     }
+
+    @Override
+    public boolean equals(Object other) {
+        if (!(other instanceof AuditMetadata metadata)) {
+            return false;
+        }
+        return actor.equals(metadata.actor)
+                && Objects.equals(correlationId, metadata.correlationId)
+                && fields.equals(metadata.fields);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(actor, correlationId, fields);
+    }
 }

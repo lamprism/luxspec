@@ -21,7 +21,6 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.authorization.ResourceAuthorizationDecisionEvent;
 
@@ -31,7 +30,7 @@ import com.lamprism.luxspec.security.authorization.ResourceAuthorizationDecision
  *
  * @author RollW
  */
-public final class ResourceAuthorizationDecisionAuditTranslator
+public class ResourceAuthorizationDecisionAuditTranslator
         implements AuditEventTranslator<ResourceAuthorizationDecisionEvent<?>> {
     @Override
     public AuditEntryContent translate(
@@ -39,13 +38,14 @@ public final class ResourceAuthorizationDecisionAuditTranslator
     ) {
         ResourceAuthorizationDecisionEvent<?> event = envelope.event();
         AuditFieldSet.Builder fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.SECURITY_ACTION, event.getAction().getName())
-                .put(LuxspecAuditFields.SECURITY_DURATION_MILLIS, event.getDuration().toMillis());
-        SecurityAuditTranslationSupport.putSubject(fields, event.getAuthentication().subject());
+                .put(SecurityAuditFields.SECURITY_ACTION, event.getAction().getName())
+                .put(SecurityAuditFields.SECURITY_DURATION_MILLIS, event.getDuration().toMillis());
+        SubjectAuditProjection.putSubject(fields, event.getAuthentication().subject());
         if (event.getDecision().getReasonCode() != null) {
-            fields.put(LuxspecAuditFields.SECURITY_REASON_CODE, event.getDecision().getReasonCode().getCode());
+            fields.put(SecurityAuditFields.SECURITY_REASON_CODE, event.getDecision().getReasonCode().getCode());
         }
         return AuditEntryContent.of(
+                event.getOccurredAt(),
                 AuditAction.of("security.resource.access"),
                 event.getDecision().isAllowed() ? AuditOutcome.SUCCESS : AuditOutcome.DENIED,
                 event.getReference(),

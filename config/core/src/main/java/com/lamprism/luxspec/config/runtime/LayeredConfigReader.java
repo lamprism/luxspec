@@ -15,7 +15,6 @@ import com.lamprism.luxspec.config.resolution.LayeredConfigValue;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
-import com.lamprism.luxspec.config.value.ConfigValueValidationException;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,7 +34,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public final class LayeredConfigReader implements ConfigReader {
+public class LayeredConfigReader implements ConfigReader {
     private final List<ConfigSource> sources;
 
     /**
@@ -124,7 +123,7 @@ public final class LayeredConfigReader implements ConfigReader {
         return switch (entry.getState()) {
             case ABSENT -> ConfigValue.absent(sourceId);
             case TOMBSTONE -> ConfigValue.absent(new ConfigValueOrigin.TombstoneOrigin(sourceId));
-            case INVALID -> throw invalid(binding, source, entry.requireInvalidDescription());
+            case INVALID -> throw new ConfigResolutionException();
             case PRESENT -> decode(binding, source, entry);
         };
     }
@@ -137,10 +136,8 @@ public final class LayeredConfigReader implements ConfigReader {
             );
             binding.getSpec().validate(value);
             return ConfigValue.source(value, source.getId());
-        } catch (ConfigValueValidationException exception) {
-            throw invalid(binding, source, exception.getMessage());
         } catch (RuntimeException exception) {
-            throw invalid(binding, source, "Codec could not decode or validate the source value");
+            throw new ConfigResolutionException(exception);
         }
     }
 
@@ -192,11 +189,4 @@ public final class LayeredConfigReader implements ConfigReader {
         }
     }
 
-    private static ConfigResolutionException invalid(
-            ConfigBinding<?> binding,
-            ConfigSource source,
-            String detail
-    ) {
-        return new ConfigResolutionException(binding.getKey(), source.getId(), detail);
-    }
 }

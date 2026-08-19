@@ -31,6 +31,7 @@ public class LuxspecCacheProperties {
     private long maximumSize = 1_024;
     private Duration expireAfterWrite;
     private Duration expireAfterAccess;
+    private boolean recordStats;
 
     /**
      * Returns the maximum number of entries.
@@ -86,6 +87,14 @@ public class LuxspecCacheProperties {
         this.expireAfterAccess = expireAfterAccess;
     }
 
+    public boolean isRecordStats() {
+        return recordStats;
+    }
+
+    public void setRecordStats(boolean recordStats) {
+        this.recordStats = recordStats;
+    }
+
     /**
      * Converts bound properties to provider-independent cache controls.
      *
@@ -100,6 +109,7 @@ public class LuxspecCacheProperties {
         if (expireAfterAccess != null) {
             builder.expireAfterAccess(expireAfterAccess);
         }
+        builder.recordStats(recordStats);
         return builder.build();
     }
 }

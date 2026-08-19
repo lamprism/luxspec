@@ -17,7 +17,6 @@
 package com.lamprism.luxspec.context;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -25,7 +24,7 @@ import java.util.concurrent.Executor;
  *
  * @author RollW
  */
-public final class ContextPropagatingExecutor implements Executor {
+public class ContextPropagatingExecutor implements Executor {
     private final Executor delegate;
 
     /**
@@ -40,7 +39,7 @@ public final class ContextPropagatingExecutor implements Executor {
     @Override
     public void execute(Runnable command) {
         Runnable nonNullCommand = Objects.requireNonNull(command, "command");
-        Optional<ExecutionContext> captured = ExecutionContexts.snapshot();
+        ExecutionContext captured = ExecutionContexts.snapshot().orElseGet(ExecutionContext::empty);
         delegate.execute(() -> run(captured, nonNullCommand));
     }
 
@@ -52,14 +51,6 @@ public final class ContextPropagatingExecutor implements Executor {
     public void executeDetached(Runnable command) {
         Runnable nonNullCommand = Objects.requireNonNull(command, "command");
         delegate.execute(() -> run(ExecutionContext.empty(), nonNullCommand));
-    }
-
-    private void run(Optional<ExecutionContext> captured, Runnable command) {
-        if (captured.isEmpty()) {
-            command.run();
-            return;
-        }
-        run(captured.orElseThrow(), command);
     }
 
     private void run(ExecutionContext context, Runnable command) {

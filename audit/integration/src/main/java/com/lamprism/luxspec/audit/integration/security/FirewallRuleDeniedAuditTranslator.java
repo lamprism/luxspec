@@ -21,7 +21,6 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.firewall.FirewallRuleDeniedEvent;
 
@@ -30,17 +29,18 @@ import com.lamprism.luxspec.security.firewall.FirewallRuleDeniedEvent;
  *
  * @author RollW
  */
-public final class FirewallRuleDeniedAuditTranslator implements AuditEventTranslator<FirewallRuleDeniedEvent> {
+public class FirewallRuleDeniedAuditTranslator implements AuditEventTranslator<FirewallRuleDeniedEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<FirewallRuleDeniedEvent> envelope) {
         FirewallRuleDeniedEvent event = envelope.event();
         AuditFieldSet.Builder fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.SECURITY_RULE_TYPE, event.getRuleType())
-                .put(LuxspecAuditFields.SECURITY_REASON_CODE, event.getReasonCode().getCode());
+                .put(SecurityAuditFields.SECURITY_RULE_TYPE, event.getRuleType())
+                .put(SecurityAuditFields.SECURITY_REASON_CODE, event.getReasonCode().getCode());
         if (event.getRetryAfter() != null) {
-            fields.put(LuxspecAuditFields.SECURITY_RETRY_AFTER_MILLIS, event.getRetryAfter().toMillis());
+            fields.put(SecurityAuditFields.SECURITY_RETRY_AFTER_MILLIS, event.getRetryAfter().toMillis());
         }
         return AuditEntryContent.of(
+                event.getOccurredAt(),
                 AuditAction.of("security.firewall.evaluate"),
                 AuditOutcome.DENIED,
                 null,

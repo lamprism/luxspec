@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.message.spring;
 
+import com.lamprism.luxspec.message.MessageResolver;
+import com.lamprism.luxspec.message.MessageResource;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.StaticMessageSource;
 
@@ -47,6 +49,33 @@ class SpringMessageResolverTest {
                 "[message unavailable]",
                 resolver.resolve("internal.secret.failure", Locale.US)
         );
+    }
+
+    @Test
+    void prefersAnApplicationOverrideBeforeTheConfiguredResourceFallback() {
+        StaticMessageSource messageSource = new StaticMessageSource();
+        messageSource.addMessage(
+                "luxspec.database.config.database.type",
+                Locale.US,
+                "Application database type"
+        );
+        MessageResolver fallbackResolver = (key, locale, arguments) -> "Library database type";
+        SpringMessageResolver resolver = new SpringMessageResolver(
+                messageSource,
+                fallbackResolver,
+                "[message unavailable]"
+        );
+        MessageResource resource = MessageResource.of("luxspec.database.config", "database.type");
+
+        assertEquals("Application database type", resolver.resolve(resource, Locale.US));
+
+        StaticMessageSource emptyMessageSource = new StaticMessageSource();
+        SpringMessageResolver fallbackOnlyResolver = new SpringMessageResolver(
+                emptyMessageSource,
+                fallbackResolver,
+                "[message unavailable]"
+        );
+        assertEquals("Library database type", fallbackOnlyResolver.resolve(resource, Locale.US));
     }
 
     @Test

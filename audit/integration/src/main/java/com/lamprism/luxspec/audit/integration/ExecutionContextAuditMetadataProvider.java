@@ -37,7 +37,7 @@ import java.util.Locale;
  *
  * @author RollW
  */
-public final class ExecutionContextAuditMetadataProvider implements AuditMetadataProvider {
+public class ExecutionContextAuditMetadataProvider implements AuditMetadataProvider {
     @Override
     public AuditMetadata capture() {
         ExecutionContext context = ExecutionContexts.current().orElse(null);
@@ -59,19 +59,10 @@ public final class ExecutionContextAuditMetadataProvider implements AuditMetadat
 
     private static AuditActor actor(Authentication authentication) {
         Subject subject = authentication.subject();
-        String subjectType = subject.getType();
-        String subjectId = subject.getId();
-        AuditActor.Kind kind = kind(subjectType);
-        if (subjectId == null || subjectId.isBlank()) {
-            return AuditActor.of(kind, null);
-        }
-        return AuditActor.of(kind, subjectId);
+        return AuditActor.of(kind(subject.getType()), subject.getId());
     }
 
     private static AuditActor.Kind kind(String subjectType) {
-        if (subjectType == null || subjectType.isBlank()) {
-            return AuditActor.Kind.UNKNOWN;
-        }
         return switch (subjectType.toLowerCase(Locale.ROOT)) {
             case "user" -> AuditActor.Kind.USER;
             case "service" -> AuditActor.Kind.SERVICE;

@@ -40,7 +40,7 @@ class UserRoleGrantResolverTest {
             registry.grant(UserAuthorizationProfiles.USER, List.of(userRead));
             registry.grant(UserAuthorizationProfiles.ADMIN, List.of(userWrite));
         };
-        UserRoleGrantResolver resolver = new UserRoleGrantResolver(
+        UserRoleGrantResolver resolver = new UserRoleGrantResolverImpl(
                 UserAuthorizationProfiles.defaultRoleProfiles(),
                 List.of(UserAuthorizationProfiles.defaults(), userScopes),
                 hierarchy
@@ -69,7 +69,7 @@ class UserRoleGrantResolverTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new UserRoleGrantResolver(
+                () -> new UserRoleGrantResolverImpl(
                         Map.of(),
                         List.of(cyclic),
                         AuthorizationScopeHierarchy.empty()

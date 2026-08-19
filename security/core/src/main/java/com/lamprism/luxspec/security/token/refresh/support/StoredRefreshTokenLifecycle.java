@@ -23,6 +23,7 @@ import com.lamprism.luxspec.ErrorCodeCarrier;
 import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
+import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.token.IssuedToken;
 import com.lamprism.luxspec.security.token.SessionLifetime;
@@ -57,7 +58,7 @@ import java.util.Objects;
  * @param <S> the application Refresh Token Session type
  * @author RollW
  */
-public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
+public class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
         implements TokenIssuer, TokenRefresher {
     private static final int TOKEN_BYTE_LENGTH = 32;
     private static final int SESSION_ID_BYTE_LENGTH = 16;
@@ -298,9 +299,7 @@ public final class StoredRefreshTokenLifecycle<S extends RefreshTokenSession>
     private static void requireSameSubject(Subject expected, Subject actual) {
         Subject nonNullExpected = Objects.requireNonNull(expected, "expected");
         Subject nonNullActual = Objects.requireNonNull(actual, "actual");
-        boolean sameType = nonNullExpected.getType().equals(nonNullActual.getType());
-        boolean sameId = nonNullExpected.getId().equals(nonNullActual.getId());
-        if (!sameType || !sameId) {
+        if (!SimpleSubject.from(nonNullExpected).equals(SimpleSubject.from(nonNullActual))) {
             throw new AuthenticationException(
                     AuthErrorCode.REFRESH_TOKEN_REJECTED,
                     "Refresh Token Session subject changed"

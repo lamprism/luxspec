@@ -28,7 +28,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class LuxspecAccessTokenAuthenticationProvider implements AuthenticationProvider {
+public class LuxspecAccessTokenAuthenticationProvider implements AuthenticationProvider {
     private final Authenticator<AccessTokenCredentials> authenticator;
 
     /**

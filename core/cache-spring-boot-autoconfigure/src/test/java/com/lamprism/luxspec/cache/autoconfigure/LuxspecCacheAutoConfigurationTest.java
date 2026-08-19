@@ -17,7 +17,9 @@
 package com.lamprism.luxspec.cache.autoconfigure;
 
 import com.lamprism.luxspec.cache.Cache;
-import com.lamprism.luxspec.cache.CaffeineCaches;
+import com.lamprism.luxspec.cache.CacheFactory;
+import com.lamprism.luxspec.cache.CacheProfile;
+import com.lamprism.luxspec.cache.CaffeineCacheFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -31,26 +33,37 @@ class LuxspecCacheAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(LuxspecCacheAutoConfiguration.class));
 
     @Test
-    void createsDefaultCacheFromBoundProperties() {
+    void createsDefaultCacheFactoryAndProfileFromBoundProperties() {
         contextRunner
                 .withPropertyValues(
                         "luxspec.cache.maximum-size=32",
-                        "luxspec.cache.expire-after-write=10s"
+                        "luxspec.cache.expire-after-write=10s",
+                        "luxspec.cache.record-stats=true"
                 )
                 .run(context -> {
-                    assertThat(context).hasSingleBean(Cache.class);
+                    assertThat(context).hasSingleBean(CacheFactory.class);
+                    assertThat(context).hasSingleBean(CacheProfile.class);
+                    assertThat(context).doesNotHaveBean(Cache.class);
                     LuxspecCacheProperties properties = context.getBean(LuxspecCacheProperties.class);
                     assertThat(properties.getMaximumSize()).isEqualTo(32);
                     assertThat(properties.getExpireAfterWrite()).isEqualTo(Duration.ofSeconds(10));
+                    assertThat(properties.isRecordStats()).isTrue();
+                    CacheProfile profile = context.getBean(CacheProfile.class);
+                    assertThat(profile.getMaximumSize()).isEqualTo(32);
+                    assertThat(profile.getExpireAfterWrite()).isEqualTo(Duration.ofSeconds(10));
+                    assertThat(profile.isRecordStats()).isTrue();
                 });
     }
 
     @Test
-    void backsOffWhenApplicationProvidesCache() {
-        Cache<Object, Object> applicationCache = CaffeineCaches.create();
+    void backsOffWhenApplicationProvidesCacheFactory() {
+        CacheFactory applicationFactory = new CaffeineCacheFactory();
 
         contextRunner
-                .withBean(Cache.class, () -> applicationCache)
-                .run(context -> assertThat(context.getBean(Cache.class)).isSameAs(applicationCache));
+                .withBean(CacheFactory.class, () -> applicationFactory)
+                .run(context -> {
+                    assertThat(context.getBean(CacheFactory.class)).isSameAs(applicationFactory);
+                    assertThat(context).doesNotHaveBean(Cache.class);
+                });
     }
 }

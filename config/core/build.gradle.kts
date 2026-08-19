@@ -23,5 +23,6 @@ description = "Configuration system core contracts and defaults."
 dependencies {
     api(project(":core:core-base"))
     implementation("tools.jackson.dataformat:jackson-dataformat-toml")
-    testImplementation(project(":core:core-cache"))
+    testImplementation(project(":core:core-base"))
+    testImplementation("com.github.ben-manes.caffeine:caffeine")
 }

@@ -41,7 +41,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class DefaultAuditPublisher implements AuditPublisher {
+public class DefaultAuditPublisher implements AuditPublisher {
     private final AuditRegistry registry;
     private final AuditSink sink;
     private final Clock clock;
@@ -128,13 +128,14 @@ public final class DefaultAuditPublisher implements AuditPublisher {
         AuditEntry entry = new AuditEntry(
                 nonNullEnvelope.id(),
                 nonNullEnvelope.eventName(),
+                content.occurredAt(),
                 nonNullEnvelope.publishedAt(),
                 nonNullEnvelope.metadata(),
                 content.action(),
                 content.outcome(),
                 content.resource(),
-                content.fields(),
-                content.details()
+                content.fieldSet(),
+                content.detail()
         );
         try {
             sink.accept(entry);

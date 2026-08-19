@@ -19,6 +19,9 @@ package com.lamprism.luxspec.observability.autoconfigure;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
+import com.lamprism.luxspec.observability.runtime.health.JvmHealthSet;
+import com.lamprism.luxspec.observability.runtime.metric.JvmMetricSet;
+import com.lamprism.luxspec.observability.runtime.observation.StandardObservationSet;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -53,6 +56,39 @@ class LuxspecObservabilityAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context.getBean(MetricRegistry.class)).isSameAs(metricRegistry);
                     assertThat(context.getBean(ObservationRegistry.class)).isSameAs(observationRegistry);
+                });
+    }
+
+    @Test
+    void keepsOptionalObservabilitySetsDisabledByDefault() {
+        contextRunner.run(context -> {
+            assertThat(context).doesNotHaveBean(JvmMetricSet.class);
+            assertThat(context).doesNotHaveBean(JvmHealthSet.class);
+            assertThat(context).doesNotHaveBean(StandardObservationSet.class);
+        });
+    }
+
+    @Test
+    void assemblesSelectedJvmAndStandardSetsThroughOneRegistryBoundary() {
+        contextRunner
+                .withPropertyValues(
+                        "luxspec.observability.jvm.metrics.enabled=true",
+                        "luxspec.observability.jvm.metrics.domains=THREAD",
+                        "luxspec.observability.jvm.health.enabled=true",
+                        "luxspec.observability.observation.standard.enabled=true",
+                        "luxspec.observability.observation.standard.domains=WEB,SECURITY"
+                )
+                .withBean(Executor.class, () -> Runnable::run)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(JvmMetricSet.class);
+                    assertThat(context).hasSingleBean(JvmHealthSet.class);
+                    assertThat(context).hasSingleBean(StandardObservationSet.class);
+                    assertThat(context.getBean(MetricRegistry.class).getSpecs())
+                            .extracting(spec -> spec.getName().getValue())
+                            .contains("jvm.threads.live");
+                    assertThat(context.getBean(ObservationRegistry.class).getSpecs())
+                            .extracting(spec -> spec.getName().value())
+                            .contains("web.request", "security.authentication");
                 });
     }
 

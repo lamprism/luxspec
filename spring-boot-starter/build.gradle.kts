@@ -25,6 +25,7 @@ dependencies {
     api(project(":core:core-spring-boot-autoconfigure"))
     api(project(":core:core-cache-spring-boot-autoconfigure"))
     api(project(":config:config-spring-boot-autoconfigure"))
+    api(project(":database:database-spring-boot-autoconfigure"))
     api(project(":security:security-jwt-nimbus-spring-boot-autoconfigure"))
     api(project(":security:security-spring-boot-autoconfigure"))
     api(project(":audit:audit-spring-boot-autoconfigure"))

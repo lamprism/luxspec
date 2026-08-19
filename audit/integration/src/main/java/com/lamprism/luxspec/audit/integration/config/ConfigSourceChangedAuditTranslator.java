@@ -21,7 +21,6 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.config.event.ConfigSourceChangedEvent;
 
@@ -32,17 +31,18 @@ import java.util.Locale;
  *
  * @author RollW
  */
-public final class ConfigSourceChangedAuditTranslator implements AuditEventTranslator<ConfigSourceChangedEvent> {
+public class ConfigSourceChangedAuditTranslator implements AuditEventTranslator<ConfigSourceChangedEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<ConfigSourceChangedEvent> envelope) {
         ConfigSourceChangedEvent event = envelope.event();
         String action = "config.source." + event.getChangeType().name().toLowerCase(Locale.ROOT);
         AuditFieldSet fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.CONFIG_KEY, event.getKey().getValue())
-                .put(LuxspecAuditFields.CONFIG_SOURCE, event.getSourceId().getValue())
-                .put(LuxspecAuditFields.CONFIG_CHANGE_TYPE, event.getChangeType().name())
+                .put(ConfigAuditFields.CONFIG_KEY, event.getKey().getValue())
+                .put(ConfigAuditFields.CONFIG_SOURCE, event.getSourceId().getValue())
+                .put(ConfigAuditFields.CONFIG_CHANGE_TYPE, event.getChangeType().name())
                 .build();
         return AuditEntryContent.of(
+                envelope.publishedAt(),
                 AuditAction.of(action),
                 AuditOutcome.SUCCESS,
                 ConfigAuditTranslationSupport.configuration(event.getKey()),

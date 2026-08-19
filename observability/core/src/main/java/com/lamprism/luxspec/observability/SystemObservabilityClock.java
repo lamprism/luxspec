@@ -23,7 +23,7 @@ import java.time.Instant;
  *
  * @author RollW
  */
-public final class SystemObservabilityClock implements ObservabilityClock {
+public class SystemObservabilityClock implements ObservabilityClock {
     @Override
     public long monotonicNanos() {
         return System.nanoTime();

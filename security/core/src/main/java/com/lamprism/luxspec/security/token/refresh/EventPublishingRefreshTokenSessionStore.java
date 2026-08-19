@@ -36,7 +36,7 @@ import java.util.Objects;
  * @param <S> the Refresh Token Session type
  * @author RollW
  */
-public final class EventPublishingRefreshTokenSessionStore<S extends RefreshTokenSession>
+public class EventPublishingRefreshTokenSessionStore<S extends RefreshTokenSession>
         implements RefreshTokenSessionStore<S> {
     private final RefreshTokenSessionStore<S> delegate;
     private final EventPublisher eventPublisher;

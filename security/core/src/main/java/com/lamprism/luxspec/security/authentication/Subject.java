@@ -24,14 +24,14 @@ package com.lamprism.luxspec.security.authentication;
  */
 public interface Subject {
     /**
-     * Returns the stable subject category.
+     * Returns the stable non-blank subject type.
      *
      * @return the subject type
      */
     String getType();
 
     /**
-     * Returns the stable subject identifier within its category.
+     * Returns the stable non-blank subject identifier within its type.
      *
      * @return the subject identifier
      */

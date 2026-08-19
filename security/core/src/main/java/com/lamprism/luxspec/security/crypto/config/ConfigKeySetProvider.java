@@ -44,7 +44,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class ConfigKeySetProvider implements KeySetProvider {
+public class ConfigKeySetProvider implements KeySetProvider {
     private final ConfigReader reader;
     private final PublicKeyDeriver publicKeyDeriver;
 

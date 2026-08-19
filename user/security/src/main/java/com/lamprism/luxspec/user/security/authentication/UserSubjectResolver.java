@@ -20,6 +20,7 @@ import com.lamprism.luxspec.AuthErrorCode;
 import com.lamprism.luxspec.resource.ResourceException;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
+import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.authentication.UserSubject;
@@ -35,7 +36,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class UserSubjectResolver implements SubjectResolver {
+public class UserSubjectResolver implements SubjectResolver {
     private final UserProvider userProvider;
 
     /**
@@ -48,11 +49,12 @@ public final class UserSubjectResolver implements SubjectResolver {
     }
 
     @Override
-    public Subject resolve(String subjectType, String subjectId) {
-        if (!"user".equals(subjectType)) {
+    public Subject resolve(String type, String id) {
+        SimpleSubject subject = new SimpleSubject(type, id);
+        if (!UserSubject.TYPE.equals(subject.getType())) {
             throw new AuthenticationException(AuthErrorCode.INVALID_TOKEN, "Access token subject type is unsupported");
         }
-        long userId = parseUserId(subjectId);
+        long userId = parseUserId(subject.getId());
         User user = findUser(userId);
         return requireActive(user);
     }

@@ -16,27 +16,41 @@
 
 package com.lamprism.luxspec.audit.integration.user;
 
+import com.lamprism.luxspec.audit.AuditAction;
 import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
+import com.lamprism.luxspec.audit.AuditOutcome;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
+import com.lamprism.luxspec.resource.ResourceReference;
+import com.lamprism.luxspec.user.Role;
 import com.lamprism.luxspec.user.lifecycle.UserRegisteredEvent;
+import com.lamprism.luxspec.user.resource.UserResourceTypes;
 
 /**
  * Translates user registration metadata without exposing identity attributes.
  *
  * @author RollW
  */
-public final class UserRegisteredAuditTranslator implements AuditEventTranslator<UserRegisteredEvent> {
+public class UserRegisteredAuditTranslator implements AuditEventTranslator<UserRegisteredEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserRegisteredEvent> envelope) {
         UserRegisteredEvent event = envelope.event();
         AuditFieldSet fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.USER_ID, event.getUserId())
-                .put(LuxspecAuditFields.USER_STATUS, event.getStatus().name())
-                .put(LuxspecAuditFields.USER_ROLES, UserAuditTranslationSupport.roleNames(event.getRoles()))
+                .put(UserAuditFields.USER_ID, event.getUserId())
+                .put(UserAuditFields.USER_STATUS, event.getStatus().name())
+                .put(UserAuditFields.USER_ROLES, String.join(",", event.getRoles().stream()
+                        .map(Role::name)
+                        .sorted()
+                        .toList()))
                 .build();
-        return UserAuditTranslationSupport.userEntry("user.register", event.getUserId(), fields);
+        return AuditEntryContent.of(
+                event.getOccurredAt(),
+                AuditAction.of("user.register"),
+                AuditOutcome.SUCCESS,
+                new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
+                fields,
+                null
+        );
     }
 }

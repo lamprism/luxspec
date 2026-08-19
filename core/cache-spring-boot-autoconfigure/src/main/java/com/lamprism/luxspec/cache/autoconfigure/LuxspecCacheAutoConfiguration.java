@@ -16,8 +16,9 @@
 
 package com.lamprism.luxspec.cache.autoconfigure;
 
-import com.lamprism.luxspec.cache.Cache;
-import com.lamprism.luxspec.cache.CaffeineCaches;
+import com.lamprism.luxspec.cache.CacheFactory;
+import com.lamprism.luxspec.cache.CacheProfile;
+import com.lamprism.luxspec.cache.CaffeineCacheFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -30,18 +31,29 @@ import org.springframework.context.annotation.Bean;
  * @author RollW
  */
 @AutoConfiguration
-@ConditionalOnClass({Cache.class, CaffeineCaches.class})
+@ConditionalOnClass({CacheFactory.class, CaffeineCacheFactory.class})
 @EnableConfigurationProperties(LuxspecCacheProperties.class)
 public class LuxspecCacheAutoConfiguration {
     /**
-     * Creates the default cache when an application has not supplied one.
+     * Creates the default cache factory when an application has not supplied one.
      *
-     * @param properties the bound cache controls
-     * @return the Caffeine-backed generic cache
+     * @return the Caffeine-backed cache factory
      */
     @Bean
-    @ConditionalOnMissingBean(Cache.class)
-    public Cache<Object, Object> luxspecCache(LuxspecCacheProperties properties) {
-        return CaffeineCaches.create(properties.toCacheProfile());
+    @ConditionalOnMissingBean(CacheFactory.class)
+    public CacheFactory luxspecCacheFactory() {
+        return new CaffeineCacheFactory();
+    }
+
+    /**
+     * Creates the default generic cache profile from bound properties.
+     *
+     * @param properties the bound cache controls
+     * @return the generic cache profile
+     */
+    @Bean
+    @ConditionalOnMissingBean(CacheProfile.class)
+    public CacheProfile luxspecCacheProfile(LuxspecCacheProperties properties) {
+        return properties.toCacheProfile();
     }
 }

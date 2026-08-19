@@ -192,15 +192,14 @@ the remaining modules follow the `luxspec-<project-name>` naming convention.
 
 ### Core and data
 
-| Gradle project                               | Artifact                                       | Purpose                                                                                                    |
-|----------------------------------------------|------------------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `:core:core-base`                            | `luxspec-core`                                 | Foundational validation, query, pagination, resource, context, event, cache, error, and message contracts. |
-| `:core:core-cache`                           | `luxspec-core-cache`                           | Bounded local cache implementation backed by Caffeine.                                                     |
-| `:core:core-spring`                          | `luxspec-core-spring`                          | Spring adapters for core capabilities.                                                                     |
-| `:core:core-spring-boot-autoconfigure`       | `luxspec-core-spring-boot-autoconfigure`       | Spring Boot defaults for core Spring adapters, including execution-context task propagation.               |
-| `:core:core-cache-spring-boot-autoconfigure` | `luxspec-core-cache-spring-boot-autoconfigure` | Spring Boot properties and default cache assembly for the local Caffeine cache.                            |
-| `:data:data-jpa`                             | `luxspec-data-jpa`                             | JPA Criteria adapters for provider-independent query and pagination contracts.                             |
-| `:data:data-jpa-spring-boot-autoconfigure`   | `luxspec-data-jpa-spring-boot-autoconfigure`   | Spring Boot defaults for JPA Criteria translation and the application-managed query executor factory.      |
+| Gradle project                               | Artifact                                       | Purpose                                                                                                                                           |
+|----------------------------------------------|------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `:core:core-base`                            | `luxspec-core`                                 | Foundational validation, query, pagination, resource, context, event, cache, error, and message contracts, plus the bounded local Caffeine cache. |
+| `:core:core-spring`                          | `luxspec-core-spring`                          | Spring adapters for core capabilities.                                                                                                            |
+| `:core:core-spring-boot-autoconfigure`       | `luxspec-core-spring-boot-autoconfigure`       | Spring Boot defaults for core Spring adapters, including execution-context task propagation.                                                      |
+| `:core:core-cache-spring-boot-autoconfigure` | `luxspec-core-cache-spring-boot-autoconfigure` | Spring Boot properties and default cache assembly for the local Caffeine cache.                                                                   |
+| `:data:data-jpa`                             | `luxspec-data-jpa`                             | JPA Criteria adapters for provider-independent query and pagination contracts.                                                                    |
+| `:data:data-jpa-spring-boot-autoconfigure`   | `luxspec-data-jpa-spring-boot-autoconfigure`   | Spring Boot defaults for JPA Criteria translation and the application-managed query executor factory.                                             |
 
 ### Configuration
 

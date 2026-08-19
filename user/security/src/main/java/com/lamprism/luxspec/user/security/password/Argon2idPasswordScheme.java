@@ -32,7 +32,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class Argon2idPasswordScheme implements PasswordScheme {
+public class Argon2idPasswordScheme implements PasswordScheme {
     private static final String SCHEME_NAME = "argon2id";
     private static final String VERSION = "v=19";
     private static final int MAXIMUM_STORED_MEMORY_KIB = 262_144;

@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AuditPublisherTest {
     private static final Instant PUBLISHED_AT = Instant.parse("2026-01-01T00:00:00Z");
+    private static final Instant OCCURRED_AT = PUBLISHED_AT.minusSeconds(30L);
     private static final AuditEventId EVENT_ID = AuditEventId.of("event-1");
     private static final AuditMetadata METADATA = new AuditMetadata(
             AuditActor.of(AuditActor.Kind.USER, "user-1"),
@@ -54,6 +55,7 @@ class AuditPublisherTest {
         AtomicInteger metadataCalls = new AtomicInteger();
         AuditRegistry registry = AuditRegistry.builder()
                 .register("order.created", envelope -> AuditEntryContent.of(
+                        OCCURRED_AT,
                         AuditAction.of("order.create"),
                         AuditOutcome.SUCCESS,
                         null,
@@ -87,7 +89,10 @@ class AuditPublisherTest {
         assertEquals(1, metadataCalls.get());
         assertEquals(2, entries.size());
         assertEquals(EVENT_ID, entries.get(0).id());
-        assertEquals(PUBLISHED_AT, entries.get(0).occurredAt());
+        assertEquals(OCCURRED_AT, entries.get(0).occurredAt());
+        assertEquals(PUBLISHED_AT, entries.get(0).publishedAt());
+        assertEquals(OCCURRED_AT, entries.get(1).occurredAt());
+        assertEquals(PUBLISHED_AT, entries.get(1).publishedAt());
         assertSame(METADATA, entries.get(0).metadata());
         assertSame(METADATA, entries.get(1).metadata());
     }
@@ -113,6 +118,7 @@ class AuditPublisherTest {
     void requiredAndBestEffortPoliciesHandleSinkFailuresDifferently() {
         AuditRegistry registry = AuditRegistry.builder()
                 .register("order.created", envelope -> AuditEntryContent.of(
+                        OCCURRED_AT,
                         AuditAction.of("order.create"),
                         AuditOutcome.SUCCESS,
                         null,

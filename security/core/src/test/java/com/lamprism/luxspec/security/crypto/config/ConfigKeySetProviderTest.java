@@ -21,8 +21,10 @@ import com.lamprism.luxspec.config.runtime.LayeredConfigReader;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import com.lamprism.luxspec.security.crypto.KeyEntry;
 import com.lamprism.luxspec.security.crypto.KeySet;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -32,6 +34,7 @@ import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -140,6 +143,15 @@ class ConfigKeySetProviderTest {
         assertThrows(IllegalArgumentException.class, () -> provider(Map.of()).get("access"));
     }
 
+    @Test
+    void definesDescriptionsForEveryBuiltInSetting() {
+        for (Locale locale : List.of(Locale.US, Locale.SIMPLIFIED_CHINESE)) {
+            assertFalse(ConfigKeySetSpecs.all().stream()
+                    .map(spec -> spec.getDescription().resolve(locale))
+                    .anyMatch(String::isBlank));
+        }
+    }
+
     private static ConfigKeySetProvider provider(Map<ConfigKey, ConfigEntry> entries) {
         LayeredConfigReader reader = new LayeredConfigReader(List.of(new MemorySource(entries)));
         return new ConfigKeySetProvider(reader);
@@ -168,7 +180,12 @@ class ConfigKeySetProviderTest {
         }
 
         @Override
-        public ConfigEntry get(ConfigKey key) {
+        public ConfigSourceScope getScope() {
+            return ConfigSourceScope.RUNTIME;
+        }
+
+        @Override
+        public ConfigEntry get(@NonNull ConfigKey key) {
             return entries.getOrDefault(key, ConfigEntry.absent());
         }
     }

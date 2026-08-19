@@ -129,7 +129,7 @@ class ObservabilityRuntimeTest {
             @Override
             public void onStart(ObservationView view) {
                 starts.add(view);
-                callbacks.add("start:" + view.spec().name().value());
+                callbacks.add("start:" + view.spec().getName().value());
             }
 
             @Override
@@ -149,7 +149,7 @@ class ObservabilityRuntimeTest {
 
             @Override
             public void onStop(ObservationView view) {
-                callbacks.add("stop:" + view.spec().name().value());
+                callbacks.add("stop:" + view.spec().getName().value());
             }
         };
 

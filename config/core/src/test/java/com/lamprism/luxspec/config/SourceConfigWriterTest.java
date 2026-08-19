@@ -1,7 +1,8 @@
 package com.lamprism.luxspec.config;
 
-import com.lamprism.luxspec.cache.CacheInvalidator;
-import com.lamprism.luxspec.cache.CaffeineCaches;
+import com.lamprism.luxspec.cache.CacheProfile;
+import com.lamprism.luxspec.cache.CaffeineCacheFactory;
+import com.lamprism.luxspec.config.cache.ConfigValueCache;
 import com.lamprism.luxspec.config.event.ConfigChangedEvent;
 import com.lamprism.luxspec.config.event.ConfigSourceChangeType;
 import com.lamprism.luxspec.config.event.ConfigSourceChangedEvent;
@@ -18,6 +19,7 @@ import com.lamprism.luxspec.config.runtime.SourceConfigWriter;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import com.lamprism.luxspec.config.source.RawConfigValue;
 import com.lamprism.luxspec.config.source.WritableConfigSource;
 import com.lamprism.luxspec.config.value.ConfigValueValidationException;
@@ -27,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -74,6 +77,18 @@ class SourceConfigWriterTest {
         );
 
         assertThrows(IllegalArgumentException.class, () -> writer.set(source.getId(), spec, "value"));
+        assertNull(source.value);
+    }
+
+    @Test
+    void rejectsWritesToSourcesOutsideTheSpecScope() {
+        MutableSource source = new MutableSource();
+        ConfigSpec<String> spec = ConfigSpec.builder("database.password", ConfigCodecs.string())
+                .policy(ConfigPolicies.sourceScope(ConfigSourceScope.BOOTSTRAP))
+                .build();
+
+        assertThrows(ConfigPolicyException.class, () -> new SourceConfigWriter(List.of(source))
+                .set(source.getId(), spec, "secret-value"));
         assertNull(source.value);
     }
 
@@ -195,16 +210,20 @@ class SourceConfigWriterTest {
         ConfigSpec<String> spec = ConfigSpec.of("sample.value", ConfigCodecs.string(), "default", false);
         LayeredConfigReader layeredReader = new LayeredConfigReader(List.of(source));
         List<Object> events = new ArrayList<>();
+        ConfigValueCache cache = new ConfigValueCache(
+                new CaffeineCacheFactory(),
+                CacheProfile.defaults()
+        );
         SourceConfigWriter sourceWriter = new SourceConfigWriter(
                 List.of(source),
                 source.getId(),
                 events::add,
                 layeredReader,
-                CacheInvalidator.noOp()
+                cache
         );
         CachingConfigProvider cachedReader = new CachingConfigProvider(
                 ConfigProvider.of(layeredReader, sourceWriter),
-                CaffeineCaches.create()
+                cache
         );
 
         assertEquals("default", cachedReader.get(spec).getValue());
@@ -217,6 +236,84 @@ class SourceConfigWriterTest {
         assertEquals(new ConfigValueOrigin.SourceOrigin(source.getId()), effectiveEvent.getCurrentOrigin());
     }
 
+    @Test
+    void invalidatesEveryDefinitionForACompleteKeyBeforePublishingTheSourceChange() {
+        MutableSource source = new MutableSource();
+        ConfigSpec<String> firstDefinition = ConfigSpec.of(
+                "sample.value",
+                ConfigCodecs.string(),
+                "default",
+                false
+        );
+        ConfigSpec<String> secondDefinition = ConfigSpec.of(
+                "sample.value",
+                ConfigCodecs.string(),
+                "default",
+                false
+        );
+        LayeredConfigReader layeredReader = new LayeredConfigReader(List.of(source));
+        ConfigValueCache cache = new ConfigValueCache(
+                new CaffeineCacheFactory(),
+                CacheProfile.defaults()
+        );
+        AtomicReference<CachingConfigProvider> providerReference = new AtomicReference<>();
+        List<String> sourceEventValues = new ArrayList<>();
+        SourceConfigWriter sourceWriter = new SourceConfigWriter(
+                List.of(source),
+                source.getId(),
+                event -> {
+                    if (event instanceof ConfigSourceChangedEvent) {
+                        sourceEventValues.add(providerReference.get().get(secondDefinition).getValue());
+                    }
+                },
+                layeredReader,
+                cache
+        );
+        CachingConfigProvider provider = new CachingConfigProvider(
+                ConfigProvider.of(layeredReader, sourceWriter),
+                cache
+        );
+        providerReference.set(provider);
+
+        assertEquals("default", provider.get(firstDefinition).getValue());
+        assertEquals("default", provider.get(secondDefinition).getValue());
+
+        sourceWriter.set(firstDefinition, "updated");
+
+        assertEquals("updated", provider.get(secondDefinition).getValue());
+        assertEquals(List.of("updated"), sourceEventValues);
+    }
+
+    @Test
+    void invalidatesTheCacheBeforeAnEventPublicationFailure() {
+        MutableSource source = new MutableSource();
+        ConfigSpec<String> spec = ConfigSpec.of("sample.value", ConfigCodecs.string(), "default", false);
+        LayeredConfigReader layeredReader = new LayeredConfigReader(List.of(source));
+        ConfigValueCache cache = new ConfigValueCache(
+                new CaffeineCacheFactory(),
+                CacheProfile.defaults()
+        );
+        SourceConfigWriter sourceWriter = new SourceConfigWriter(
+                List.of(source),
+                source.getId(),
+                event -> {
+                    throw new IllegalStateException("Event publication failed");
+                },
+                layeredReader,
+                cache
+        );
+        CachingConfigProvider provider = new CachingConfigProvider(
+                ConfigProvider.of(layeredReader, sourceWriter),
+                cache
+        );
+
+        assertEquals("default", provider.get(spec).getValue());
+
+        assertThrows(IllegalStateException.class, () -> sourceWriter.set(spec, "updated"));
+
+        assertEquals("updated", provider.get(spec).getValue());
+    }
+
     private static final class MutableSource implements WritableConfigSource {
         private final ConfigSourceId id = ConfigSourceId.of("memory");
         private RawConfigValue value;
@@ -224,6 +321,11 @@ class SourceConfigWriterTest {
         @Override
         public @NonNull ConfigSourceId getId() {
             return id;
+        }
+
+        @Override
+        public @NonNull ConfigSourceScope getScope() {
+            return ConfigSourceScope.RUNTIME;
         }
 
         @Override
@@ -251,6 +353,11 @@ class SourceConfigWriterTest {
         }
 
         @Override
+        public @NonNull ConfigSourceScope getScope() {
+            return ConfigSourceScope.RUNTIME;
+        }
+
+        @Override
         public @NonNull ConfigEntry get(@NonNull ConfigKey key) {
             return ConfigEntry.absent();
         }
@@ -262,6 +369,11 @@ class SourceConfigWriterTest {
         @Override
         public @NonNull ConfigSourceId getId() {
             return id;
+        }
+
+        @Override
+        public @NonNull ConfigSourceScope getScope() {
+            return ConfigSourceScope.RUNTIME;
         }
 
         @Override

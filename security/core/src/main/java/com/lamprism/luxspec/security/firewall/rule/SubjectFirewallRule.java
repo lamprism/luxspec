@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.security.firewall.rule;
 
 import com.lamprism.luxspec.security.SecurityErrorCode;
+import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.firewall.AuthenticatedRequest;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
@@ -33,7 +34,7 @@ import java.util.Set;
  * @author RollW
  */
 public class SubjectFirewallRule implements FirewallRule<AuthenticatedRequest> {
-    private final Set<SubjectIdentity> subjects;
+    private final Set<SimpleSubject> subjects;
     private final boolean allowMatch;
 
     /**
@@ -70,7 +71,7 @@ public class SubjectFirewallRule implements FirewallRule<AuthenticatedRequest> {
     @Override
     public FirewallDecision evaluate(AuthenticatedRequest request) {
         Subject subject = Objects.requireNonNull(request, "request").getAuthentication().subject();
-        boolean matched = subjects.contains(SubjectIdentity.of(subject));
+        boolean matched = subjects.contains(SimpleSubject.from(subject));
         return FirewallRuleSupport.decide(
                 matched,
                 allowMatch,
@@ -78,11 +79,12 @@ public class SubjectFirewallRule implements FirewallRule<AuthenticatedRequest> {
         );
     }
 
-    private static Set<SubjectIdentity> copySubjects(Collection<? extends Subject> subjects) {
+    private static Set<SimpleSubject> copySubjects(Collection<? extends Subject> subjects) {
         Objects.requireNonNull(subjects, "subjects");
-        Set<SubjectIdentity> result = new LinkedHashSet<>();
+        Set<SimpleSubject> result = new LinkedHashSet<>();
         for (Subject subject : subjects) {
-            result.add(SubjectIdentity.of(Objects.requireNonNull(subject, "subject")));
+            Subject nonNullSubject = Objects.requireNonNull(subject, "subject");
+            result.add(SimpleSubject.from(nonNullSubject));
         }
         if (result.isEmpty()) {
             throw new IllegalArgumentException("subjects must not be empty");
@@ -93,38 +95,4 @@ public class SubjectFirewallRule implements FirewallRule<AuthenticatedRequest> {
         return Set.copyOf(result);
     }
 
-    private static final class SubjectIdentity {
-        private final String type;
-        private final String id;
-
-        private SubjectIdentity(String type, String id) {
-            this.type = requireText(type, "subject type");
-            this.id = requireText(id, "subject id");
-        }
-
-        private static SubjectIdentity of(Subject subject) {
-            return new SubjectIdentity(subject.getType(), subject.getId());
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (!(other instanceof SubjectIdentity identity)) {
-                return false;
-            }
-            return type.equals(identity.type) && id.equals(identity.id);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(type, id);
-        }
-
-        private static String requireText(String value, String name) {
-            String nonNullValue = Objects.requireNonNull(value, name);
-            if (nonNullValue.isBlank()) {
-                throw new IllegalArgumentException(name + " must not be blank");
-            }
-            return nonNullValue;
-        }
-    }
 }

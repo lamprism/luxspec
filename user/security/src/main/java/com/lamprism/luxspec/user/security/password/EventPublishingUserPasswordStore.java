@@ -30,7 +30,7 @@ import java.util.Optional;
  *
  * @author RollW
  */
-public final class EventPublishingUserPasswordStore implements UserPasswordStore {
+public class EventPublishingUserPasswordStore implements UserPasswordStore {
     private final UserPasswordStore delegate;
     private final EventPublisher eventPublisher;
     private final Clock clock;

@@ -16,8 +16,9 @@
 
 package com.lamprism.luxspec.audit.autoconfigure;
 
+import com.lamprism.luxspec.audit.integration.AuditEventRegistration;
+import com.lamprism.luxspec.audit.integration.AuditEventRegistrationImpl;
 import com.lamprism.luxspec.audit.integration.ExecutionContextAuditMetadataProvider;
-import com.lamprism.luxspec.audit.integration.StandardAuditEventRegistration;
 import com.lamprism.luxspec.audit.integration.StandardAuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
 import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
@@ -28,12 +29,16 @@ import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditSink;
 import com.lamprism.luxspec.audit.publish.DefaultAuditPublisher;
 import com.lamprism.luxspec.audit.publish.UuidAuditEventIdGenerator;
+import com.lamprism.luxspec.audit.query.AuditReader;
+import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
 import com.lamprism.luxspec.event.EventDispatcher;
+import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.event.EventPublisher;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 import java.time.Clock;
@@ -50,6 +55,21 @@ import java.time.Clock;
  */
 @AutoConfiguration
 public class LuxspecAuditAutoConfiguration {
+    /**
+     * Creates the opt-in process-local audit sink and reader as one shared store.
+     *
+     * <p>No audit sink is created by default. Applications must explicitly choose this volatile
+     * store or provide a durable sink so audit delivery cannot disappear silently.</p>
+     *
+     * @return the shared in-memory audit store
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "luxspec.audit.memory", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean({AuditSink.class, AuditReader.class})
+    public InMemoryAuditStore inMemoryAuditStore() {
+        return new InMemoryAuditStore();
+    }
+
     /**
      * Creates the built-in translator registry when no registry is supplied.
      *
@@ -127,7 +147,7 @@ public class LuxspecAuditAutoConfiguration {
     @ConditionalOnBean(AuditPublisher.class)
     @ConditionalOnMissingBean({EventDispatcher.class, EventPublisher.class})
     public EventDispatcher luxspecAuditEventDispatcher() {
-        return new EventDispatcher((event, listener, failure) -> {
+        return new EventDispatcherImpl((event, listener, failure) -> {
             throw new IllegalStateException(
                     "Event listener failed for: " + event.getClass().getName(),
                     failure
@@ -144,11 +164,11 @@ public class LuxspecAuditAutoConfiguration {
      */
     @Bean(destroyMethod = "close")
     @ConditionalOnBean({EventDispatcher.class, AuditPublisher.class})
-    @ConditionalOnMissingBean(StandardAuditEventRegistration.class)
-    public StandardAuditEventRegistration luxspecAuditEventRegistration(
+    @ConditionalOnMissingBean(AuditEventRegistration.class)
+    public AuditEventRegistration luxspecAuditEventRegistration(
             EventDispatcher dispatcher,
             AuditPublisher publisher
     ) {
-        return new StandardAuditEventRegistration(dispatcher, publisher);
+        return new AuditEventRegistrationImpl(dispatcher, publisher);
     }
 }

@@ -28,7 +28,7 @@ import java.util.Locale;
  * @author RollW
  */
 @Converter(autoApply = true)
-public final class LocaleAttributeConverter implements AttributeConverter<Locale, String> {
+public class LocaleAttributeConverter implements AttributeConverter<Locale, String> {
     @Override
     public @Nullable String convertToDatabaseColumn(@Nullable Locale attribute) {
         if (attribute == null) {

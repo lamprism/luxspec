@@ -21,7 +21,6 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditFields;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
 
@@ -33,23 +32,23 @@ import java.util.Locale;
  *
  * @author RollW
  */
-public final class TokenLifecycleAuditTranslator implements AuditEventTranslator<TokenLifecycleEvent> {
+public class TokenLifecycleAuditTranslator implements AuditEventTranslator<TokenLifecycleEvent> {
     @Override
     public AuditEntryContent translate(AuditEnvelope<TokenLifecycleEvent> envelope) {
         TokenLifecycleEvent event = envelope.event();
         AuditFieldSet.Builder fields = AuditFieldSet.builder()
-                .put(LuxspecAuditFields.SECURITY_TOKEN_OPERATION, event.getOperation().name())
-                .put(LuxspecAuditFields.SECURITY_TOKEN_RESULT, event.getResult().name())
-                .put(LuxspecAuditFields.SECURITY_DURATION_MILLIS, event.getDuration().toMillis());
+                .put(SecurityAuditFields.SECURITY_TOKEN_OPERATION, event.getOperation().name())
+                .put(SecurityAuditFields.SECURITY_TOKEN_RESULT, event.getResult().name())
+                .put(SecurityAuditFields.SECURITY_DURATION_MILLIS, event.getDuration().toMillis());
         if (!event.getTokenKinds().isEmpty()) {
             fields.put(
-                    LuxspecAuditFields.SECURITY_TOKEN_KINDS,
+                    SecurityAuditFields.SECURITY_TOKEN_KINDS,
                     String.join(",", event.getTokenKinds().stream().sorted().toList())
             );
         }
-        SecurityAuditTranslationSupport.putSubject(fields, event.getSubject());
+        SubjectAuditProjection.putSubject(fields, event.getSubject());
         if (event.getErrorCode() != null) {
-            fields.put(LuxspecAuditFields.SECURITY_REASON_CODE, event.getErrorCode().getCode());
+            fields.put(SecurityAuditFields.SECURITY_REASON_CODE, event.getErrorCode().getCode());
         }
         AuditOutcome outcome = switch (event.getResult()) {
             case SUCCESS -> AuditOutcome.SUCCESS;
@@ -58,6 +57,7 @@ public final class TokenLifecycleAuditTranslator implements AuditEventTranslator
         };
         String action = "security.token." + event.getOperation().name().toLowerCase(Locale.ROOT);
         return AuditEntryContent.of(
+                event.getOccurredAt(),
                 AuditAction.of(action),
                 outcome,
                 null,

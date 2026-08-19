@@ -33,7 +33,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class EventPublishingTokenIssuer implements TokenIssuer {
+public class EventPublishingTokenIssuer implements TokenIssuer {
     private final TokenIssuer delegate;
     private final EventPublisher eventPublisher;
     private final Clock clock;

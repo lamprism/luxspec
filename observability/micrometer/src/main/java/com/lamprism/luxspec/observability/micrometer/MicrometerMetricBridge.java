@@ -51,7 +51,7 @@ import java.util.function.Supplier;
  *
  * @author RollW
  */
-public final class MicrometerMetricBridge implements AutoCloseable {
+public class MicrometerMetricBridge implements AutoCloseable {
     private final MeterRegistry meterRegistry;
     private final MetricRegistryEventSource events;
     private final Map<MetricBinding<?>, List<Meter>> projected = new HashMap<>();
