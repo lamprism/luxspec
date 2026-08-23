@@ -16,8 +16,6 @@
 
 package com.lamprism.luxspec;
 
-import org.jspecify.annotations.NonNull;
-
 /**
  * Help to cast the object to the specified type.
  *
@@ -31,8 +29,7 @@ public interface Castable {
      * @param <T>   the target type
      * @return this value as the target type
      */
-    @NonNull
-    default <T> T cast(@NonNull Class<T> clazz) {
+    default <T> T cast(Class<T> clazz) {
         return clazz.cast(this);
     }
 }

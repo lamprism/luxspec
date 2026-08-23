@@ -22,6 +22,7 @@ import com.lamprism.luxspec.observability.health.HealthGroup;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
 import com.lamprism.luxspec.observability.health.HealthResult;
 import com.lamprism.luxspec.observability.health.HealthStatus;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.EnumMap;
@@ -46,13 +47,13 @@ final class DefaultHealthRegistry implements HealthRegistry {
     private final Executor executor;
     private final Map<String, HealthContributor> contributors;
     private final Map<HealthGroup, List<String>> groups;
-    private final Long timeoutNanos;
+    private final @Nullable Long timeoutNanos;
 
     DefaultHealthRegistry(
             Executor executor,
             Map<String, HealthContributor> contributors,
             Map<HealthGroup, ? extends Set<String>> groups,
-            Duration timeout
+            @Nullable Duration timeout
     ) {
         this.executor = Objects.requireNonNull(executor, "executor");
         this.contributors = Map.copyOf(contributors);
@@ -66,7 +67,7 @@ final class DefaultHealthRegistry implements HealthRegistry {
     @Override
     public HealthResult evaluate(HealthGroup group) {
         HealthGroup nonNullGroup = Objects.requireNonNull(group, "group");
-        List<String> names = groups.get(nonNullGroup);
+        List<String> names = Objects.requireNonNull(groups.get(nonNullGroup), "health group");
         if (names.isEmpty()) {
             return HealthResult.of(HealthStatus.UP);
         }
@@ -76,14 +77,19 @@ final class DefaultHealthRegistry implements HealthRegistry {
         for (String name : names) {
             try {
                 long startedAt = System.nanoTime();
-                tasks.put(name, CompletableFuture.supplyAsync(() -> contribute(contributors.get(name)), executor));
+                HealthContributor contributor = Objects.requireNonNull(
+                        contributors.get(name),
+                        "health contributor"
+                );
+                tasks.put(name, CompletableFuture.supplyAsync(() -> contribute(contributor), executor));
                 submittedAt.put(name, startedAt);
             } catch (RuntimeException failure) {
                 results.put(name, HealthResult.of(HealthStatus.UNKNOWN));
             }
         }
         for (Map.Entry<String, CompletableFuture<HealthResult>> entry : tasks.entrySet()) {
-            results.putIfAbsent(entry.getKey(), resolve(entry.getValue(), submittedAt.get(entry.getKey())));
+            long startedAt = Objects.requireNonNull(submittedAt.get(entry.getKey()), "submitted health task");
+            results.putIfAbsent(entry.getKey(), resolve(entry.getValue(), startedAt));
         }
         return aggregate(results);
     }
@@ -117,7 +123,7 @@ final class DefaultHealthRegistry implements HealthRegistry {
         return contributor.contribute();
     }
 
-    private static HealthResult normalize(HealthResult result) {
+    private static HealthResult normalize(@Nullable HealthResult result) {
         if (result == null) {
             return HealthResult.of(HealthStatus.UNKNOWN);
         }
@@ -129,7 +135,7 @@ final class DefaultHealthRegistry implements HealthRegistry {
         HealthDetailSet.Builder details = HealthDetailSet.builder();
         for (Map.Entry<String, HealthResult> entry : results.entrySet()) {
             HealthResult result = entry.getValue();
-            status = moreSevere(status, result.status());
+            status = moreSevere(status, result.getStatus());
             details.put(entry.getKey(), result);
         }
         return HealthResult.of(status, details.build());

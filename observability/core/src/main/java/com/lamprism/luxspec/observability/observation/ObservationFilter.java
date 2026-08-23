@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.observation;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Enriches or sanitizes one start input before the start callback.
  *
@@ -23,5 +25,6 @@ package com.lamprism.luxspec.observability.observation;
  */
 @FunctionalInterface
 public interface ObservationFilter {
+    @Nullable
     ObservationStart apply(ObservationStart start);
 }

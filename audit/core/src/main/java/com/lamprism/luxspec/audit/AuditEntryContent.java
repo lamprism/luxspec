@@ -27,7 +27,8 @@ import java.util.Objects;
  *
  * <p>This value contains only the semantic result of translation. Event
  * identity, event name, publication time, and metadata remain owned by the
- * corresponding {@link AuditEnvelope}.
+ * corresponding {@link AuditEnvelope}. {@link AuditEntry#from(AuditEnvelope,
+ * AuditEntryContent)} performs the explicit assembly into a final entry.
  *
  * @author RollW
  */
@@ -37,22 +38,19 @@ public final class AuditEntryContent {
     private final AuditOutcome outcome;
     private final @Nullable ResourceReference<?> resource;
     private final AuditFieldSet fieldSet;
-    private final @Nullable AuditDetail<?> detail;
 
     public AuditEntryContent(
             Instant occurredAt,
             AuditAction action,
             AuditOutcome outcome,
             @Nullable ResourceReference<?> resource,
-            AuditFieldSet fieldSet,
-            @Nullable AuditDetail<?> detail
+            AuditFieldSet fieldSet
     ) {
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
         this.action = Objects.requireNonNull(action, "action");
         this.outcome = Objects.requireNonNull(outcome, "outcome");
         this.resource = resource;
         this.fieldSet = Objects.requireNonNull(fieldSet, "fieldSet");
-        this.detail = detail;
     }
 
     public static AuditEntryContent of(
@@ -60,10 +58,9 @@ public final class AuditEntryContent {
             AuditAction action,
             AuditOutcome outcome,
             @Nullable ResourceReference<?> resource,
-            AuditFieldSet fieldSet,
-            @Nullable AuditDetail<?> detail
+            AuditFieldSet fieldSet
     ) {
-        return new AuditEntryContent(occurredAt, action, outcome, resource, fieldSet, detail);
+        return new AuditEntryContent(occurredAt, action, outcome, resource, fieldSet);
     }
 
     public Instant occurredAt() {
@@ -86,10 +83,6 @@ public final class AuditEntryContent {
         return fieldSet;
     }
 
-    public @Nullable AuditDetail<?> detail() {
-        return detail;
-    }
-
     @Override
     public boolean equals(Object other) {
         if (!(other instanceof AuditEntryContent content)) {
@@ -99,12 +92,11 @@ public final class AuditEntryContent {
                 && action.equals(content.action)
                 && outcome == content.outcome
                 && Objects.equals(resource, content.resource)
-                && fieldSet.equals(content.fieldSet)
-                && Objects.equals(detail, content.detail);
+                && fieldSet.equals(content.fieldSet);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(occurredAt, action, outcome, resource, fieldSet, detail);
+        return Objects.hash(occurredAt, action, outcome, resource, fieldSet);
     }
 }

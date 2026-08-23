@@ -44,8 +44,7 @@ public class FirewallRuleDeniedAuditTranslator implements AuditEventTranslator<F
                 AuditAction.of("security.firewall.evaluate"),
                 AuditOutcome.DENIED,
                 null,
-                fields.build(),
-                null
+                fields.build()
         );
     }
 }

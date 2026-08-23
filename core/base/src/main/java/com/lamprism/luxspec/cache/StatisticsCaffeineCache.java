@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.cache;
 
+
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;

@@ -32,12 +32,58 @@ import java.util.Objects;
  * @author RollW
  */
 public final class AuditActor {
-    public enum Kind {
-        USER,
-        SERVICE,
-        SYSTEM,
-        ANONYMOUS,
-        UNKNOWN
+    /**
+     * Extensible actor classification used for provider-independent metadata.
+     *
+     * <p>The standard constants cover common actor categories. Applications
+     * may create another validated kind when their domain needs a category
+     * that does not fit those constants.</p>
+     */
+    public static final class Kind {
+        private static final Validator<String> VALUE_VALIDATOR = ValidationRules
+                .nonBlank("Audit actor kind")
+                .and(ValidationRules.noWhitespace("Audit actor kind"))
+                .and(ValidationRules.noControlCharacters("Audit actor kind"));
+
+        public static final Kind USER = of("USER");
+        public static final Kind SERVICE = of("SERVICE");
+        public static final Kind SYSTEM = of("SYSTEM");
+        public static final Kind ANONYMOUS = of("ANONYMOUS");
+        public static final Kind UNKNOWN = of("UNKNOWN");
+
+        private final String value;
+
+        private Kind(String value) {
+            this.value = value;
+        }
+
+        public static Kind of(String value) {
+            String normalized = Objects.requireNonNull(value, "value").trim();
+            VALUE_VALIDATOR.validate(normalized);
+            return new Kind(normalized);
+        }
+
+        public String value() {
+            return value;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof Kind kind)) {
+                return false;
+            }
+            return value.equals(kind.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return value.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
     }
 
     public static final AuditActor UNKNOWN = new AuditActor(Kind.UNKNOWN, null);
@@ -76,7 +122,7 @@ public final class AuditActor {
         if (!(other instanceof AuditActor actor)) {
             return false;
         }
-        return kind == actor.kind && Objects.equals(id, actor.id);
+        return kind.equals(actor.kind) && Objects.equals(id, actor.id);
     }
 
     @Override

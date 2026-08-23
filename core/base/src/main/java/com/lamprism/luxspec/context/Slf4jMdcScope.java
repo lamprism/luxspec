@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.context;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.MDC;
 
 import java.util.Objects;
@@ -29,7 +30,7 @@ import java.util.Optional;
 public final class Slf4jMdcScope implements AutoCloseable {
     public static final String CORRELATION_ID_KEY = "correlationId";
 
-    private final String previousCorrelationId;
+    private final @Nullable String previousCorrelationId;
     private boolean closed;
 
     private Slf4jMdcScope(Optional<ExecutionContext> context) {

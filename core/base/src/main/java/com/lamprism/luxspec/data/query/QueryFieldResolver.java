@@ -91,7 +91,7 @@ public interface QueryFieldResolver<T> {
          */
         public <V> Builder<T> field(
                 QueryField<V> field,
-                Function<? super T, ? extends V> accessor
+                Function<? super T, ? extends @Nullable V> accessor
         ) {
             return field(field, accessor, new DefaultQueryFieldResolver.NaturalOrderComparator<>());
         }
@@ -107,11 +107,14 @@ public interface QueryFieldResolver<T> {
          */
         public <V> Builder<T> field(
                 QueryField<V> field,
-                Function<? super T, ? extends V> accessor,
+                Function<? super T, ? extends @Nullable V> accessor,
                 Comparator<? super V> comparator
         ) {
             QueryField<V> nonNullField = Objects.requireNonNull(field, "field");
-            Function<? super T, ? extends V> nonNullAccessor = Objects.requireNonNull(accessor, "accessor");
+            Function<? super T, ? extends @Nullable V> nonNullAccessor = Objects.requireNonNull(
+                    accessor,
+                    "accessor"
+            );
             Comparator<? super V> nonNullComparator = Objects.requireNonNull(comparator, "comparator");
             if (accessors.containsKey(nonNullField)) {
                 throw new IllegalArgumentException("Query field is already resolved: " + nonNullField.getName());

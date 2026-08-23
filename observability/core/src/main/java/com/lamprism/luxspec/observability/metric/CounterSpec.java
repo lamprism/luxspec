@@ -23,7 +23,8 @@ package com.lamprism.luxspec.observability.metric;
  */
 public final class CounterSpec extends AbstractMetricSpec<Counter> {
     private CounterSpec(Builder builder) {
-        super(builder.name(), builder.kind(), builder.dimensions(), builder.description(), builder.baseUnit(), builder.cardinalityPolicy());
+        super(builder.name(), builder.kind(), builder.dimensions(), builder.description(),
+                builder.baseUnit(), builder.cardinalityPolicy());
     }
 
     public static Builder builder(String name) {

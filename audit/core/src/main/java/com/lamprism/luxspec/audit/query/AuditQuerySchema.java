@@ -29,8 +29,8 @@ import java.util.Set;
  *
  * <p>The default schema permits equality and membership filters for identity
  * and classification fields. {@code occurredAt} additionally permits ordered
- * comparisons and is orderable, while custom fields and opaque details require
- * explicit application registration.
+ * comparisons and is orderable, while custom fields require explicit
+ * application registration.
  *
  * @author RollW
  */

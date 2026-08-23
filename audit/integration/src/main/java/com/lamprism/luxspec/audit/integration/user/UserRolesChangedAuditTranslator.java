@@ -48,8 +48,7 @@ public class UserRolesChangedAuditTranslator implements AuditEventTranslator<Use
                 AuditAction.of(action),
                 AuditOutcome.SUCCESS,
                 new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
-                fields,
-                null
+                fields
         );
     }
 }

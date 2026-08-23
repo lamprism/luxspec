@@ -70,7 +70,7 @@ public final class KeySet {
     public static KeySet combine(Iterable<? extends KeySet> keySets) {
         Objects.requireNonNull(keySets, "keySets");
         Map<String, KeyEntry> combinedEntries = new LinkedHashMap<>();
-        @Nullable String activeKeyId = null;
+        String activeKeyId = null;
         boolean hasSnapshot = false;
         for (KeySet keySet : keySets) {
             KeySet nonNullKeySet = Objects.requireNonNull(keySet, "keySet");

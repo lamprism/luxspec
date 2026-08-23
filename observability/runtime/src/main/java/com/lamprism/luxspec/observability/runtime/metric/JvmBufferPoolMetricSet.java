@@ -51,7 +51,7 @@ public class JvmBufferPoolMetricSet implements MetricSet {
      */
     public JvmBufferPoolMetricSet(Collection<? extends BufferPoolMXBean> pools) {
         Objects.requireNonNull(pools, "pools");
-        this.pools = pools.stream()
+        this.pools = (List<BufferPoolMXBean>) pools.stream()
                 .map(pool -> Objects.requireNonNull(pool, "buffer pool"))
                 .toList();
     }

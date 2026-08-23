@@ -43,8 +43,7 @@ public class UserRenamedAuditTranslator implements AuditEventTranslator<UserRena
                 AuditAction.of("user.rename"),
                 AuditOutcome.SUCCESS,
                 new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
-                fields,
-                null
+                fields
         );
     }
 }

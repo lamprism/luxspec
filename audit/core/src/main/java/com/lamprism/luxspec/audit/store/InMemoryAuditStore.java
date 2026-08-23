@@ -29,10 +29,13 @@ import com.lamprism.luxspec.data.query.QueryComplexityLimits;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Thread-safe in-memory audit store that can act as both a sink and a reader.
@@ -43,7 +46,7 @@ import java.util.Objects;
  * @author RollW
  */
 public class InMemoryAuditStore implements AuditSink, AuditReader {
-    private final Object stateLock = new Object();
+    private final ReadWriteLock stateLock = new ReentrantReadWriteLock();
     private final Map<AuditEventId, AuditEntry> entriesById = new LinkedHashMap<>();
     private final InMemoryQueryExecutor<AuditEntry> queryExecutor;
 
@@ -52,8 +55,7 @@ public class InMemoryAuditStore implements AuditSink, AuditReader {
      */
     public InMemoryAuditStore() {
         this.queryExecutor = InMemoryQueryExecutor.builder(this::snapshot)
-                .field(AuditQueryFields.ID, AuditEntry::id, (left, right) ->
-                        left.value().compareTo(right.value()))
+                .field(AuditQueryFields.ID, AuditEntry::id, Comparator.comparing(AuditEventId::value))
                 .field(AuditQueryFields.EVENT_NAME, AuditEntry::eventName)
                 .field(AuditQueryFields.OCCURRED_AT, AuditEntry::occurredAt)
                 .field(AuditQueryFields.ACTOR_KIND, entry -> entry.metadata().actor().kind())
@@ -74,11 +76,14 @@ public class InMemoryAuditStore implements AuditSink, AuditReader {
     @Override
     public void accept(AuditEntry entry) {
         AuditEntry nonNullEntry = Objects.requireNonNull(entry, "entry");
-        synchronized (stateLock) {
+        stateLock.writeLock().lock();
+        try {
             AuditEntry previous = entriesById.putIfAbsent(nonNullEntry.id(), nonNullEntry);
             if (previous != null && !previous.equals(nonNullEntry)) {
                 throw new IllegalStateException("Audit event ID is already associated with another entry");
             }
+        } finally {
+            stateLock.writeLock().unlock();
         }
     }
 
@@ -107,8 +112,11 @@ public class InMemoryAuditStore implements AuditSink, AuditReader {
      * @return the entry count
      */
     public int size() {
-        synchronized (stateLock) {
+        stateLock.readLock().lock();
+        try {
             return entriesById.size();
+        } finally {
+            stateLock.readLock().unlock();
         }
     }
 
@@ -116,14 +124,20 @@ public class InMemoryAuditStore implements AuditSink, AuditReader {
      * Clears all retained entries.
      */
     public void clear() {
-        synchronized (stateLock) {
+        stateLock.writeLock().lock();
+        try {
             entriesById.clear();
+        } finally {
+            stateLock.writeLock().unlock();
         }
     }
 
     private List<AuditEntry> snapshot() {
-        synchronized (stateLock) {
+        stateLock.readLock().lock();
+        try {
             return List.copyOf(new ArrayList<>(entriesById.values()));
+        } finally {
+            stateLock.readLock().unlock();
         }
     }
 }

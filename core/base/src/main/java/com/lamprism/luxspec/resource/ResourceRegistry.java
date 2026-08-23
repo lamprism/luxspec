@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.resource;
 
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;

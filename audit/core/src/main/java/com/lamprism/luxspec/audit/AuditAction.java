@@ -29,6 +29,9 @@ import java.util.Objects;
  * The remaining value is preserved exactly. Audit does not impose a fixed
  * action vocabulary.
  *
+ * <p>The value object keeps an action distinct from arbitrary audit fields and
+ * enforces the identifier boundary before an entry reaches a sink.</p>
+ *
  * @author RollW
  */
 public final class AuditAction {
@@ -49,7 +52,7 @@ public final class AuditAction {
         return new AuditAction(normalized);
     }
 
-    public String value() {
+    public String getValue() {
         return value;
     }
 

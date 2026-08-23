@@ -18,6 +18,8 @@ package com.lamprism.luxspec.audit.publish;
 
 import com.lamprism.luxspec.audit.AuditEventId;
 
+import java.util.UUID;
+
 /**
  * Generates UUID-based audit event IDs.
  *
@@ -26,6 +28,6 @@ import com.lamprism.luxspec.audit.AuditEventId;
 public class UuidAuditEventIdGenerator implements AuditEventIdGenerator {
     @Override
     public AuditEventId nextId(String eventName) {
-        return AuditEventId.generated();
+        return AuditEventId.of(UUID.randomUUID().toString());
     }
 }

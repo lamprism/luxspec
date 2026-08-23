@@ -63,7 +63,8 @@ public class LuxspecWebAutoConfiguration {
             ErrorHttpStatusResolver statusResolver,
             ObjectProvider<MessageResolver> messageResolver
     ) {
-        return new LuxspecExceptionHandler(statusResolver, messageResolver.getIfAvailable());
+        MessageResolver optionalMessageResolver = messageResolver.getIfAvailable();
+        return new LuxspecExceptionHandler(statusResolver, optionalMessageResolver);
     }
 
     /**

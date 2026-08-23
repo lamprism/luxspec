@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.observation;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Thread-independent operation observation lifecycle handle.
  *
@@ -32,7 +34,7 @@ public interface Observation extends AutoCloseable {
 
     void event(ObservationEventName eventName);
 
-    void error(Throwable error);
+    void error(@Nullable Throwable error);
 
     void setOutcome(ObservationOutcome outcome);
 

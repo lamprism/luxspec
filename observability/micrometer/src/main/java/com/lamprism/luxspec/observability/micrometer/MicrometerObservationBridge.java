@@ -88,7 +88,8 @@ public class MicrometerObservationBridge implements AutoCloseable {
                             view.spec().getName().value(),
                             observationRegistry
                     );
-            ProviderObservation parent = view.parentId() == null ? null : observations.get(view.parentId());
+            ObservationId parentId = view.parentId();
+            ProviderObservation parent = parentId == null ? null : observations.get(parentId);
             if (parent != null) {
                 providerObservation.parentObservation(parent.observation);
             }
@@ -101,8 +102,9 @@ public class MicrometerObservationBridge implements AutoCloseable {
         @Override
         public void onError(ObservationView view) {
             ProviderObservation observation = observations.get(view.id());
-            if (observation != null && view.error() != null) {
-                observation.observation.error(view.error());
+            Throwable error = view.error();
+            if (observation != null && error != null) {
+                observation.observation.error(error);
             }
         }
 

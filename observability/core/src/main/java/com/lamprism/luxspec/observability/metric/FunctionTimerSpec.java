@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.metric;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 
 /**
@@ -31,8 +33,8 @@ public final class FunctionTimerSpec<S> extends AbstractMetricSpec<FunctionTimer
     private FunctionTimerSpec(Builder<S> builder) {
         super(builder.name(), builder.kind(), builder.dimensions(), builder.description(), builder.baseUnit(), builder.cardinalityPolicy());
         sourceType = builder.sourceType;
-        countReader = builder.countReader;
-        totalTimeReader = builder.totalTimeReader;
+        countReader = Objects.requireNonNull(builder.countReader, "countReader");
+        totalTimeReader = Objects.requireNonNull(builder.totalTimeReader, "totalTimeReader");
     }
 
     public static <S> Builder<S> builder(String name, Class<S> sourceType) {
@@ -75,8 +77,8 @@ public final class FunctionTimerSpec<S> extends AbstractMetricSpec<FunctionTimer
      */
     public static final class Builder<S> extends BuilderSupport<FunctionTimer, Builder<S>> {
         private final Class<S> sourceType;
-        private LongReader<? super S> countReader;
-        private DurationReader<? super S> totalTimeReader;
+        private @Nullable LongReader<? super S> countReader;
+        private @Nullable DurationReader<? super S> totalTimeReader;
 
         private Builder(String name, Class<S> sourceType) {
             super(name, MetricKind.FUNCTION_TIMER);

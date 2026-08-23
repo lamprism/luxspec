@@ -30,7 +30,6 @@ import java.util.Objects;
 public final class ConfigDescription {
     public static final ConfigDescription EMPTY = new ConfigDescription();
 
-    // TODO: use interface for LocalizedText
     private final @Nullable LocalizedText text;
 
     private ConfigDescription() {

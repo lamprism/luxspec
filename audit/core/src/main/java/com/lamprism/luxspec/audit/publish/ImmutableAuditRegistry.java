@@ -26,15 +26,16 @@ import java.util.Map;
  *
  * @author RollW
  */
-final class ImmutableAuditRegistry implements AuditRegistry {
+public class ImmutableAuditRegistry implements AuditRegistry {
     private final Map<String, AuditEventTranslator<?>> translators;
 
-    ImmutableAuditRegistry(Map<String, AuditEventTranslator<?>> translators) {
+    public ImmutableAuditRegistry(Map<String, AuditEventTranslator<?>> translators) {
         this.translators = Map.copyOf(translators);
     }
 
     @Override
-    public @Nullable AuditEventTranslator<?> find(String eventName) {
+    @Nullable
+    public AuditEventTranslator<?> find(String eventName) {
         return translators.get(AuditNameValidator.require(eventName));
     }
 }

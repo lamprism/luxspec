@@ -179,7 +179,7 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
         handlers.clear();
     }
 
-    private Observation resolveParent(ObservationStart start) {
+    private @Nullable Observation resolveParent(ObservationStart start) {
         if (start.isRoot()) {
             return null;
         }
@@ -226,7 +226,7 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
         }
 
         @Override
-        public void error(Throwable error) {
+        public void error(@Nullable Throwable error) {
         }
 
         @Override
@@ -318,7 +318,7 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
         }
 
         @Override
-        public void error(Throwable failure) {
+        public void error(@Nullable Throwable failure) {
             ObservationView snapshot = null;
             synchronized (this) {
                 requireActive();

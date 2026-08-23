@@ -514,12 +514,10 @@ public final class ConfigCodecs {
             if (nonNullEnumValues.length == 0) {
                 throw new IllegalArgumentException("Enum values must not be empty");
             }
-            Class<?> enumType = null;
-            for (E enumValue : nonNullEnumValues) {
-                E nonNullEnumValue = Objects.requireNonNull(enumValue, "enum value");
-                if (enumType == null) {
-                    enumType = nonNullEnumValue.getDeclaringClass();
-                } else if (enumType != nonNullEnumValue.getDeclaringClass()) {
+            Class<?> enumType = nonNullEnumValues[0].getDeclaringClass();
+            for (int index = 1; index < nonNullEnumValues.length; index++) {
+                E nonNullEnumValue = Objects.requireNonNull(nonNullEnumValues[index], "enum value");
+                if (enumType != nonNullEnumValue.getDeclaringClass()) {
                     throw new IllegalArgumentException("Enum values must have the same type");
                 }
             }

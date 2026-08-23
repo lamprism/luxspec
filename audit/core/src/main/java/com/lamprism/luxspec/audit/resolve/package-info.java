@@ -15,7 +15,7 @@
  */
 
 /**
- * Explicit audit resource and detail resolver contracts.
+ * Explicit audit resource resolver contracts.
  */
 @NullMarked
 package com.lamprism.luxspec.audit.resolve;

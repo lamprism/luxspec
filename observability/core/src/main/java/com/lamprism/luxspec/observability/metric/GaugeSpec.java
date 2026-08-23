@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.metric;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 
 /**
@@ -30,7 +32,7 @@ public final class GaugeSpec<S> extends AbstractMetricSpec<Gauge> {
     private GaugeSpec(Builder<S> builder) {
         super(builder.name(), builder.kind(), builder.dimensions(), builder.description(), builder.baseUnit(), builder.cardinalityPolicy());
         sourceType = builder.sourceType;
-        reader = builder.reader;
+        reader = Objects.requireNonNull(builder.reader, "reader");
     }
 
     public static <S> Builder<S> builder(String name, Class<S> sourceType) {
@@ -68,7 +70,7 @@ public final class GaugeSpec<S> extends AbstractMetricSpec<Gauge> {
      */
     public static final class Builder<S> extends BuilderSupport<Gauge, Builder<S>> {
         private final Class<S> sourceType;
-        private NumberReader<? super S> reader;
+        private @Nullable NumberReader<? super S> reader;
 
         private Builder(String name, Class<S> sourceType) {
             super(name, MetricKind.GAUGE);

@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.event;
 
+
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;

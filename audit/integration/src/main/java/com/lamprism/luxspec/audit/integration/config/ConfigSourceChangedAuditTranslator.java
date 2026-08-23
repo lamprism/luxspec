@@ -46,8 +46,7 @@ public class ConfigSourceChangedAuditTranslator implements AuditEventTranslator<
                 AuditAction.of(action),
                 AuditOutcome.SUCCESS,
                 ConfigAuditTranslationSupport.configuration(event.getKey()),
-                fields,
-                null
+                fields
         );
     }
 }

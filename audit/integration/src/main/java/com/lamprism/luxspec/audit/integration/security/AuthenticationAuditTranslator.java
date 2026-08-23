@@ -45,8 +45,7 @@ public class AuthenticationAuditTranslator implements AuditEventTranslator<Authe
                 AuditAction.of("security.authentication"),
                 event.isSuccessful() ? AuditOutcome.SUCCESS : AuditOutcome.FAILURE,
                 null,
-                fields.build(),
-                null
+                fields.build()
         );
     }
 }

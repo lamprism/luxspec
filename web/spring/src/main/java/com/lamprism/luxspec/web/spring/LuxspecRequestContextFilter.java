@@ -26,11 +26,13 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.jspecify.annotations.Nullable;
 import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Creates and cleans the immutable Web request scope around one servlet request.
@@ -83,15 +85,19 @@ public class LuxspecRequestContextFilter extends OncePerRequestFilter implements
                 .with(WebContextKeys.CORRELATION_ID, correlationId);
     }
 
-    private static CorrelationId resolveCorrelationId(String headerValue) {
+    // TODO: need a generator
+    private static CorrelationId resolveCorrelationId(@Nullable String headerValue) {
         if (headerValue == null) {
-            return CorrelationId.generated();
+            return generatedCorrelationId();
         }
         try {
             return CorrelationId.of(headerValue);
         } catch (IllegalArgumentException exception) {
-            return CorrelationId.generated();
+            return generatedCorrelationId();
         }
     }
 
+    private static CorrelationId generatedCorrelationId() {
+        return CorrelationId.of(UUID.randomUUID().toString());
+    }
 }

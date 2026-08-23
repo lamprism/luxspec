@@ -20,6 +20,7 @@ import com.lamprism.luxspec.observability.health.HealthContributor;
 import com.lamprism.luxspec.observability.health.HealthGroup;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
 import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ public final class HealthRegistryBuilder {
     private final Map<String, HealthContributor> contributors = new LinkedHashMap<>();
     private final Map<HealthGroup, LinkedHashSet<String>> groups = new EnumMap<>(HealthGroup.class);
     private final List<ObservabilitySet> sets = new ArrayList<>();
-    private Duration timeout;
+    private @Nullable Duration timeout;
 
     private HealthRegistryBuilder(Executor executor) {
         this.executor = Objects.requireNonNull(executor, "executor");
@@ -60,14 +61,14 @@ public final class HealthRegistryBuilder {
         if (contributors.putIfAbsent(normalized, nonNullContributor) != null) {
             throw new IllegalArgumentException("Health contributor is registered more than once: " + normalized);
         }
-        groups.get(HealthGroup.AGGREGATE).add(normalized);
+        Objects.requireNonNull(groups.get(HealthGroup.AGGREGATE), "aggregate health group").add(normalized);
         return this;
     }
 
     public HealthRegistryBuilder include(HealthGroup group, String contributorName) {
         HealthGroup nonNullGroup = Objects.requireNonNull(group, "group");
         String normalized = validateName(contributorName);
-        groups.get(nonNullGroup).add(normalized);
+        Objects.requireNonNull(groups.get(nonNullGroup), "health group").add(normalized);
         return this;
     }
 

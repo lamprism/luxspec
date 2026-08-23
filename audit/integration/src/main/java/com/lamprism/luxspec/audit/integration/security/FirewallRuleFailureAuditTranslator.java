@@ -42,8 +42,7 @@ public class FirewallRuleFailureAuditTranslator implements AuditEventTranslator<
                 AuditAction.of("security.firewall.evaluate"),
                 AuditOutcome.FAILURE,
                 null,
-                fields,
-                null
+                fields
         );
     }
 }

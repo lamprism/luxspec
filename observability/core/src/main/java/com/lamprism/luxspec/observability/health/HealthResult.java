@@ -25,37 +25,29 @@ import java.util.Objects;
  */
 public final class HealthResult {
     private final HealthStatus status;
-    private final HealthDetailSet details;
+    private final HealthDetailSet detailSet;
 
-    private HealthResult(HealthStatus status, HealthDetailSet details) {
+    private HealthResult(HealthStatus status, HealthDetailSet detailSet) {
         this.status = status;
-        this.details = details;
+        this.detailSet = detailSet;
     }
 
     public static HealthResult of(HealthStatus status) {
         return new HealthResult(Objects.requireNonNull(status, "status"), HealthDetailSet.empty());
     }
 
-    public static HealthResult of(HealthStatus status, HealthDetailSet details) {
+    public static HealthResult of(HealthStatus status, HealthDetailSet detailSet) {
         return new HealthResult(
                 Objects.requireNonNull(status, "status"),
-                Objects.requireNonNull(details, "details")
+                Objects.requireNonNull(detailSet, "detailSet")
         );
-    }
-
-    public HealthStatus status() {
-        return status;
     }
 
     public HealthStatus getStatus() {
         return status;
     }
 
-    public HealthDetailSet details() {
-        return details;
-    }
-
     public HealthDetailSet getDetails() {
-        return details;
+        return detailSet;
     }
 }

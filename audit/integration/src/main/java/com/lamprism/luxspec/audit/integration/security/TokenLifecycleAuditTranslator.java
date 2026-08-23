@@ -61,8 +61,7 @@ public class TokenLifecycleAuditTranslator implements AuditEventTranslator<Token
                 AuditAction.of(action),
                 outcome,
                 null,
-                fields.build(),
-                null
+                fields.build()
         );
     }
 }

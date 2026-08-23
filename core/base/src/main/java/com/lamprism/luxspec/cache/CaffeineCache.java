@@ -53,11 +53,13 @@ class CaffeineCache<K, V> implements Cache<K, V> {
                 if (cachedValue != null) {
                     return cachedValue;
                 }
-                loadState = inFlightLoads.get(nonNullKey);
-                owner = loadState == null;
+                LoadState<V> existingLoadState = inFlightLoads.get(nonNullKey);
+                owner = existingLoadState == null;
                 if (owner) {
                     loadState = new LoadState<>(generation);
                     inFlightLoads.put(nonNullKey, loadState);
+                } else {
+                    loadState = existingLoadState;
                 }
             }
             if (!owner) {

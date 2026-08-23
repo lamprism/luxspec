@@ -132,7 +132,10 @@ final class DefaultMetricRegistry implements MetricRegistry, MetricRegistryEvent
             return cast(noOp(nonNullBinding.withoutValueSource()));
         }
         if (!reserveBinding(registered)) {
-            MetricCardinalityPolicy policy = registered.getCardinalityPolicy();
+            MetricCardinalityPolicy policy = Objects.requireNonNull(
+                    registered.getCardinalityPolicy(),
+                    "cardinalityPolicy"
+            );
             if (policy.overflow() == CardinalityOverflow.REJECT) {
                 throw new MetricCardinalityException(registered.getName(), policy.maximumBindings());
             }
@@ -722,7 +725,7 @@ final class DefaultMetricRegistry implements MetricRegistry, MetricRegistryEvent
         private final TimerMetric timer;
         private final long startedAt;
         private boolean stopped;
-        private Duration elapsed;
+        private @Nullable Duration elapsed;
 
         private TimerTimingImpl(TimerMetric timer, long startedAt) {
             this.timer = timer;
@@ -732,14 +735,15 @@ final class DefaultMetricRegistry implements MetricRegistry, MetricRegistryEvent
         @Override
         public synchronized Duration stop() {
             if (stopped) {
-                return elapsed;
+                return Objects.requireNonNull(elapsed, "elapsed");
             }
-            elapsed = elapsedSince(startedAt);
+            Duration measured = elapsedSince(startedAt);
+            elapsed = measured;
             stopped = true;
             if (timer.registryOpen()) {
-                timer.record(elapsed);
+                timer.record(measured);
             }
-            return elapsed;
+            return measured;
         }
     }
 
@@ -747,7 +751,7 @@ final class DefaultMetricRegistry implements MetricRegistry, MetricRegistryEvent
         private final LongTaskTimerMetric timer;
         private final long startedAt;
         private boolean stopped;
-        private Duration elapsed;
+        private @Nullable Duration elapsed;
 
         private LongTaskTimingState(LongTaskTimerMetric timer, long startedAt) {
             this.timer = timer;
@@ -757,12 +761,13 @@ final class DefaultMetricRegistry implements MetricRegistry, MetricRegistryEvent
         @Override
         public synchronized Duration stop() {
             if (stopped) {
-                return elapsed;
+                return Objects.requireNonNull(elapsed, "elapsed");
             }
-            elapsed = elapsedSince(startedAt);
+            Duration measured = elapsedSince(startedAt);
+            elapsed = measured;
             stopped = true;
             timer.finish(this);
-            return elapsed;
+            return measured;
         }
 
         private Duration elapsed(long now) {

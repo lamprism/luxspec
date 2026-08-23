@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.metric;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 
 /**
@@ -30,7 +32,7 @@ public final class TimeGaugeSpec<S> extends AbstractMetricSpec<TimeGauge> {
     private TimeGaugeSpec(Builder<S> builder) {
         super(builder.name(), builder.kind(), builder.dimensions(), builder.description(), builder.baseUnit(), builder.cardinalityPolicy());
         sourceType = builder.sourceType;
-        reader = builder.reader;
+        reader = Objects.requireNonNull(builder.reader, "reader");
     }
 
     public static <S> Builder<S> builder(String name, Class<S> sourceType) {
@@ -68,7 +70,7 @@ public final class TimeGaugeSpec<S> extends AbstractMetricSpec<TimeGauge> {
      */
     public static final class Builder<S> extends BuilderSupport<TimeGauge, Builder<S>> {
         private final Class<S> sourceType;
-        private DurationReader<? super S> reader;
+        private @Nullable DurationReader<? super S> reader;
 
         private Builder(String name, Class<S> sourceType) {
             super(name, MetricKind.TIME_GAUGE);

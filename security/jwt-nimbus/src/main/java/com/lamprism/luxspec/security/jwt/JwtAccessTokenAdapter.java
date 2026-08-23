@@ -44,6 +44,7 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import org.jspecify.annotations.Nullable;
 
 import javax.crypto.SecretKey;
 import java.security.Key;
@@ -252,7 +253,7 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         }
     }
 
-    private String requireKeyId(String value) {
+    private String requireKeyId(@Nullable String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("JWT header is missing a key ID");
         }
@@ -277,14 +278,14 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         throw new IllegalArgumentException("JWT audience is not accepted");
     }
 
-    private static String requireText(String value, String name) {
+    private static String requireText(@Nullable String value, String name) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("JWT claim is missing or blank: " + name);
         }
         return value;
     }
 
-    private static Instant requireInstant(Date value, String name) {
+    private static Instant requireInstant(@Nullable Date value, String name) {
         if (value == null) {
             throw new IllegalArgumentException("JWT claim is missing or invalid: " + name);
         }
@@ -359,7 +360,7 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         };
     }
 
-    private static JWSAlgorithm ecdsaAlgorithm(ECParameterSpec parameters) {
+    private static JWSAlgorithm ecdsaAlgorithm(@Nullable ECParameterSpec parameters) {
         if (parameters == null) {
             throw new IllegalArgumentException("EC key parameters are missing");
         }

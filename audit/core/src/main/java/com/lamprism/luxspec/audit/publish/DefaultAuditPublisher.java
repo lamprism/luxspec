@@ -125,18 +125,7 @@ public class DefaultAuditPublisher implements AuditPublisher {
         if (content == null) {
             return;
         }
-        AuditEntry entry = new AuditEntry(
-                nonNullEnvelope.id(),
-                nonNullEnvelope.eventName(),
-                content.occurredAt(),
-                nonNullEnvelope.publishedAt(),
-                nonNullEnvelope.metadata(),
-                content.action(),
-                content.outcome(),
-                content.resource(),
-                content.fieldSet(),
-                content.detail()
-        );
+        AuditEntry entry = AuditEntry.from(nonNullEnvelope, content);
         try {
             sink.accept(entry);
         } catch (Throwable failure) {
@@ -157,6 +146,10 @@ public class DefaultAuditPublisher implements AuditPublisher {
         if (deliveryPolicy == AuditDeliveryPolicy.REQUIRED) {
             throw new AuditPublicationException(envelope, failure);
         }
-        errorHandler.onFailure(envelope, entry, failure);
+        AuditPublicationErrorHandler nonNullErrorHandler = Objects.requireNonNull(
+                errorHandler,
+                "errorHandler"
+        );
+        nonNullErrorHandler.onFailure(envelope, entry, failure);
     }
 }

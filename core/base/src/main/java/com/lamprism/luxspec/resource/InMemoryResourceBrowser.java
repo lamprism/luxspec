@@ -22,6 +22,7 @@ import com.lamprism.luxspec.data.query.InMemoryQueryExecutor;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryField;
 import com.lamprism.luxspec.data.query.QueryFieldResolver;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -118,7 +119,7 @@ public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements Reso
          */
         public <V> Builder<ID, R> field(
                 QueryField<V> field,
-                Function<? super R, ? extends V> accessor
+                Function<? super R, ? extends @Nullable V> accessor
         ) {
             fieldResolverBuilder.field(field, accessor);
             return this;
@@ -135,7 +136,7 @@ public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements Reso
          */
         public <V> Builder<ID, R> field(
                 QueryField<V> field,
-                Function<? super R, ? extends V> accessor,
+                Function<? super R, ? extends @Nullable V> accessor,
                 Comparator<? super V> comparator
         ) {
             fieldResolverBuilder.field(field, accessor, comparator);

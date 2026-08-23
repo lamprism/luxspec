@@ -18,13 +18,15 @@ package com.lamprism.luxspec.audit.autoconfigure;
 
 import com.lamprism.luxspec.audit.AuditEntry;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.AuditEventRegistration;
-import com.lamprism.luxspec.audit.integration.AuditEventRegistrationImpl;
 import com.lamprism.luxspec.audit.integration.LuxspecAuditEventNames;
+import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
+import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
+import com.lamprism.luxspec.audit.publish.AuditEventRegistry;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditSink;
 import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
+import com.lamprism.luxspec.core.autoconfigure.LuxspecCoreAutoConfiguration;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.security.SecurityErrorCode;
@@ -43,7 +45,10 @@ class LuxspecAuditAutoConfigurationTest {
     private static final Instant OCCURRED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(LuxspecAuditAutoConfiguration.class));
+            .withConfiguration(AutoConfigurations.of(
+                    LuxspecCoreAutoConfiguration.class,
+                    LuxspecAuditAutoConfiguration.class
+            ));
 
     @Test
     void createsThePublisherAndSubscribesBuiltInEventsWhenAnApplicationSuppliesASink() {
@@ -54,12 +59,16 @@ class LuxspecAuditAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(AuditRegistry.class);
                     assertThat(context).hasSingleBean(AuditPublisher.class);
+                    assertThat(context).hasSingleBean(AuditEventIdGenerator.class);
+                    assertThat(context).hasSingleBean(AuditDeliveryPolicy.class);
+                    assertThat(context.getBean(AuditDeliveryPolicy.class))
+                            .isEqualTo(AuditDeliveryPolicy.REQUIRED);
                     assertThat(context).hasSingleBean(EventDispatcher.class);
                     assertThat(context.getBean(EventDispatcher.class))
                             .isInstanceOf(EventDispatcherImpl.class);
-                    assertThat(context).hasSingleBean(AuditEventRegistration.class);
-                    assertThat(context.getBean(AuditEventRegistration.class))
-                            .isInstanceOf(AuditEventRegistrationImpl.class);
+                    assertThat(context).hasSingleBean(AuditEventRegistry.class);
+                    assertThat(context.getBean(AuditEventRegistry.class).definitions())
+                            .hasSize(13);
 
                     context.getBean(EventDispatcher.class)
                             .publish(new FirewallRuleFailureEvent(
@@ -80,8 +89,8 @@ class LuxspecAuditAutoConfigurationTest {
         contextRunner.run(context -> {
             assertThat(context).doesNotHaveBean(AuditPublisher.class);
             assertThat(context).doesNotHaveBean(AuditRegistry.class);
-            assertThat(context).doesNotHaveBean(EventDispatcher.class);
-            assertThat(context).doesNotHaveBean(AuditEventRegistration.class);
+            assertThat(context).hasSingleBean(EventDispatcher.class);
+            assertThat(context).doesNotHaveBean(AuditEventRegistry.class);
         });
     }
 

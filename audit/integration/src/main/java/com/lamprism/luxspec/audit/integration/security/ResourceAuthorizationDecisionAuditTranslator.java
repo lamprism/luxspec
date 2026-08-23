@@ -49,8 +49,7 @@ public class ResourceAuthorizationDecisionAuditTranslator
                 AuditAction.of("security.resource.access"),
                 event.getDecision().isAllowed() ? AuditOutcome.SUCCESS : AuditOutcome.DENIED,
                 event.getReference(),
-                fields.build(),
-                null
+                fields.build()
         );
     }
 }

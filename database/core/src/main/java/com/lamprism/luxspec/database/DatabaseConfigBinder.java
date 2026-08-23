@@ -84,7 +84,7 @@ public class DatabaseConfigBinder {
         return Map.copyOf(properties);
     }
 
-    private static SslMaterial toMaterial(@Nullable String value) {
+    private static @Nullable SslMaterial toMaterial(@Nullable String value) {
         return value == null ? null : SslMaterial.parse(value);
     }
 

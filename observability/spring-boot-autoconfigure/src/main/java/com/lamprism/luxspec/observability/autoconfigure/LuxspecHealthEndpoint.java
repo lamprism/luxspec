@@ -63,7 +63,7 @@ public class LuxspecHealthEndpoint {
 
     private ResponseEntity<Map<String, String>> project(HealthGroup group) {
         HealthResult result = registry.evaluate(group);
-        HttpStatus status = result.status() == HealthStatus.UP ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
-        return ResponseEntity.status(status).body(Map.of("status", result.status().name()));
+        HttpStatus status = result.getStatus() == HealthStatus.UP ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+        return ResponseEntity.status(status).body(Map.of("status", result.getStatus().name()));
     }
 }

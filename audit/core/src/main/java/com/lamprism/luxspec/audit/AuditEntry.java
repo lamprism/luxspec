@@ -27,8 +27,8 @@ import java.util.Objects;
  *
  * <p>The event name is normalized by {@link AuditNameValidator#require(String)}. The
  * entry preserves the envelope ID, publication time, and metadata while the
- * translator supplies the occurrence time, action, outcome, resource, fields,
- * and optional details.
+ * translator supplies the occurrence time, action, outcome, resource, and
+ * fields.
  *
  * @author RollW
  */
@@ -42,7 +42,6 @@ public final class AuditEntry {
     private final AuditOutcome outcome;
     private final @Nullable ResourceReference<?> resource;
     private final AuditFieldSet fields;
-    private final @Nullable AuditDetail<?> details;
 
     public AuditEntry(
             AuditEventId id,
@@ -53,8 +52,7 @@ public final class AuditEntry {
             AuditAction action,
             AuditOutcome outcome,
             @Nullable ResourceReference<?> resource,
-            AuditFieldSet fields,
-            @Nullable AuditDetail<?> details
+            AuditFieldSet fields
     ) {
         this.id = Objects.requireNonNull(id, "id");
         this.eventName = AuditNameValidator.require(eventName);
@@ -65,7 +63,30 @@ public final class AuditEntry {
         this.outcome = Objects.requireNonNull(outcome, "outcome");
         this.resource = resource;
         this.fields = Objects.requireNonNull(fields, "fields");
-        this.details = details;
+    }
+
+    /**
+     * Combines translator-owned content with the immutable publication envelope.
+     *
+     * @param envelope the event identity and publication metadata
+     * @param content  the translated semantic content
+     * @param <E>      the event payload type
+     * @return the complete audit entry
+     */
+    public static <E> AuditEntry from(AuditEnvelope<E> envelope, AuditEntryContent content) {
+        AuditEnvelope<E> nonNullEnvelope = Objects.requireNonNull(envelope, "envelope");
+        AuditEntryContent nonNullContent = Objects.requireNonNull(content, "content");
+        return new AuditEntry(
+                nonNullEnvelope.id(),
+                nonNullEnvelope.eventName(),
+                nonNullContent.occurredAt(),
+                nonNullEnvelope.publishedAt(),
+                nonNullEnvelope.metadata(),
+                nonNullContent.action(),
+                nonNullContent.outcome(),
+                nonNullContent.resource(),
+                nonNullContent.fieldSet()
+        );
     }
 
     public AuditEventId id() {
@@ -104,10 +125,6 @@ public final class AuditEntry {
         return fields;
     }
 
-    public @Nullable AuditDetail<?> details() {
-        return details;
-    }
-
     @Override
     public boolean equals(Object other) {
         if (!(other instanceof AuditEntry entry)) {
@@ -121,8 +138,7 @@ public final class AuditEntry {
                 && action.equals(entry.action)
                 && outcome == entry.outcome
                 && Objects.equals(resource, entry.resource)
-                && fields.equals(entry.fields)
-                && Objects.equals(details, entry.details);
+                && fields.equals(entry.fields);
     }
 
     @Override
@@ -136,8 +152,7 @@ public final class AuditEntry {
                 action,
                 outcome,
                 resource,
-                fields,
-                details
+                fields
         );
     }
 }

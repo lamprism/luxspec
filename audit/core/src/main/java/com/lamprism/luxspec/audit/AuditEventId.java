@@ -20,14 +20,14 @@ import com.lamprism.luxspec.validation.ValidationRules;
 import com.lamprism.luxspec.validation.Validator;
 
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Stable identity and idempotency key for one audit source event.
  *
  * <p>{@link #of(String)} rejects null or blank values but does not trim or
- * otherwise normalize a non-blank value. The value does not need to be a UUID;
- * {@link #generated()} produces UUID v4 text for local publication.
+ * otherwise normalize a non-blank value. The value does not need to be a UUID.
+ * The value object keeps event identity distinct from event names and other
+ * identifiers while centralizing the non-blank invariant.
  *
  * @author RollW
  */
@@ -43,10 +43,6 @@ public final class AuditEventId {
     public static AuditEventId of(String value) {
         VALUE_VALIDATOR.validate(Objects.requireNonNull(value, "value"));
         return new AuditEventId(value);
-    }
-
-    public static AuditEventId generated() {
-        return of(UUID.randomUUID().toString());
     }
 
     public String value() {

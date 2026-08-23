@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.message.toml;
 
 import com.lamprism.luxspec.message.MessageResolver;
+import org.jspecify.annotations.Nullable;
 import tools.jackson.core.JacksonException;
 import tools.jackson.dataformat.toml.TomlMapper;
 
@@ -83,18 +84,18 @@ public class TomlMessageResolver implements MessageResolver {
         }
     }
 
-    private String findMessage(String key, Locale requestedLocale) {
+    private @Nullable String findMessage(String key, Locale requestedLocale) {
         String message = findMessage(Locale.forLanguageTag(fallbackLocale.getLanguage()), key);
         message = findMessage(fallbackLocale, key, message);
         message = findMessage(Locale.forLanguageTag(requestedLocale.getLanguage()), key, message);
         return findMessage(requestedLocale, key, message);
     }
 
-    private String findMessage(Locale locale, String key) {
+    private @Nullable String findMessage(Locale locale, String key) {
         return findMessage(locale, key, null);
     }
 
-    private String findMessage(Locale locale, String key, String fallback) {
+    private @Nullable String findMessage(Locale locale, String key, @Nullable String fallback) {
         Map<String, String> messages = messagesByLocale.get(locale);
         if (messages == null) {
             return fallback;

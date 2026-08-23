@@ -44,8 +44,7 @@ public class UserPasswordChangedAuditTranslator implements AuditEventTranslator<
                 AuditAction.of("user.password.change"),
                 AuditOutcome.SUCCESS,
                 new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
-                fields,
-                null
+                fields
         );
     }
 }

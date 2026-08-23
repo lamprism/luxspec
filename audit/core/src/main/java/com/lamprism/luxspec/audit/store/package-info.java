@@ -14,17 +14,7 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.audit.integration;
+@NullMarked
+package com.lamprism.luxspec.audit.store;
 
-/**
- * Owns the lifecycle of event-to-audit subscriptions.
- *
- * @author RollW
- */
-public interface AuditEventRegistration extends AutoCloseable {
-    /**
-     * Removes every subscription owned by this registration.
-     */
-    @Override
-    void close();
-}
+import org.jspecify.annotations.NullMarked;

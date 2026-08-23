@@ -25,5 +25,10 @@ import com.lamprism.luxspec.audit.AuditMetadata;
  */
 @FunctionalInterface
 public interface AuditMetadataProvider {
+    /**
+     * Captures the immutable metadata for one publication attempt.
+     *
+     * @return publication-time metadata
+     */
     AuditMetadata capture();
 }

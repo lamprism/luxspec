@@ -16,12 +16,11 @@
 
 package com.lamprism.luxspec.audit.autoconfigure;
 
-import com.lamprism.luxspec.audit.integration.AuditEventRegistration;
-import com.lamprism.luxspec.audit.integration.AuditEventRegistrationImpl;
 import com.lamprism.luxspec.audit.integration.ExecutionContextAuditMetadataProvider;
-import com.lamprism.luxspec.audit.integration.StandardAuditRegistry;
+import com.lamprism.luxspec.audit.integration.StandardAuditEventCatalog;
 import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
 import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
+import com.lamprism.luxspec.audit.publish.AuditEventRegistry;
 import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
 import com.lamprism.luxspec.audit.publish.AuditPublicationErrorHandler;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
@@ -32,10 +31,10 @@ import com.lamprism.luxspec.audit.publish.UuidAuditEventIdGenerator;
 import com.lamprism.luxspec.audit.query.AuditReader;
 import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
 import com.lamprism.luxspec.event.EventDispatcher;
-import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.event.EventPublisher;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -48,12 +47,13 @@ import java.time.Clock;
  * sink. The sink remains application-owned, and an application-provided publisher or registry
  * takes precedence over the defaults. When an application supplies an {@link EventDispatcher},
  * that dispatcher is reused. A custom {@link EventPublisher} that is not an event dispatcher is
- * also respected; in that case the application must assemble the standard registration against
+ * also respected; in that case the application must assemble the standard event registry against
  * its own dispatching path because an opaque publisher cannot expose subscriptions.
  *
  * @author RollW
  */
 @AutoConfiguration
+@AutoConfigureAfter(name = "com.lamprism.luxspec.core.autoconfigure.LuxspecCoreAutoConfiguration")
 public class LuxspecAuditAutoConfiguration {
     /**
      * Creates the opt-in process-local audit sink and reader as one shared store.
@@ -73,13 +73,13 @@ public class LuxspecAuditAutoConfiguration {
     /**
      * Creates the built-in translator registry when no registry is supplied.
      *
-     * @return the standard Luxspec event registry
+     * @return the standard Luxspec translator registry
      */
     @Bean
     @ConditionalOnBean(AuditSink.class)
     @ConditionalOnMissingBean(AuditRegistry.class)
     public AuditRegistry luxspecAuditRegistry() {
-        return StandardAuditRegistry.create();
+        return StandardAuditEventCatalog.createRegistry();
     }
 
     /**
@@ -95,14 +95,38 @@ public class LuxspecAuditAutoConfiguration {
     }
 
     /**
+     * Creates the default UUID event ID generator when no generator is supplied.
+     *
+     * @return the default event ID generator
+     */
+    @Bean
+    @ConditionalOnBean(AuditSink.class)
+    @ConditionalOnMissingBean(AuditEventIdGenerator.class)
+    public AuditEventIdGenerator luxspecAuditEventIdGenerator() {
+        return new UuidAuditEventIdGenerator();
+    }
+
+    /**
+     * Creates the required delivery policy when no policy is supplied.
+     *
+     * @return the default required delivery policy
+     */
+    @Bean
+    @ConditionalOnBean(AuditSink.class)
+    @ConditionalOnMissingBean(AuditDeliveryPolicy.class)
+    public AuditDeliveryPolicy luxspecAuditDeliveryPolicy() {
+        return AuditDeliveryPolicy.REQUIRED;
+    }
+
+    /**
      * Creates the publisher from application-owned sink and optional assembly roles.
      *
      * @param registry          the translator registry
      * @param sink              the application-owned sink
      * @param clocks            optional publication clocks
-     * @param idGenerators      optional event ID generators
+     * @param idGenerator       the event ID generator
      * @param metadataProviders optional metadata providers
-     * @param policies          optional delivery policies
+     * @param policy            the delivery policy
      * @param errorHandlers     optional best-effort failure handlers
      * @return the assembled audit publisher
      */
@@ -113,15 +137,13 @@ public class LuxspecAuditAutoConfiguration {
             AuditRegistry registry,
             AuditSink sink,
             ObjectProvider<Clock> clocks,
-            ObjectProvider<AuditEventIdGenerator> idGenerators,
+            AuditEventIdGenerator idGenerator,
             ObjectProvider<AuditMetadataProvider> metadataProviders,
-            ObjectProvider<AuditDeliveryPolicy> policies,
+            AuditDeliveryPolicy policy,
             ObjectProvider<AuditPublicationErrorHandler> errorHandlers
     ) {
         Clock clock = clocks.getIfAvailable(Clock::systemUTC);
-        AuditEventIdGenerator idGenerator = idGenerators.getIfAvailable(UuidAuditEventIdGenerator::new);
         AuditMetadataProvider metadataProvider = metadataProviders.getIfAvailable(ExecutionContextAuditMetadataProvider::new);
-        AuditDeliveryPolicy policy = policies.getIfAvailable(() -> AuditDeliveryPolicy.REQUIRED);
         AuditPublicationErrorHandler errorHandler = errorHandlers.getIfAvailable();
         return new DefaultAuditPublisher(
                 registry,
@@ -135,40 +157,19 @@ public class LuxspecAuditAutoConfiguration {
     }
 
     /**
-     * Creates a synchronous event dispatcher when the audit publisher is present and no event
-     * publisher has been assembled by the application.
-     *
-     * <p>The default failure handler rethrows listener failures so required audit delivery is not
-     * silently converted into a successful event publication.</p>
-     *
-     * @return the event dispatcher used by the standard audit registration
-     */
-    @Bean
-    @ConditionalOnBean(AuditPublisher.class)
-    @ConditionalOnMissingBean({EventDispatcher.class, EventPublisher.class})
-    public EventDispatcher luxspecAuditEventDispatcher() {
-        return new EventDispatcherImpl((event, listener, failure) -> {
-            throw new IllegalStateException(
-                    "Event listener failed for: " + event.getClass().getName(),
-                    failure
-            );
-        });
-    }
-
-    /**
      * Registers the built-in configuration, security, and user lifecycle translations.
      *
      * @param dispatcher the event dispatcher
      * @param publisher  the audit publisher
-     * @return the closeable standard audit registration
+     * @return the closeable standard event registry
      */
     @Bean(destroyMethod = "close")
     @ConditionalOnBean({EventDispatcher.class, AuditPublisher.class})
-    @ConditionalOnMissingBean(AuditEventRegistration.class)
-    public AuditEventRegistration luxspecAuditEventRegistration(
+    @ConditionalOnMissingBean(AuditEventRegistry.class)
+    public AuditEventRegistry luxspecAuditEventRegistry(
             EventDispatcher dispatcher,
             AuditPublisher publisher
     ) {
-        return new AuditEventRegistrationImpl(dispatcher, publisher);
+        return StandardAuditEventCatalog.createEventRegistry(dispatcher, publisher);
     }
 }

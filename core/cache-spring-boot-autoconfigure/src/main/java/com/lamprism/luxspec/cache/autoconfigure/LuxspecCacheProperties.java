@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.cache.autoconfigure;
 
 import com.lamprism.luxspec.cache.CacheProfile;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -29,8 +30,8 @@ import java.time.Duration;
 @ConfigurationProperties("luxspec.cache")
 public class LuxspecCacheProperties {
     private long maximumSize = 1_024;
-    private Duration expireAfterWrite;
-    private Duration expireAfterAccess;
+    private @Nullable Duration expireAfterWrite;
+    private @Nullable Duration expireAfterAccess;
     private boolean recordStats;
 
     /**
@@ -56,7 +57,7 @@ public class LuxspecCacheProperties {
      *
      * @return the optional duration
      */
-    public Duration getExpireAfterWrite() {
+    public @Nullable Duration getExpireAfterWrite() {
         return expireAfterWrite;
     }
 
@@ -65,7 +66,7 @@ public class LuxspecCacheProperties {
      *
      * @param expireAfterWrite the optional duration
      */
-    public void setExpireAfterWrite(Duration expireAfterWrite) {
+    public void setExpireAfterWrite(@Nullable Duration expireAfterWrite) {
         this.expireAfterWrite = expireAfterWrite;
     }
 
@@ -74,7 +75,7 @@ public class LuxspecCacheProperties {
      *
      * @return the optional duration
      */
-    public Duration getExpireAfterAccess() {
+    public @Nullable Duration getExpireAfterAccess() {
         return expireAfterAccess;
     }
 
@@ -83,7 +84,7 @@ public class LuxspecCacheProperties {
      *
      * @param expireAfterAccess the optional duration
      */
-    public void setExpireAfterAccess(Duration expireAfterAccess) {
+    public void setExpireAfterAccess(@Nullable Duration expireAfterAccess) {
         this.expireAfterAccess = expireAfterAccess;
     }
 

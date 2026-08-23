@@ -52,6 +52,19 @@ class ConfigSpecBuilderTest {
     }
 
     @Test
+    void acceptsCustomLocalizedDescriptionImplementations() {
+        LocalizedText description = locale -> locale.equals(Locale.FRANCE)
+                ? "Nom du service"
+                : "Service name";
+
+        ConfigSpec<String> spec = ConfigSpec.builder("service.name", ConfigCodecs.string())
+                .localizedDescription(description)
+                .build();
+
+        assertEquals("Nom du service", spec.getDescription().resolve(Locale.FRANCE));
+    }
+
+    @Test
     void resolvesTextDescriptionsWithoutAMessageResolver() {
         assertEquals(
                 "Inline text",

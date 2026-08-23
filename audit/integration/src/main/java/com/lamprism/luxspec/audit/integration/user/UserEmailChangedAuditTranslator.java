@@ -44,8 +44,7 @@ public class UserEmailChangedAuditTranslator implements AuditEventTranslator<Use
                 AuditAction.of("user.email.change"),
                 AuditOutcome.SUCCESS,
                 new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
-                fields,
-                null
+                fields
         );
     }
 }

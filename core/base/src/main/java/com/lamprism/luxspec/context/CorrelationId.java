@@ -20,14 +20,14 @@ import com.lamprism.luxspec.validation.ValidationRules;
 import com.lamprism.luxspec.validation.Validator;
 
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * A safe cross-module association value for one request or execution.
  *
  * <p>{@link #of(String)} trims surrounding characters and rejects null, empty,
  * whitespace, space, and ISO control characters. It does not require UUID
- * syntax. {@link #generated()} creates UUID v4 text for local association.
+ * syntax. Generation is owned by the adapter that establishes the correlation
+ * boundary.
  *
  * @author RollW
  */
@@ -47,10 +47,6 @@ public final class CorrelationId {
         String normalized = Objects.requireNonNull(value, "value").trim();
         VALUE_VALIDATOR.validate(normalized);
         return new CorrelationId(normalized);
-    }
-
-    public static CorrelationId generated() {
-        return of(UUID.randomUUID().toString());
     }
 
     public String value() {

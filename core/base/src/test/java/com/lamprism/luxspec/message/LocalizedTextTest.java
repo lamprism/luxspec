@@ -46,4 +46,14 @@ class LocalizedTextTest {
                 () -> builder.translation(Locale.FRENCH, "French")
         );
     }
+
+    @Test
+    void acceptsCustomProviderIndependentTextImplementations() {
+        LocalizedText text = locale -> locale.getLanguage().equals(Locale.FRENCH.getLanguage())
+                ? "Francais"
+                : "Default";
+
+        assertEquals("Francais", text.resolve(Locale.FRANCE));
+        assertEquals("Default", text.getDefaultText());
+    }
 }

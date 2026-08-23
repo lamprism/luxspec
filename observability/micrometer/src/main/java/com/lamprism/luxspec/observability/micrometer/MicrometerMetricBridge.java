@@ -27,6 +27,7 @@ import com.lamprism.luxspec.observability.metric.MetricBinding;
 import com.lamprism.luxspec.observability.metric.MetricDescription;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.metric.MetricSpec;
+import com.lamprism.luxspec.observability.metric.MetricUnit;
 import com.lamprism.luxspec.observability.metric.TimeGauge;
 import com.lamprism.luxspec.observability.metric.Timer;
 import com.lamprism.luxspec.observability.runtime.metric.MetricRegistryEventSource;
@@ -36,14 +37,16 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Statistic;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Tags;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 /**
@@ -53,10 +56,11 @@ import java.util.function.Supplier;
  */
 public class MicrometerMetricBridge implements AutoCloseable {
     private final MeterRegistry meterRegistry;
-    private final MetricRegistryEventSource events;
-    private final Map<MetricBinding<?>, List<Meter>> projected = new HashMap<>();
+    private final MetricRegistryEventSource eventSource;
+    private final Map<MetricBinding<?>, List<Meter>> projected = new ConcurrentHashMap<>();
+    private final ReentrantReadWriteLock lifecycleLock = new ReentrantReadWriteLock();
     private final AutoCloseable listener;
-    private volatile boolean closed;
+    private boolean closed;
 
     public MicrometerMetricBridge(
             MetricRegistry metricRegistry,
@@ -64,13 +68,13 @@ public class MicrometerMetricBridge implements AutoCloseable {
     ) {
         Objects.requireNonNull(metricRegistry, "metricRegistry");
         this.meterRegistry = Objects.requireNonNull(meterRegistry, "meterRegistry");
-        if (!(metricRegistry instanceof MetricRegistryEventSource registryEvents)) {
+        if (!(metricRegistry instanceof MetricRegistryEventSource registryEventSource)) {
             throw new IllegalArgumentException("The metric registry does not expose materialization events");
         }
-        events = registryEvents;
+        eventSource = registryEventSource;
         AutoCloseable registeredListener;
         try {
-            registeredListener = events.addMaterializationListener(this::project);
+            registeredListener = eventSource.addMaterializationListener(this::project);
         } catch (RuntimeException failure) {
             removeProjectedMeters();
             throw failure;
@@ -79,28 +83,39 @@ public class MicrometerMetricBridge implements AutoCloseable {
     }
 
     @Override
-    public synchronized void close() {
-        if (closed) {
-            return;
-        }
-        closed = true;
+    public void close() {
+        lifecycleLock.writeLock().lock();
         try {
-            listener.close();
-        } catch (Exception failure) {
-            throw new MicrometerProjectionException("Unable to detach the Micrometer metric bridge", failure);
+            if (closed) {
+                return;
+            }
+            closed = true;
+            try {
+                listener.close();
+            } catch (Exception failure) {
+                throw new MicrometerProjectionException("Unable to detach the Micrometer metric bridge", failure);
+            } finally {
+                projected.clear();
+            }
         } finally {
-            projected.clear();
+            lifecycleLock.writeLock().unlock();
         }
     }
 
-    private synchronized void project(Metric metric) {
-        if (closed) {
-            return;
+    private void project(Metric metric) {
+        lifecycleLock.readLock().lock();
+        try {
+            if (closed) {
+                return;
+            }
+            MetricBinding<?> binding = metric.getBinding();
+            projected.computeIfAbsent(binding, ignored -> projectMeters(binding, metric));
+        } finally {
+            lifecycleLock.readLock().unlock();
         }
-        MetricBinding<?> binding = metric.getBinding();
-        if (projected.containsKey(binding)) {
-            return;
-        }
+    }
+
+    private List<Meter> projectMeters(MetricBinding<?> binding, Metric metric) {
         List<Meter> meters = new ArrayList<>();
         try {
             if (metric instanceof Counter counter) {
@@ -158,7 +173,7 @@ public class MicrometerMetricBridge implements AutoCloseable {
             } else {
                 throw new MicrometerProjectionException("Unsupported Luxspec metric: " + metric.getClass().getName());
             }
-            projected.put(binding, List.copyOf(meters));
+            return List.copyOf(meters);
         } catch (RuntimeException failure) {
             for (Meter meter : meters) {
                 meterRegistry.remove(meter);
@@ -262,19 +277,20 @@ public class MicrometerMetricBridge implements AutoCloseable {
 
     private static void configure(Object builder, MetricSpec<?> spec) {
         MetricDescription description = spec.getDescription();
+        MetricUnit baseUnit = spec.getBaseUnit();
         if (builder instanceof io.micrometer.core.instrument.FunctionCounter.Builder<?> functionCounterBuilder) {
             if (description != null) {
                 functionCounterBuilder.description(description.value());
             }
-            if (spec.getBaseUnit() != null) {
-                functionCounterBuilder.baseUnit(spec.getBaseUnit().value());
+            if (baseUnit != null) {
+                functionCounterBuilder.baseUnit(baseUnit.value());
             }
         } else if (builder instanceof io.micrometer.core.instrument.Gauge.Builder<?> gaugeBuilder) {
             if (description != null) {
                 gaugeBuilder.description(description.value());
             }
-            if (spec.getBaseUnit() != null) {
-                gaugeBuilder.baseUnit(spec.getBaseUnit().value());
+            if (baseUnit != null) {
+                gaugeBuilder.baseUnit(baseUnit.value());
             }
         } else if (builder instanceof io.micrometer.core.instrument.FunctionTimer.Builder<?> functionTimerBuilder) {
             if (description != null) {
@@ -284,8 +300,8 @@ public class MicrometerMetricBridge implements AutoCloseable {
             if (description != null) {
                 meterBuilder.description(description.value());
             }
-            if (spec.getBaseUnit() != null) {
-                meterBuilder.baseUnit(spec.getBaseUnit().value());
+            if (baseUnit != null) {
+                meterBuilder.baseUnit(baseUnit.value());
             }
         }
     }
@@ -304,11 +320,11 @@ public class MicrometerMetricBridge implements AutoCloseable {
         return Double.NaN;
     }
 
-    private static double nullableDouble(Number value) {
+    private static double nullableDouble(@Nullable Number value) {
         return value == null ? Double.NaN : value.doubleValue();
     }
 
-    private static double nullableDuration(Duration value) {
+    private static double nullableDuration(@Nullable Duration value) {
         return value == null ? Double.NaN : seconds(value);
     }
 

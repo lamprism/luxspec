@@ -54,12 +54,12 @@ class DefaultQueryFieldResolver<T> implements QueryFieldResolver<T> {
 
     static final class FieldAccessor<T, V> {
         private final QueryField<V> field;
-        private final Function<? super T, ? extends V> accessor;
+        private final Function<? super T, ? extends @Nullable V> accessor;
         private final Comparator<? super V> comparator;
 
         FieldAccessor(
                 QueryField<V> field,
-                Function<? super T, ? extends V> accessor,
+                Function<? super T, ? extends @Nullable V> accessor,
                 Comparator<? super V> comparator
         ) {
             this.field = field;

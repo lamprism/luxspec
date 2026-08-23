@@ -48,8 +48,7 @@ public class ConfigChangedAuditTranslator implements AuditEventTranslator<Config
                 AuditAction.of("config.effective.change"),
                 AuditOutcome.SUCCESS,
                 ConfigAuditTranslationSupport.configuration(event.getKey()),
-                fields,
-                null
+                fields
         );
     }
 }

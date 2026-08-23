@@ -22,20 +22,30 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Immutable text with local translations and an explicit default.
+ * Provider-independent text that resolves itself for a requested locale.
  *
- * <p>Use this value for library text published together with its owner. The requested locale is
- * matched exactly, then by language, before the default text is returned.</p>
+ * <p>The factory and builder create immutable inline text for metadata that is published with its
+ * owner. Key-based messages remain represented by {@link MessageResource} and resolved through
+ * {@link MessageResolver}.</p>
  *
  * @author RollW
  */
-public final class LocalizedText {
-    private final String defaultText;
-    private final Map<Locale, String> translations;
+public interface LocalizedText {
+    /**
+     * Resolves this text for a requested locale.
+     *
+     * @param locale the requested locale
+     * @return the best matching translation or the default text
+     */
+    String resolve(Locale locale);
 
-    private LocalizedText(String defaultText, Map<Locale, String> translations) {
-        this.defaultText = requireText(defaultText, "defaultText");
-        this.translations = Map.copyOf(Objects.requireNonNull(translations, "translations"));
+    /**
+     * Returns the default text used when no translation matches.
+     *
+     * @return the non-blank default text
+     */
+    default String getDefaultText() {
+        return resolve(Locale.ROOT);
     }
 
     /**
@@ -44,8 +54,8 @@ public final class LocalizedText {
      * @param defaultText the non-blank text returned when no translation matches
      * @return the localized text
      */
-    public static LocalizedText of(String defaultText) {
-        return new LocalizedText(defaultText, Map.of());
+    static LocalizedText of(String defaultText) {
+        return new ImmutableLocalizedText(defaultText, Map.of());
     }
 
     /**
@@ -56,7 +66,7 @@ public final class LocalizedText {
      * @param translation the non-blank translation
      * @return the localized text
      */
-    public static LocalizedText of(String defaultText, Locale locale, String translation) {
+    static LocalizedText of(String defaultText, Locale locale, String translation) {
         return builder(defaultText).translation(locale, translation).build();
     }
 
@@ -66,39 +76,8 @@ public final class LocalizedText {
      * @param defaultText the non-blank text returned when no translation matches
      * @return the translation builder
      */
-    public static Builder builder(String defaultText) {
+    static Builder builder(String defaultText) {
         return new Builder(defaultText);
-    }
-
-    /**
-     * Resolves text for a requested locale.
-     *
-     * @param locale the requested locale
-     * @return an exact translation, a language translation, or the default text
-     */
-    public String resolve(Locale locale) {
-        Locale nonNullLocale = Objects.requireNonNull(locale, "locale");
-        String exactTranslation = translations.get(nonNullLocale);
-        if (exactTranslation != null) {
-            return exactTranslation;
-        }
-        String language = nonNullLocale.getLanguage();
-        if (!language.isBlank()) {
-            String languageTranslation = translations.get(Locale.forLanguageTag(language));
-            if (languageTranslation != null) {
-                return languageTranslation;
-            }
-        }
-        return defaultText;
-    }
-
-    /**
-     * Returns the default text.
-     *
-     * @return the non-blank default text
-     */
-    public String getDefaultText() {
-        return defaultText;
     }
 
     /**
@@ -106,7 +85,7 @@ public final class LocalizedText {
      *
      * @author RollW
      */
-    public static final class Builder {
+    final class Builder {
         private final String defaultText;
         private final Map<Locale, String> translations = new LinkedHashMap<>();
 
@@ -125,7 +104,9 @@ public final class LocalizedText {
             Locale nonNullLocale = Objects.requireNonNull(locale, "locale");
             String nonBlankTranslation = requireText(translation, "translation");
             if (translations.putIfAbsent(nonNullLocale, nonBlankTranslation) != null) {
-                throw new IllegalArgumentException("A translation is already defined for " + nonNullLocale);
+                throw new IllegalArgumentException(
+                        "A translation is already defined for " + nonNullLocale
+                );
             }
             return this;
         }
@@ -136,15 +117,15 @@ public final class LocalizedText {
          * @return the localized text
          */
         public LocalizedText build() {
-            return new LocalizedText(defaultText, translations);
+            return new ImmutableLocalizedText(defaultText, translations);
         }
-    }
 
-    private static String requireText(String value, String name) {
-        String nonNullValue = Objects.requireNonNull(value, name).trim();
-        if (nonNullValue.isEmpty()) {
-            throw new IllegalArgumentException(name + " must not be blank");
+        private static String requireText(String value, String name) {
+            String nonNullValue = Objects.requireNonNull(value, name).trim();
+            if (nonNullValue.isEmpty()) {
+                throw new IllegalArgumentException(name + " must not be blank");
+            }
+            return nonNullValue;
         }
-        return nonNullValue;
     }
 }

@@ -22,6 +22,7 @@ description = "Spring Boot hosting support for Luxspec audit assembly."
 
 dependencies {
     api(project(":audit:audit-integration"))
+    testImplementation(project(":core:core-spring-boot-autoconfigure"))
     testImplementation(project(":security:security-core"))
     testImplementation("org.springframework.boot:spring-boot-test")
     testImplementation("org.assertj:assertj-core")

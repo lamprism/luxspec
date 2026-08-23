@@ -59,8 +59,7 @@ class AuditPublisherTest {
                         AuditAction.of("order.create"),
                         AuditOutcome.SUCCESS,
                         null,
-                        AuditFieldSet.empty(),
-                        null
+                        AuditFieldSet.empty()
                 ))
                 .build();
         AuditPublisher publisher = new DefaultAuditPublisher(
@@ -122,8 +121,7 @@ class AuditPublisherTest {
                         AuditAction.of("order.create"),
                         AuditOutcome.SUCCESS,
                         null,
-                        AuditFieldSet.empty(),
-                        null
+                        AuditFieldSet.empty()
                 ))
                 .build();
         AuditEnvelope<String> envelope = new AuditEnvelope<>(

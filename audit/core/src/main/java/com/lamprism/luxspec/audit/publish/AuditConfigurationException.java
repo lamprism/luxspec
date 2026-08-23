@@ -22,7 +22,19 @@ package com.lamprism.luxspec.audit.publish;
  * @author RollW
  */
 public final class AuditConfigurationException extends RuntimeException {
+    public AuditConfigurationException() {
+        super();
+    }
+
     public AuditConfigurationException(String message) {
         super(message);
+    }
+
+    public AuditConfigurationException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
+    public AuditConfigurationException(Throwable cause) {
+        super(cause);
     }
 }

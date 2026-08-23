@@ -70,8 +70,7 @@ class InMemoryAuditStoreTest {
                 AuditAction.of("user.register"),
                 AuditOutcome.SUCCESS,
                 null,
-                AuditFieldSet.empty(),
-                null
+                AuditFieldSet.empty()
         );
     }
 }

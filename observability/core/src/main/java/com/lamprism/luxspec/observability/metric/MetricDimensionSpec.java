@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.observability.metric;
 
 import com.lamprism.luxspec.validation.ValidationRules;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,7 +39,7 @@ import java.util.function.Function;
 public final class MetricDimensionSpec<T> {
     private final String name;
     private final Class<T> valueType;
-    private final Function<? super T, String> formatter;
+    private final Function<? super T, @Nullable String> formatter;
     private final List<T> allowedValues;
     private final int maximumValueLength;
 
@@ -168,7 +169,7 @@ public final class MetricDimensionSpec<T> {
     public static final class Builder<T> {
         private final String name;
         private final Class<T> valueType;
-        private Function<? super T, String> formatter;
+        private Function<? super T, @Nullable String> formatter;
         private final List<T> allowedValues = new ArrayList<>();
         private int maximumValueLength = 256;
 
@@ -180,7 +181,7 @@ public final class MetricDimensionSpec<T> {
             }
         }
 
-        public Builder<T> formatter(Function<? super T, String> formatter) {
+        public Builder<T> formatter(Function<? super T, @Nullable String> formatter) {
             this.formatter = Objects.requireNonNull(formatter, "formatter");
             return this;
         }

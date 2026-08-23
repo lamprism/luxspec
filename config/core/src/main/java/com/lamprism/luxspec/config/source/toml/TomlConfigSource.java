@@ -88,7 +88,10 @@ public class TomlConfigSource implements ConfigSource {
 
     private static Map<String, Object> readDocument(InputStream input) {
         try (InputStream nonNullInput = Objects.requireNonNull(input, "input")) {
-            Map<?, ?> parsed = TOML_MAPPER.readValue(nonNullInput, Map.class);
+            Map<?, ?> parsed = Objects.requireNonNull(
+                    TOML_MAPPER.readValue(nonNullInput, Map.class),
+                    "TOML document"
+            );
             Map<String, Object> document = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : parsed.entrySet()) {
                 if (!(entry.getKey() instanceof String key)) {

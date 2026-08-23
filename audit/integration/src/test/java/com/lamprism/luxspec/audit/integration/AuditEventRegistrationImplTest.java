@@ -26,6 +26,7 @@ import com.lamprism.luxspec.audit.AuditOutcome;
 import com.lamprism.luxspec.audit.integration.config.ConfigAuditFields;
 import com.lamprism.luxspec.audit.integration.security.SecurityAuditFields;
 import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
+import com.lamprism.luxspec.audit.publish.AuditEventRegistry;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.DefaultAuditPublisher;
@@ -86,12 +87,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class AuditEventRegistrationImplTest {
+class StandardAuditEventRegistryTest {
     private static final Instant PUBLISHED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
     void buildsTheCompleteStandardRegistryAndAllowsApplicationExtensions() {
-        AuditRegistry registry = StandardAuditRegistry.register(AuditRegistry.builder())
+        AuditRegistry registry = StandardAuditEventCatalog.register(AuditRegistry.builder())
                 .register("application.test", envelope -> null)
                 .build();
 
@@ -124,7 +125,7 @@ class AuditEventRegistrationImplTest {
             throw new AssertionError("Audit listener failed", failure);
         });
 
-        try (AuditEventRegistration ignored = new AuditEventRegistrationImpl(dispatcher, publisher)) {
+        try (AuditEventRegistry ignored = StandardAuditEventCatalog.createEventRegistry(dispatcher, publisher)) {
             dispatcher.publish(new ConfigSourceChangedEvent(
                     ConfigSourceId.of("environment"),
                     ConfigKey.of("app.mode"),
@@ -237,15 +238,44 @@ class AuditEventRegistrationImplTest {
     }
 
     @Test
+    void exposesASelectablePublicEventRegistry() {
+        List<AuditEntry> entries = new ArrayList<>();
+        AuditPublisher publisher = publisher(entries);
+        EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
+            throw new AssertionError("Audit listener failed", failure);
+        });
+
+        try (AuditEventRegistry registry = StandardAuditEventCatalog.register(
+                new AuditEventRegistry(dispatcher, publisher),
+                StandardAuditEventCatalog.configuration()
+        )) {
+            assertEquals(2, registry.definitions().size());
+            dispatcher.publish(new ConfigSourceChangedEvent(
+                    ConfigSourceId.of("environment"),
+                    ConfigKey.of("app.mode"),
+                    ConfigSourceChangeType.SET
+            ));
+            dispatcher.publish(new FirewallRuleFailureEvent(
+                    "example.FirewallRule",
+                    SecurityErrorCode.FIREWALL_RULE_FAILURE,
+                    PUBLISHED_AT
+            ));
+        }
+
+        assertEquals(1, entries.size());
+        assertEquals(LuxspecAuditEventNames.CONFIG_SOURCE_CHANGED, entries.get(0).eventName());
+    }
+
+    @Test
     void stopsRoutingAfterTheRegistrationIsClosed() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
         EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
-        AuditEventRegistration registration = new AuditEventRegistrationImpl(dispatcher, publisher);
+        AuditEventRegistry registry = StandardAuditEventCatalog.createEventRegistry(dispatcher, publisher);
 
-        registration.close();
+        registry.close();
         dispatcher.publish(new FirewallRuleFailureEvent(
                 "example.FirewallRule",
                 SecurityErrorCode.FIREWALL_RULE_FAILURE,
@@ -253,7 +283,7 @@ class AuditEventRegistrationImplTest {
         ));
 
         assertTrue(entries.isEmpty());
-        registration.close();
+        registry.close();
     }
 
     @Test
@@ -299,7 +329,7 @@ class AuditEventRegistrationImplTest {
                 AuditFieldSet.empty()
         );
         return new DefaultAuditPublisher(
-                StandardAuditRegistry.create(),
+                StandardAuditEventCatalog.createRegistry(),
                 entries::add,
                 Clock.fixed(PUBLISHED_AT, ZoneOffset.UTC),
                 eventName -> AuditEventId.of(eventName),

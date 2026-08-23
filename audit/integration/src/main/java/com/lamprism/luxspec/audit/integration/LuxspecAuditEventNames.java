@@ -16,29 +16,34 @@
 
 package com.lamprism.luxspec.audit.integration;
 
+import com.lamprism.luxspec.audit.integration.config.ConfigAuditEventNames;
+import com.lamprism.luxspec.audit.integration.security.SecurityAuditEventNames;
+import com.lamprism.luxspec.audit.integration.user.UserAuditEventNames;
+
 /**
- * Names of the standard audit events emitted by Luxspec.
+ * Compatibility aliases for the standard Luxspec audit event names.
  *
- * <p>Names are stable lower-case dot-separated identifiers. They are used as
- * the event names passed to {@code AuditPublisher} and as the keys registered
- * in the standard audit registry.</p>
+ * <p>Canonical names are owned by the feature-specific integration packages.
+ * Use {@link ConfigAuditEventNames}, {@link SecurityAuditEventNames}, and
+ * {@link UserAuditEventNames} for new code.</p>
  *
  * @author RollW
  */
+@Deprecated
 public final class LuxspecAuditEventNames {
-    public static final String CONFIG_SOURCE_CHANGED = "config.source.changed";
-    public static final String CONFIG_EFFECTIVE_CHANGED = "config.effective.changed";
-    public static final String SECURITY_AUTHORIZATION_DECIDED = "security.authorization.decided";
-    public static final String SECURITY_AUTHENTICATION = "security.authentication";
-    public static final String SECURITY_TOKEN_LIFECYCLE = "security.token.lifecycle";
-    public static final String SECURITY_FIREWALL_RULE_DENIED = "security.firewall.rule.denied";
-    public static final String SECURITY_FIREWALL_RULE_FAILED = "security.firewall.rule.failed";
-    public static final String USER_REGISTERED = "user.registered";
-    public static final String USER_RENAMED = "user.renamed";
-    public static final String USER_EMAIL_CHANGED = "user.email.changed";
-    public static final String USER_ROLES_CHANGED = "user.roles.changed";
-    public static final String USER_STATUS_CHANGED = "user.status.changed";
-    public static final String USER_PASSWORD_CHANGED = "user.password.changed";
+    public static final String CONFIG_SOURCE_CHANGED = ConfigAuditEventNames.SOURCE_CHANGED;
+    public static final String CONFIG_EFFECTIVE_CHANGED = ConfigAuditEventNames.EFFECTIVE_CHANGED;
+    public static final String SECURITY_AUTHORIZATION_DECIDED = SecurityAuditEventNames.AUTHORIZATION_DECIDED;
+    public static final String SECURITY_AUTHENTICATION = SecurityAuditEventNames.AUTHENTICATION;
+    public static final String SECURITY_TOKEN_LIFECYCLE = SecurityAuditEventNames.TOKEN_LIFECYCLE;
+    public static final String SECURITY_FIREWALL_RULE_DENIED = SecurityAuditEventNames.FIREWALL_RULE_DENIED;
+    public static final String SECURITY_FIREWALL_RULE_FAILED = SecurityAuditEventNames.FIREWALL_RULE_FAILED;
+    public static final String USER_REGISTERED = UserAuditEventNames.REGISTERED;
+    public static final String USER_RENAMED = UserAuditEventNames.RENAMED;
+    public static final String USER_EMAIL_CHANGED = UserAuditEventNames.EMAIL_CHANGED;
+    public static final String USER_ROLES_CHANGED = UserAuditEventNames.ROLES_CHANGED;
+    public static final String USER_STATUS_CHANGED = UserAuditEventNames.STATUS_CHANGED;
+    public static final String USER_PASSWORD_CHANGED = UserAuditEventNames.PASSWORD_CHANGED;
 
     private LuxspecAuditEventNames() {
     }

@@ -49,8 +49,7 @@ public class UserRegisteredAuditTranslator implements AuditEventTranslator<UserR
                 AuditAction.of("user.register"),
                 AuditOutcome.SUCCESS,
                 new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
-                fields,
-                null
+                fields
         );
     }
 }

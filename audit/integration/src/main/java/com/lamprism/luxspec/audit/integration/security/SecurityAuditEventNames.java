@@ -14,22 +14,20 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.audit.resolve;
-
-import com.lamprism.luxspec.audit.AuditDetail;
-import com.lamprism.luxspec.audit.AuditEnvelope;
-import org.jspecify.annotations.Nullable;
+package com.lamprism.luxspec.audit.integration.security;
 
 /**
- * Resolves an opaque application-owned details carrier.
- *
- * <p>The resolver is explicit and typed. It does not use broad reflection or
- * implicit serialization; returning null means that no details are attached.
+ * Stable audit event names for security events.
  *
  * @author RollW
  */
-@FunctionalInterface
-public interface AuditDetailResolver<E, D> {
-    @Nullable
-    AuditDetail<D> resolve(AuditEnvelope<E> envelope);
+public final class SecurityAuditEventNames {
+    public static final String AUTHORIZATION_DECIDED = "security.authorization.decided";
+    public static final String AUTHENTICATION = "security.authentication";
+    public static final String TOKEN_LIFECYCLE = "security.token.lifecycle";
+    public static final String FIREWALL_RULE_DENIED = "security.firewall.rule.denied";
+    public static final String FIREWALL_RULE_FAILED = "security.firewall.rule.failed";
+
+    private SecurityAuditEventNames() {
+    }
 }

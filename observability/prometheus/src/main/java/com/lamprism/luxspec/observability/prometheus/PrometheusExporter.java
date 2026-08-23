@@ -20,6 +20,7 @@ import com.lamprism.luxspec.observability.metric.MetricKind;
 import com.lamprism.luxspec.observability.metric.MetricReading;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.metric.MetricSnapshot;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -111,31 +112,38 @@ public class PrometheusExporter {
     }
 
     private static void renderSamples(String name, MetricReading reading, StringBuilder output) {
-        if (reading.value() != null) {
-            sample(output, name, reading.binding().getDimensions(), reading.value());
+        Double value = reading.value();
+        if (value != null) {
+            sample(output, name, reading.binding().getDimensions(), value);
         }
-        if (reading.count() != null && isCountFamily(reading)) {
-            sample(output, name + "_count", reading.binding().getDimensions(), reading.count());
+        Long count = reading.count();
+        if (count != null && isCountFamily(reading)) {
+            sample(output, name + "_count", reading.binding().getDimensions(), count);
         }
-        if (reading.totalTime() != null) {
+        Duration totalTime = reading.totalTime();
+        if (totalTime != null) {
             String sampleName = reading.kind().equals(MetricKind.TIME_GAUGE) ? name : name + "_sum";
-            sample(output, sampleName, reading.binding().getDimensions(), seconds(reading.totalTime()));
+            sample(output, sampleName, reading.binding().getDimensions(), seconds(totalTime));
         }
-        if (reading.total() != null) {
-            sample(output, name + "_sum", reading.binding().getDimensions(), reading.total());
+        Double total = reading.total();
+        if (total != null) {
+            sample(output, name + "_sum", reading.binding().getDimensions(), total);
         }
-        if (reading.max() != null) {
-            sample(output, name + "_max", reading.binding().getDimensions(), reading.max());
+        Double max = reading.max();
+        if (max != null) {
+            sample(output, name + "_max", reading.binding().getDimensions(), max);
         }
-        if (reading.activeTasks() != null) {
-            sample(output, name + "_active_tasks", reading.binding().getDimensions(), reading.activeTasks());
+        Long activeTasks = reading.activeTasks();
+        if (activeTasks != null) {
+            sample(output, name + "_active_tasks", reading.binding().getDimensions(), activeTasks);
         }
-        if (reading.activeDuration() != null) {
+        Duration activeDuration = reading.activeDuration();
+        if (activeDuration != null) {
             sample(
                     output,
                     name + "_duration_seconds",
                     reading.binding().getDimensions(),
-                    seconds(reading.activeDuration())
+                    seconds(activeDuration)
             );
         }
     }
@@ -152,17 +160,20 @@ public class PrometheusExporter {
             labels.put("le", Double.toString(bucket.getKey()));
             sample(output, name + "_bucket", labels, bucket.getValue());
         }
-        if (reading.count() != null) {
+        Long count = reading.count();
+        if (count != null) {
             Map<String, String> infiniteBucket = new LinkedHashMap<>(baseLabels);
             infiniteBucket.put("le", "+Inf");
-            sample(output, name + "_bucket", infiniteBucket, reading.count());
-            sample(output, name + "_count", baseLabels, reading.count());
+            sample(output, name + "_bucket", infiniteBucket, count);
+            sample(output, name + "_count", baseLabels, count);
         }
-        if (reading.totalTime() != null) {
-            sample(output, name + "_sum", baseLabels, seconds(reading.totalTime()));
+        Duration totalTime = reading.totalTime();
+        if (totalTime != null) {
+            sample(output, name + "_sum", baseLabels, seconds(totalTime));
         }
-        if (reading.total() != null) {
-            sample(output, name + "_sum", baseLabels, reading.total());
+        Double total = reading.total();
+        if (total != null) {
+            sample(output, name + "_sum", baseLabels, total);
         }
     }
 
@@ -209,8 +220,9 @@ public class PrometheusExporter {
             if (!normalizedNames.add(normalizedName)) {
                 throw new PrometheusExportException("Prometheus label name collision: " + normalizedName);
             }
+            String value = Objects.requireNonNull(labels.get(name), "label value");
             output.append(normalizedName).append("=\"")
-                    .append(escapeLabel(labels.get(name))).append('"');
+                    .append(escapeLabel(value)).append('"');
         }
         output.append('}');
     }
@@ -295,7 +307,7 @@ public class PrometheusExporter {
         return escaped.toString();
     }
 
-    private static String escapeHelp(Object description) {
+    private static String escapeHelp(@Nullable Object description) {
         if (description == null) {
             return "Luxspec metric";
         }

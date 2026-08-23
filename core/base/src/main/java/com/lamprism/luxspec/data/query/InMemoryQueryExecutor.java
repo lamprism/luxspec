@@ -104,7 +104,7 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
          */
         public <V> Builder<T> field(
                 QueryField<V> field,
-                Function<? super T, ? extends V> accessor
+                Function<? super T, ? extends @Nullable V> accessor
         ) {
             fieldResolverBuilder.field(field, accessor);
             return this;
@@ -121,7 +121,7 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
          */
         public <V> Builder<T> field(
                 QueryField<V> field,
-                Function<? super T, ? extends V> accessor,
+                Function<? super T, ? extends @Nullable V> accessor,
                 Comparator<? super V> comparator
         ) {
             fieldResolverBuilder.field(field, accessor, comparator);
@@ -348,7 +348,7 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
 
         @Override
         public <V> Boolean visitCondition(QueryCondition<V> condition) {
-            @Nullable V candidateValue = fieldResolver.resolve(candidate, condition.getField());
+            V candidateValue = fieldResolver.resolve(candidate, condition.getField());
             return switch (condition.getOperator()) {
                 case EQUAL -> Objects.equals(candidateValue, condition.getValues().get(0));
                 case NOT_EQUAL -> !Objects.equals(candidateValue, condition.getValues().get(0));
@@ -360,7 +360,7 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
 
         @Override
         public <V extends Comparable<? super V>> Boolean visitComparison(ComparisonCondition<V> condition) {
-            @Nullable V candidateValue = fieldResolver.resolve(candidate, condition.getField());
+            V candidateValue = fieldResolver.resolve(candidate, condition.getField());
             if (candidateValue == null) {
                 return false;
             }
@@ -376,7 +376,7 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
 
         @Override
         public Boolean visitLike(LikeCondition condition) {
-            @Nullable String candidateValue = fieldResolver.resolve(candidate, condition.getField());
+            String candidateValue = fieldResolver.resolve(candidate, condition.getField());
             return candidateValue != null && matchesLike(candidateValue, condition.getPattern());
         }
 

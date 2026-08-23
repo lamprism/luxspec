@@ -18,6 +18,7 @@ package com.lamprism.luxspec.observability.observation;
 
 import com.lamprism.luxspec.validation.ValidationRules;
 import com.lamprism.luxspec.validation.Validator;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Function;
@@ -41,13 +42,13 @@ public final class ObservationAttributeSpec<T> {
     private final String name;
     private final Class<T> valueType;
     private final ObservationAttributeClassification classification;
-    private final Function<? super T, String> formatter;
+    private final Function<? super T, @Nullable String> formatter;
 
     private ObservationAttributeSpec(
             String name,
             Class<T> valueType,
             ObservationAttributeClassification classification,
-            Function<? super T, String> formatter
+            Function<? super T, @Nullable String> formatter
     ) {
         this.name = requireName(name);
         this.valueType = Objects.requireNonNull(valueType, "valueType");
@@ -59,7 +60,7 @@ public final class ObservationAttributeSpec<T> {
             String name,
             Class<T> valueType,
             ObservationAttributeClassification classification,
-            Function<? super T, String> formatter
+            Function<? super T, @Nullable String> formatter
     ) {
         return new ObservationAttributeSpec<>(name, valueType, classification, formatter);
     }

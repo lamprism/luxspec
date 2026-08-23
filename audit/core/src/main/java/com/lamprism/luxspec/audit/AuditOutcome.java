@@ -20,7 +20,7 @@ package com.lamprism.luxspec.audit;
  * Fixed final audit decision outcomes.
  *
  * <p>The set is intentionally closed. Domain-specific states belong in the
- * action or opaque details rather than in a new outcome value.
+ * action or custom fields rather than in a new outcome value.
  *
  * @author RollW
  */

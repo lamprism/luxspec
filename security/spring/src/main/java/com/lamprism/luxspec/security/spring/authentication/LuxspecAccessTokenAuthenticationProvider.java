@@ -19,7 +19,9 @@ package com.lamprism.luxspec.security.spring.authentication;
 import com.lamprism.luxspec.security.authentication.AccessTokenCredentials;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
 import com.lamprism.luxspec.security.authentication.Authenticator;
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.core.Authentication;
 
 import java.util.Objects;
 
@@ -43,8 +45,8 @@ public class LuxspecAccessTokenAuthenticationProvider implements AuthenticationP
     }
 
     @Override
-    public org.springframework.security.core.Authentication authenticate(
-            org.springframework.security.core.Authentication authentication
+    public @Nullable Authentication authenticate(
+            Authentication authentication
     ) {
         if (!(Objects.requireNonNull(authentication, "authentication")
                 instanceof LuxspecBearerAuthenticationToken bearerToken)) {

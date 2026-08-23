@@ -44,8 +44,7 @@ public class UserStatusChangedAuditTranslator implements AuditEventTranslator<Us
                 AuditAction.of("user.status.change"),
                 AuditOutcome.SUCCESS,
                 new ResourceReference<>(UserResourceTypes.USER, event.getUserId()),
-                fields,
-                null
+                fields
         );
     }
 }

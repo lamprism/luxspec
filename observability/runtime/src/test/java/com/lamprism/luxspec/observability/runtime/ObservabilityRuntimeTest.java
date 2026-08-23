@@ -230,9 +230,9 @@ class ObservabilityRuntimeTest {
                 .include(HealthGroup.READINESS, "database")
                 .build();
 
-        assertEquals(HealthStatus.DOWN, registry.evaluate(HealthGroup.AGGREGATE).status());
-        assertEquals(HealthStatus.UP, registry.evaluate(HealthGroup.READINESS).status());
-        assertEquals(HealthStatus.UP, registry.evaluate(HealthGroup.LIVENESS).status());
+        assertEquals(HealthStatus.DOWN, registry.evaluate(HealthGroup.AGGREGATE).getStatus());
+        assertEquals(HealthStatus.UP, registry.evaluate(HealthGroup.READINESS).getStatus());
+        assertEquals(HealthStatus.UP, registry.evaluate(HealthGroup.LIVENESS).getStatus());
     }
 
     @Test
@@ -252,7 +252,7 @@ class ObservabilityRuntimeTest {
                     })
                     .build();
 
-            assertEquals(HealthStatus.DOWN, registry.evaluate(HealthGroup.AGGREGATE).status());
+            assertEquals(HealthStatus.DOWN, registry.evaluate(HealthGroup.AGGREGATE).getStatus());
         } finally {
             release.countDown();
             executor.shutdownNow();

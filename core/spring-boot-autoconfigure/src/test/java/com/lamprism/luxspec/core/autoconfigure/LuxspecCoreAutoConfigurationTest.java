@@ -17,6 +17,8 @@
 package com.lamprism.luxspec.core.autoconfigure;
 
 import com.lamprism.luxspec.context.spring.SpringExecutionContextTaskDecorator;
+import com.lamprism.luxspec.event.EventDispatcher;
+import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.resource.ResourceIdGenerator;
 import com.lamprism.luxspec.resource.UuidResourceIdGenerator;
 import org.junit.jupiter.api.Test;
@@ -60,5 +62,11 @@ class LuxspecCoreAutoConfigurationTest {
                 .withBean(ResourceIdGenerator.class, () -> applicationGenerator)
                 .run(context -> assertThat(context.getBean(ResourceIdGenerator.class))
                         .isSameAs(applicationGenerator));
+    }
+
+    @Test
+    void createsEventDispatcherByDefault() {
+        contextRunner.run(context -> assertThat(context.getBean(EventDispatcher.class))
+                .isInstanceOf(EventDispatcherImpl.class));
     }
 }

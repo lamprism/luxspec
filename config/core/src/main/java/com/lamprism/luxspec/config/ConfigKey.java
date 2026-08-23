@@ -139,7 +139,7 @@ public final class ConfigKey {
                 boundSegments.add(segment);
                 continue;
             }
-            String value = values.get(parameter.getName());
+            String value = Objects.requireNonNull(values.get(parameter.getName()), "argument value");
             parameter.validate(value);
             boundSegments.add(value);
         }
