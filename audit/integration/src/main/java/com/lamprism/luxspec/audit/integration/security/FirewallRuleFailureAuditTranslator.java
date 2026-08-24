@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
 
@@ -30,6 +31,19 @@ import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
  * @author RollW
  */
 public class FirewallRuleFailureAuditTranslator implements AuditEventTranslator<FirewallRuleFailureEvent> {
+    /**
+     * Creates the failed firewall rule definition owned by this translator.
+     *
+     * @return the failed firewall rule definition
+     */
+    public static AuditEventDefinition<FirewallRuleFailureEvent> definition() {
+        return AuditEventDefinition.of(
+                SecurityAuditEventNames.FIREWALL_RULE_FAILED,
+                FirewallRuleFailureEvent.class,
+                new FirewallRuleFailureAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<FirewallRuleFailureEvent> envelope) {
         FirewallRuleFailureEvent event = envelope.event();

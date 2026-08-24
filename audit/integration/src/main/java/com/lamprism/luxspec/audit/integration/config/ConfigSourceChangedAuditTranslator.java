@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.config.event.ConfigSourceChangedEvent;
 
@@ -32,6 +33,19 @@ import java.util.Locale;
  * @author RollW
  */
 public class ConfigSourceChangedAuditTranslator implements AuditEventTranslator<ConfigSourceChangedEvent> {
+    /**
+     * Creates the configuration source change definition owned by this translator.
+     *
+     * @return the configuration source change definition
+     */
+    public static AuditEventDefinition<ConfigSourceChangedEvent> definition() {
+        return AuditEventDefinition.of(
+                ConfigAuditEventNames.SOURCE_CHANGED,
+                ConfigSourceChangedEvent.class,
+                new ConfigSourceChangedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<ConfigSourceChangedEvent> envelope) {
         ConfigSourceChangedEvent event = envelope.event();

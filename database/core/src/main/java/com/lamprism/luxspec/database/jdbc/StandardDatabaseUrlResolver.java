@@ -20,37 +20,20 @@ public class StandardDatabaseUrlResolver implements DatabaseUrlResolver {
      * Creates the standard resolver with the built-in builders.
      */
     public StandardDatabaseUrlResolver() {
-        this(new DefaultSslMaterializer(), new DefaultMySqlKeyStoreMaterializer());
+        this(new DefaultSslMaterializer());
     }
 
     /**
      * Creates the standard resolver with a shared SSL materializer.
      *
-     * @param sslMaterializer the materializer used by PEM-based SSL builders
+     * @param sslMaterializer the materializer used by every SSL-enabled builder
      */
     public StandardDatabaseUrlResolver(SslMaterializer sslMaterializer) {
-        this(sslMaterializer, new DefaultMySqlKeyStoreMaterializer());
-    }
-
-    /**
-     * Creates the standard resolver with selected SSL materializers.
-     *
-     * @param sslMaterializer      the materializer used by PEM-based SSL builders
-     * @param keyStoreMaterializer the materializer used by the MySQL builder
-     */
-    public StandardDatabaseUrlResolver(
-            SslMaterializer sslMaterializer,
-            MySqlKeyStoreMaterializer keyStoreMaterializer
-    ) {
         SslMaterializer materializer = Objects.requireNonNull(sslMaterializer, "sslMaterializer");
-        MySqlKeyStoreMaterializer mySqlMaterializer = Objects.requireNonNull(
-                keyStoreMaterializer,
-                "keyStoreMaterializer"
-        );
         this.builders = index(List.of(
                 new SqliteDatabaseUrlBuilder(),
                 new H2DatabaseUrlBuilder(),
-                new MySqlDatabaseUrlBuilder(mySqlMaterializer),
+                new MySqlDatabaseUrlBuilder(materializer),
                 new MariaDbDatabaseUrlBuilder(materializer),
                 new PostgresqlDatabaseUrlBuilder(materializer),
                 new SqlServerDatabaseUrlBuilder(),

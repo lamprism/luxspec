@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.lifecycle.UserRolesChangedEvent;
@@ -32,6 +33,19 @@ import com.lamprism.luxspec.user.resource.UserResourceTypes;
  * @author RollW
  */
 public class UserRolesChangedAuditTranslator implements AuditEventTranslator<UserRolesChangedEvent> {
+    /**
+     * Creates the user role change definition owned by this translator.
+     *
+     * @return the user role change definition
+     */
+    public static AuditEventDefinition<UserRolesChangedEvent> definition() {
+        return AuditEventDefinition.of(
+                UserAuditEventNames.ROLES_CHANGED,
+                UserRolesChangedEvent.class,
+                new UserRolesChangedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserRolesChangedEvent> envelope) {
         UserRolesChangedEvent event = envelope.event();

@@ -21,18 +21,18 @@ class MySqlDatabaseUrlBuilderTest {
     void mapsMaterializedKeyStoresToConnectorPropertiesAndCleansThemUp() throws Exception {
         AtomicBoolean trustStoreClosed = new AtomicBoolean();
         AtomicBoolean clientStoreClosed = new AtomicBoolean();
-        MySqlKeyStoreArtifact trustStore = artifact(
+        KeyStoreArtifact trustStore = artifact(
                 "truststore.p12",
                 "trust-password",
                 trustStoreClosed
         );
-        MySqlKeyStoreArtifact clientStore = artifact(
+        KeyStoreArtifact clientStore = artifact(
                 "clientstore.p12",
                 "client-password",
                 clientStoreClosed
         );
         MySqlDatabaseUrlBuilder builder = new MySqlDatabaseUrlBuilder(
-                new StubMySqlKeyStoreMaterializer(trustStore, clientStore)
+                new StubSslMaterializer(trustStore, clientStore)
         );
 
         JdbcConnectionDetail detail = builder.build(DatabaseConfig.builder(
@@ -67,7 +67,7 @@ class MySqlDatabaseUrlBuilderTest {
     @Test
     void requiresCaMaterialForVerificationModes() {
         MySqlDatabaseUrlBuilder builder = new MySqlDatabaseUrlBuilder(
-                new StubMySqlKeyStoreMaterializer(null, null)
+                new StubSslMaterializer(null, null)
         );
 
         assertThrows(
@@ -82,12 +82,12 @@ class MySqlDatabaseUrlBuilderTest {
         );
     }
 
-    private static MySqlKeyStoreArtifact artifact(
+    private static KeyStoreArtifact artifact(
             String fileName,
             String password,
             AtomicBoolean closed
     ) {
-        return new MySqlKeyStoreArtifact(
+        return new KeyStoreArtifact(
                 Path.of(fileName),
                 "PKCS12",
                 password,
@@ -95,20 +95,25 @@ class MySqlDatabaseUrlBuilderTest {
         );
     }
 
-    private static final class StubMySqlKeyStoreMaterializer implements MySqlKeyStoreMaterializer {
-        private final MySqlKeyStoreArtifact trustStore;
-        private final MySqlKeyStoreArtifact clientStore;
+    private static final class StubSslMaterializer implements SslMaterializer {
+        private final KeyStoreArtifact trustStore;
+        private final KeyStoreArtifact clientStore;
 
-        private StubMySqlKeyStoreMaterializer(
-                MySqlKeyStoreArtifact trustStore,
-                MySqlKeyStoreArtifact clientStore
+        private StubSslMaterializer(
+                KeyStoreArtifact trustStore,
+                KeyStoreArtifact clientStore
         ) {
             this.trustStore = trustStore;
             this.clientStore = clientStore;
         }
 
         @Override
-        public MySqlKeyStoreArtifact materializeTrustStore(
+        public SslMaterialArtifact materialize(String name, SslMaterial material) {
+            throw new UnsupportedOperationException("PEM materialization is not used by this test");
+        }
+
+        @Override
+        public KeyStoreArtifact materializeTrustStore(
                 String name,
                 SslMaterial serverCaMaterial
         ) {
@@ -116,7 +121,7 @@ class MySqlDatabaseUrlBuilderTest {
         }
 
         @Override
-        public MySqlKeyStoreArtifact materializeClientKeyStore(
+        public KeyStoreArtifact materializeClientKeyStore(
                 String name,
                 SslMaterial clientCertificate,
                 SslMaterial clientPrivateKey

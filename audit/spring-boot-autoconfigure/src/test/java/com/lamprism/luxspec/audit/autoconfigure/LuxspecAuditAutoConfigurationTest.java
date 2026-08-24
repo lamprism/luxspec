@@ -18,10 +18,11 @@ package com.lamprism.luxspec.audit.autoconfigure;
 
 import com.lamprism.luxspec.audit.AuditEntry;
 import com.lamprism.luxspec.audit.AuditOutcome;
-import com.lamprism.luxspec.audit.integration.LuxspecAuditEventNames;
+import com.lamprism.luxspec.audit.integration.security.SecurityAuditEventNames;
 import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
-import com.lamprism.luxspec.audit.publish.AuditEventRegistry;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditSink;
@@ -29,6 +30,7 @@ import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
 import com.lamprism.luxspec.core.autoconfigure.LuxspecCoreAutoConfiguration;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventDispatcherImpl;
+import com.lamprism.luxspec.event.EventSubscription;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
 import org.junit.jupiter.api.Test;
@@ -66,9 +68,8 @@ class LuxspecAuditAutoConfigurationTest {
                     assertThat(context).hasSingleBean(EventDispatcher.class);
                     assertThat(context.getBean(EventDispatcher.class))
                             .isInstanceOf(EventDispatcherImpl.class);
-                    assertThat(context).hasSingleBean(AuditEventRegistry.class);
-                    assertThat(context.getBean(AuditEventRegistry.class).definitions())
-                            .hasSize(13);
+                    assertThat(context).hasSingleBean(EventSubscription.class);
+                    assertThat(context.getBean(EventSubscription.class).isActive()).isTrue();
 
                     context.getBean(EventDispatcher.class)
                             .publish(new FirewallRuleFailureEvent(
@@ -79,7 +80,7 @@ class LuxspecAuditAutoConfigurationTest {
 
                     assertThat(entries).hasSize(1);
                     assertThat(entries.get(0).eventName())
-                            .isEqualTo(LuxspecAuditEventNames.SECURITY_FIREWALL_RULE_FAILED);
+                            .isEqualTo(SecurityAuditEventNames.FIREWALL_RULE_FAILED);
                     assertThat(entries.get(0).outcome()).isEqualTo(AuditOutcome.FAILURE);
                 });
     }
@@ -90,7 +91,7 @@ class LuxspecAuditAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(AuditPublisher.class);
             assertThat(context).doesNotHaveBean(AuditRegistry.class);
             assertThat(context).hasSingleBean(EventDispatcher.class);
-            assertThat(context).doesNotHaveBean(AuditEventRegistry.class);
+            assertThat(context).doesNotHaveBean(EventSubscription.class);
         });
     }
 
@@ -104,5 +105,21 @@ class LuxspecAuditAutoConfigurationTest {
                     assertThat(context).hasSingleBean(com.lamprism.luxspec.audit.query.AuditReader.class);
                     assertThat(context).hasSingleBean(AuditPublisher.class);
                 });
+    }
+
+    @Test
+    void includesApplicationProvidedEventDefinitionContributors() {
+        List<AuditEntry> entries = new ArrayList<>();
+        contextRunner
+                .withBean(AuditEventDefinitionContributor.class, () -> registrar -> registrar.register(
+                        AuditEventDefinition.of(
+                                "application.test",
+                                FirewallRuleFailureEvent.class,
+                                envelope -> null
+                        )
+                ))
+                .withBean(AuditSink.class, () -> entries::add)
+                .run(context -> assertThat(context.getBean(AuditRegistry.class).find("application.test"))
+                        .isNotNull());
     }
 }

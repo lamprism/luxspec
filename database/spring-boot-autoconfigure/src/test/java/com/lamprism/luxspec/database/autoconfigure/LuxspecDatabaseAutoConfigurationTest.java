@@ -15,10 +15,7 @@ import com.lamprism.luxspec.database.jdbc.SslMaterializer;
 import com.zaxxer.hikari.HikariDataSource;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.BeanDefinitionCustomizer;
-import org.springframework.beans.factory.support.AbstractBeanDefinition;
-import org.springframework.beans.factory.support.AutowireCandidateQualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -60,7 +57,7 @@ class LuxspecDatabaseAutoConfigurationTest {
         ));
         bootContextRunner
                 .withPropertyValues("luxspec.database.enabled=true")
-                .withBean("bootstrapSource", ConfigSource.class, () -> source, bootstrapQualifier())
+                .withBean("bootstrapSource", ConfigSource.class, () -> source)
                 .run(context -> {
                     assertThat(context).hasSingleBean(DatabaseConfig.class);
                     assertThat(context).hasSingleBean(DataSource.class);
@@ -86,7 +83,7 @@ class LuxspecDatabaseAutoConfigurationTest {
 
         bootContextRunner
                 .withPropertyValues("luxspec.database.enabled=true")
-                .withBean("bootstrapSource", ConfigSource.class, () -> source, bootstrapQualifier())
+                .withBean("bootstrapSource", ConfigSource.class, () -> source)
                 .run(context -> {
                     assertThat(context).hasSingleBean(DatabaseConfig.class);
                     assertThat(context.getBean(DatabaseConfig.class).getType()).isEqualTo(DatabaseType.H2);
@@ -115,7 +112,7 @@ class LuxspecDatabaseAutoConfigurationTest {
 
         bootContextRunner
                 .withPropertyValues("luxspec.database.enabled=true")
-                .withBean("bootstrapSource", ConfigSource.class, () -> bootstrap, bootstrapQualifier())
+                .withBean("bootstrapSource", ConfigSource.class, () -> bootstrap)
                 .withBean("runtimeSource", ConfigSource.class, () -> runtime)
                 .run(context -> {
                     assertThat(context).hasSingleBean(DatabaseConfig.class);
@@ -151,7 +148,7 @@ class LuxspecDatabaseAutoConfigurationTest {
 
         bootContextRunner
                 .withPropertyValues("luxspec.database.enabled=true")
-                .withBean("bootstrapSource", ConfigSource.class, () -> bootstrap, bootstrapQualifier())
+                .withBean("bootstrapSource", ConfigSource.class, () -> bootstrap)
                 .withBean("runtimeSource", ConfigSource.class, () -> {
                     runtimeSourceCreated.set(true);
                     return InMemoryConfigSource.fromEntries(
@@ -183,8 +180,8 @@ class LuxspecDatabaseAutoConfigurationTest {
 
         bootContextRunner
                 .withPropertyValues("luxspec.database.enabled=true")
-                .withBean("lowerSource", ConfigSource.class, () -> lower, bootstrapQualifier())
-                .withBean("higherSource", ConfigSource.class, () -> higher, bootstrapQualifier())
+                .withBean("lowerSource", ConfigSource.class, () -> lower)
+                .withBean("higherSource", ConfigSource.class, () -> higher)
                 .run(context -> assertThat(context.getBean(DatabaseConfig.class).getDatabaseName())
                         .isEqualTo("higher"));
     }
@@ -194,12 +191,6 @@ class LuxspecDatabaseAutoConfigurationTest {
                 ConfigSourceId.of("test-config"),
                 ConfigSourceScope.BOOTSTRAP,
                 entries
-        );
-    }
-
-    private static BeanDefinitionCustomizer bootstrapQualifier() {
-        return definition -> ((AbstractBeanDefinition) definition).addQualifier(
-                new AutowireCandidateQualifier(Qualifier.class, "bootstrap")
         );
     }
 

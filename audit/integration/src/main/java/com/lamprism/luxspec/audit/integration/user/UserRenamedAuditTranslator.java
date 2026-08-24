@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.lifecycle.UserRenamedEvent;
@@ -32,6 +33,19 @@ import com.lamprism.luxspec.user.resource.UserResourceTypes;
  * @author RollW
  */
 public class UserRenamedAuditTranslator implements AuditEventTranslator<UserRenamedEvent> {
+    /**
+     * Creates the user rename definition owned by this translator.
+     *
+     * @return the user rename definition
+     */
+    public static AuditEventDefinition<UserRenamedEvent> definition() {
+        return AuditEventDefinition.of(
+                UserAuditEventNames.RENAMED,
+                UserRenamedEvent.class,
+                new UserRenamedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserRenamedEvent> envelope) {
         UserRenamedEvent event = envelope.event();

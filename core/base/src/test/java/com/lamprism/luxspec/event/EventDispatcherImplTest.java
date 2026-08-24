@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EventDispatcherImplTest {
     @Test
@@ -57,12 +59,34 @@ class EventDispatcherImplTest {
                 0,
                 event -> calls.add(event.value())
         );
+        assertTrue(subscription.isActive());
         dispatcher.publish(new TestEvent("first"));
-        subscription.close();
+        subscription.unsubscribe();
+        assertFalse(subscription.isActive());
         subscription.close();
         dispatcher.publish(new TestEvent("second"));
 
         assertEquals(List.of("first"), calls);
+    }
+
+    @Test
+    void combinesSubscriptionsIntoOneLifecycleHandle() {
+        EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
+            throw new AssertionError("Listener failed", failure);
+        });
+        EventSubscription first = dispatcher.subscribe(TestEvent.class, 0, event -> {
+        });
+        EventSubscription second = dispatcher.subscribe(TestEvent.class, 0, event -> {
+        });
+        EventSubscription combined = EventSubscription.combine(List.of(first, second));
+
+        assertTrue(combined.isActive());
+        combined.unsubscribe();
+
+        assertFalse(combined.isActive());
+        assertFalse(first.isActive());
+        assertFalse(second.isActive());
+        combined.unsubscribe();
     }
 
     private record TestEvent(String value) implements Event {

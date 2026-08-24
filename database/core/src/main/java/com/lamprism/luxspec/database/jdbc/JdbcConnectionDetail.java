@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Immutable JDBC connection details produced by a URL strategy.
+ *
+ * @author RollW
  */
 public final class JdbcConnectionDetail implements AutoCloseable {
     private final String jdbcUrl;
@@ -68,11 +70,13 @@ public final class JdbcConnectionDetail implements AutoCloseable {
         }
     }
 
+    @Nullable
     private static String requireText(String value, String name) {
         return optionalText(Objects.requireNonNull(value, name), name);
     }
 
-    private static @Nullable String optionalText(@Nullable String value, String name) {
+    @Nullable
+    private static String optionalText(@Nullable String value, String name) {
         if (value == null) {
             return null;
         }

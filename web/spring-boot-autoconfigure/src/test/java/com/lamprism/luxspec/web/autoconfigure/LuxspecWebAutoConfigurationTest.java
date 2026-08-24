@@ -17,8 +17,15 @@
 package com.lamprism.luxspec.web.autoconfigure;
 
 import com.lamprism.luxspec.ErrorCode;
+import com.lamprism.luxspec.config.ConfigReader;
+import com.lamprism.luxspec.config.runtime.LayeredConfigReader;
+import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
+import com.lamprism.luxspec.config.source.InMemoryConfigSource;
+import com.lamprism.luxspec.context.CorrelationId;
 import com.lamprism.luxspec.message.MessageResolver;
 import com.lamprism.luxspec.message.spring.SpringMessageResolver;
+import com.lamprism.luxspec.web.spring.CorrelationIdGenerator;
 import com.lamprism.luxspec.web.spring.ErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.spring.LuxspecExceptionHandler;
 import com.lamprism.luxspec.web.spring.LuxspecRequestContextFilter;
@@ -30,8 +37,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -46,6 +57,29 @@ class LuxspecWebAutoConfigurationTest {
             assertThat(context).hasSingleBean(LuxspecExceptionHandler.class);
             assertThat(context).hasSingleBean(LuxspecRequestContextFilter.class);
         });
+    }
+
+    @Test
+    void configuresTheCorrelationIdHeaderAndGenerator() throws Exception {
+        contextRunner
+                .withBean(ConfigReader.class, () -> new LayeredConfigReader(List.of(
+                        InMemoryConfigSource.fromStrings(
+                                ConfigSourceId.of("test"),
+                                ConfigSourceScope.RUNTIME,
+                                Map.of("web.correlation-id-header", "X-Correlation-ID")
+                        )
+                )))
+                .withBean(CorrelationIdGenerator.class, () -> () -> CorrelationId.of("generated-id"))
+                .run(context -> {
+                    MockHttpServletResponse response = new MockHttpServletResponse();
+                    context.getBean(LuxspecRequestContextFilter.class).doFilter(
+                            new MockHttpServletRequest("GET", "/accounts"),
+                            response,
+                            (request, servletResponse) -> {
+                            }
+                    );
+                    assertThat(response.getHeader("X-Correlation-ID")).isEqualTo("generated-id");
+                });
     }
 
     @Test

@@ -17,10 +17,12 @@
 package com.lamprism.luxspec.audit.autoconfigure;
 
 import com.lamprism.luxspec.audit.integration.ExecutionContextAuditMetadataProvider;
-import com.lamprism.luxspec.audit.integration.StandardAuditEventCatalog;
+import com.lamprism.luxspec.audit.integration.config.ConfigAuditEventDefinitionContributor;
+import com.lamprism.luxspec.audit.integration.security.SecurityAuditEventDefinitionContributor;
+import com.lamprism.luxspec.audit.integration.user.UserAuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
-import com.lamprism.luxspec.audit.publish.AuditEventRegistry;
 import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
 import com.lamprism.luxspec.audit.publish.AuditPublicationErrorHandler;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
@@ -32,6 +34,7 @@ import com.lamprism.luxspec.audit.query.AuditReader;
 import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventPublisher;
+import com.lamprism.luxspec.event.EventSubscription;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -41,6 +44,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Assembles the standard Luxspec audit event integration when the application supplies an audit
@@ -71,15 +77,55 @@ public class LuxspecAuditAutoConfiguration {
     }
 
     /**
-     * Creates the built-in translator registry when no registry is supplied.
+     * Creates the built-in translator registry from the available event-definition contributors.
      *
+     * @param contributors event-definition contributors
      * @return the standard Luxspec translator registry
      */
     @Bean
     @ConditionalOnBean(AuditSink.class)
     @ConditionalOnMissingBean(AuditRegistry.class)
-    public AuditRegistry luxspecAuditRegistry() {
-        return StandardAuditEventCatalog.createRegistry();
+    public AuditRegistry luxspecAuditRegistry(
+            ObjectProvider<AuditEventDefinitionContributor> contributors
+    ) {
+        AuditRegistry.Builder registry = AuditRegistry.builder();
+        contributors.orderedStream().forEach(contributor -> contributor.contribute(definition -> {
+            Objects.requireNonNull(definition, "definition").register(registry);
+        }));
+        return registry.build();
+    }
+
+    /**
+     * Creates the configuration event-definition contributor.
+     *
+     * @return the configuration event-definition contributor
+     */
+    @Bean
+    @ConditionalOnBean(AuditSink.class)
+    public AuditEventDefinitionContributor luxspecConfigAuditEventDefinitionContributor() {
+        return new ConfigAuditEventDefinitionContributor();
+    }
+
+    /**
+     * Creates the security event-definition contributor.
+     *
+     * @return the security event-definition contributor
+     */
+    @Bean
+    @ConditionalOnBean(AuditSink.class)
+    public AuditEventDefinitionContributor luxspecSecurityAuditEventDefinitionContributor() {
+        return new SecurityAuditEventDefinitionContributor();
+    }
+
+    /**
+     * Creates the user lifecycle event-definition contributor.
+     *
+     * @return the user lifecycle event-definition contributor
+     */
+    @Bean
+    @ConditionalOnBean(AuditSink.class)
+    public AuditEventDefinitionContributor luxspecUserAuditEventDefinitionContributor() {
+        return new UserAuditEventDefinitionContributor();
     }
 
     /**
@@ -157,19 +203,38 @@ public class LuxspecAuditAutoConfiguration {
     }
 
     /**
-     * Registers the built-in configuration, security, and user lifecycle translations.
+     * Subscribes all event-definition contributors to the application dispatcher.
      *
-     * @param dispatcher the event dispatcher
-     * @param publisher  the audit publisher
-     * @return the closeable standard event registry
+     * @param dispatcher   the event dispatcher
+     * @param publisher    the audit publisher
+     * @param contributors event-definition contributors
+     * @return the combined subscription for all contributed definitions
      */
-    @Bean(destroyMethod = "close")
+    @Bean(destroyMethod = "unsubscribe")
     @ConditionalOnBean({EventDispatcher.class, AuditPublisher.class})
-    @ConditionalOnMissingBean(AuditEventRegistry.class)
-    public AuditEventRegistry luxspecAuditEventRegistry(
+    @ConditionalOnMissingBean(EventSubscription.class)
+    public EventSubscription luxspecAuditEventSubscriptions(
             EventDispatcher dispatcher,
-            AuditPublisher publisher
+            AuditPublisher publisher,
+            ObjectProvider<AuditEventDefinitionContributor> contributors
     ) {
-        return StandardAuditEventCatalog.createEventRegistry(dispatcher, publisher);
+        List<EventSubscription> subscriptions = new ArrayList<>();
+        try {
+            contributors.orderedStream().forEach(contributor -> {
+                Objects.requireNonNull(contributor, "contributor").contribute(definition -> {
+                    EventSubscription subscription = Objects.requireNonNull(definition, "definition")
+                            .subscribe(dispatcher, publisher);
+                    subscriptions.add(subscription);
+                });
+            });
+        } catch (RuntimeException failure) {
+            try {
+                EventSubscription.combine(subscriptions).unsubscribe();
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+        return EventSubscription.combine(subscriptions);
     }
 }

@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.firewall.FirewallRuleDeniedEvent;
 
@@ -30,6 +31,19 @@ import com.lamprism.luxspec.security.firewall.FirewallRuleDeniedEvent;
  * @author RollW
  */
 public class FirewallRuleDeniedAuditTranslator implements AuditEventTranslator<FirewallRuleDeniedEvent> {
+    /**
+     * Creates the denied firewall rule definition owned by this translator.
+     *
+     * @return the denied firewall rule definition
+     */
+    public static AuditEventDefinition<FirewallRuleDeniedEvent> definition() {
+        return AuditEventDefinition.of(
+                SecurityAuditEventNames.FIREWALL_RULE_DENIED,
+                FirewallRuleDeniedEvent.class,
+                new FirewallRuleDeniedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<FirewallRuleDeniedEvent> envelope) {
         FirewallRuleDeniedEvent event = envelope.event();

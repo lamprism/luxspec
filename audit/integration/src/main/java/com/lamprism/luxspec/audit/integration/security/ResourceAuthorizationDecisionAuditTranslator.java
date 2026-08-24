@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.authorization.ResourceAuthorizationDecisionEvent;
 
@@ -32,6 +33,23 @@ import com.lamprism.luxspec.security.authorization.ResourceAuthorizationDecision
  */
 public class ResourceAuthorizationDecisionAuditTranslator
         implements AuditEventTranslator<ResourceAuthorizationDecisionEvent<?>> {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static final Class<ResourceAuthorizationDecisionEvent<?>> EVENT_TYPE =
+            (Class) ResourceAuthorizationDecisionEvent.class;
+
+    /**
+     * Creates the resource authorization decision definition owned by this translator.
+     *
+     * @return the resource authorization decision definition
+     */
+    public static AuditEventDefinition<ResourceAuthorizationDecisionEvent<?>> definition() {
+        return AuditEventDefinition.of(
+                SecurityAuditEventNames.AUTHORIZATION_DECIDED,
+                EVENT_TYPE,
+                new ResourceAuthorizationDecisionAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(
             AuditEnvelope<ResourceAuthorizationDecisionEvent<?>> envelope

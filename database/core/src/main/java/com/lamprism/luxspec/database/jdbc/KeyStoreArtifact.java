@@ -5,12 +5,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * MySQL Connector/J key store file and its connection-specific credentials.
+ * Driver-readable key store artifact and its connection-specific credentials.
  *
  * @author RollW
  */
-public final class MySqlKeyStoreArtifact implements AutoCloseable {
-    private final SslMaterialArtifact material;
+public final class KeyStoreArtifact extends SslMaterialArtifact {
     private final String keyStoreType;
     private final String password;
 
@@ -22,24 +21,15 @@ public final class MySqlKeyStoreArtifact implements AutoCloseable {
      * @param password     the key store password
      * @param resources    resources to close in reverse order
      */
-    public MySqlKeyStoreArtifact(
+    public KeyStoreArtifact(
             Path path,
             String keyStoreType,
             String password,
             List<? extends AutoCloseable> resources
     ) {
-        this.material = new SslMaterialArtifact(path, resources);
+        super(path, resources);
         this.keyStoreType = requireText(keyStoreType, "keyStoreType");
         this.password = requireText(password, "password");
-    }
-
-    /**
-     * Returns the driver-readable key store path.
-     *
-     * @return the key store path
-     */
-    public Path getPath() {
-        return material.getPath();
     }
 
     /**
@@ -58,11 +48,6 @@ public final class MySqlKeyStoreArtifact implements AutoCloseable {
      */
     public String getPassword() {
         return password;
-    }
-
-    @Override
-    public void close() throws Exception {
-        material.close();
     }
 
     private static String requireText(String value, String name) {

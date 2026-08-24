@@ -107,4 +107,25 @@ class LuxspecRequestContextFilterTest {
         CorrelationId.of(responseCorrelationId);
         assertTrue(ExecutionContexts.current().isEmpty());
     }
+
+    @Test
+    void usesTheConfiguredHeaderAndCorrelationIdGenerator() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        LuxspecRequestContextFilter filter = new LuxspecRequestContextFilter(
+                "X-Correlation-ID",
+                () -> CorrelationId.of("generated-id")
+        );
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            assertEquals(
+                    CorrelationId.of("generated-id"),
+                    ExecutionContexts.requireCurrent()
+                            .get(WebContextKeys.CORRELATION_ID)
+                            .orElseThrow()
+            );
+        });
+
+        assertEquals("generated-id", response.getHeader("X-Correlation-ID"));
+    }
 }

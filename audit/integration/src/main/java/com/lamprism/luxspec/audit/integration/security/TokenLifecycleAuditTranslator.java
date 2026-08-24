@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
 
@@ -33,6 +34,19 @@ import java.util.Locale;
  * @author RollW
  */
 public class TokenLifecycleAuditTranslator implements AuditEventTranslator<TokenLifecycleEvent> {
+    /**
+     * Creates the token lifecycle definition owned by this translator.
+     *
+     * @return the token lifecycle definition
+     */
+    public static AuditEventDefinition<TokenLifecycleEvent> definition() {
+        return AuditEventDefinition.of(
+                SecurityAuditEventNames.TOKEN_LIFECYCLE,
+                TokenLifecycleEvent.class,
+                new TokenLifecycleAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<TokenLifecycleEvent> envelope) {
         TokenLifecycleEvent event = envelope.event();

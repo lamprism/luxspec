@@ -8,7 +8,6 @@ import com.lamprism.luxspec.config.source.process.EnvironmentConfigSource;
 import com.lamprism.luxspec.config.source.process.SystemPropertyConfigSource;
 import com.lamprism.luxspec.config.source.toml.TomlConfigSource;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -33,8 +32,6 @@ import java.nio.file.Path;
         "com.lamprism.luxspec.database.autoconfigure.LuxspecDatabaseAutoConfiguration"
 })
 public class LuxspecProcessConfigAutoConfiguration {
-    private static final String BOOTSTRAP_QUALIFIER = "bootstrap";
-
     private static final int COMMAND_LINE_ORDER = 0;
     private static final int ENVIRONMENT_ORDER = 100;
     private static final int SYSTEM_PROPERTY_ORDER = 200;
@@ -46,7 +43,6 @@ public class LuxspecProcessConfigAutoConfiguration {
      * @return the bootstrap environment source
      */
     @Bean
-    @Qualifier(BOOTSTRAP_QUALIFIER)
     @Order(ENVIRONMENT_ORDER)
     @ConditionalOnMissingBean(name = "environmentConfigSource")
     public ConfigSource environmentConfigSource() {
@@ -59,7 +55,6 @@ public class LuxspecProcessConfigAutoConfiguration {
      * @return the bootstrap system-property source
      */
     @Bean
-    @Qualifier(BOOTSTRAP_QUALIFIER)
     @Order(SYSTEM_PROPERTY_ORDER)
     @ConditionalOnMissingBean(name = "systemPropertyConfigSource")
     public ConfigSource systemPropertyConfigSource() {
@@ -73,7 +68,6 @@ public class LuxspecProcessConfigAutoConfiguration {
      * @return the bootstrap command-line source
      */
     @Bean
-    @Qualifier(BOOTSTRAP_QUALIFIER)
     @Order(COMMAND_LINE_ORDER)
     @ConditionalOnMissingBean(name = "commandLineConfigSource")
     public ConfigSource commandLineConfigSource(
@@ -96,7 +90,6 @@ public class LuxspecProcessConfigAutoConfiguration {
      * @return the bootstrap TOML source
      */
     @Bean
-    @Qualifier(BOOTSTRAP_QUALIFIER)
     @Order(TOML_ORDER)
     @ConditionalOnProperty(prefix = "luxspec.config.toml", name = "path")
     @ConditionalOnMissingBean(name = "tomlConfigSource")

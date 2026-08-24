@@ -23,10 +23,16 @@ import com.lamprism.luxspec.audit.AuditEventId;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditMetadata;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.integration.config.ConfigAuditEventDefinitionContributor;
+import com.lamprism.luxspec.audit.integration.config.ConfigAuditEventNames;
 import com.lamprism.luxspec.audit.integration.config.ConfigAuditFields;
+import com.lamprism.luxspec.audit.integration.security.SecurityAuditEventDefinitionContributor;
+import com.lamprism.luxspec.audit.integration.security.SecurityAuditEventNames;
 import com.lamprism.luxspec.audit.integration.security.SecurityAuditFields;
+import com.lamprism.luxspec.audit.integration.user.UserAuditEventDefinitionContributor;
+import com.lamprism.luxspec.audit.integration.user.UserAuditEventNames;
 import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
-import com.lamprism.luxspec.audit.publish.AuditEventRegistry;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.DefaultAuditPublisher;
@@ -45,6 +51,7 @@ import com.lamprism.luxspec.context.ExecutionContextKeys;
 import com.lamprism.luxspec.context.ExecutionContexts;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventDispatcherImpl;
+import com.lamprism.luxspec.event.EventSubscription;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
 import com.lamprism.luxspec.security.SecurityErrorCode;
@@ -81,35 +88,37 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class StandardAuditEventRegistryTest {
+class AuditEventDefinitionContributorTest {
     private static final Instant PUBLISHED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
     void buildsTheCompleteStandardRegistryAndAllowsApplicationExtensions() {
-        AuditRegistry registry = StandardAuditEventCatalog.register(AuditRegistry.builder())
+        AuditRegistry registry = standardRegistryBuilder()
                 .register("application.test", envelope -> null)
                 .build();
 
         Set<String> eventNames = Set.of(
-                LuxspecAuditEventNames.CONFIG_SOURCE_CHANGED,
-                LuxspecAuditEventNames.CONFIG_EFFECTIVE_CHANGED,
-                LuxspecAuditEventNames.SECURITY_AUTHORIZATION_DECIDED,
-                LuxspecAuditEventNames.SECURITY_AUTHENTICATION,
-                LuxspecAuditEventNames.SECURITY_TOKEN_LIFECYCLE,
-                LuxspecAuditEventNames.SECURITY_FIREWALL_RULE_DENIED,
-                LuxspecAuditEventNames.SECURITY_FIREWALL_RULE_FAILED,
-                LuxspecAuditEventNames.USER_REGISTERED,
-                LuxspecAuditEventNames.USER_RENAMED,
-                LuxspecAuditEventNames.USER_EMAIL_CHANGED,
-                LuxspecAuditEventNames.USER_ROLES_CHANGED,
-                LuxspecAuditEventNames.USER_STATUS_CHANGED,
-                LuxspecAuditEventNames.USER_PASSWORD_CHANGED,
+                ConfigAuditEventNames.SOURCE_CHANGED,
+                ConfigAuditEventNames.EFFECTIVE_CHANGED,
+                SecurityAuditEventNames.AUTHORIZATION_DECIDED,
+                SecurityAuditEventNames.AUTHENTICATION,
+                SecurityAuditEventNames.TOKEN_LIFECYCLE,
+                SecurityAuditEventNames.FIREWALL_RULE_DENIED,
+                SecurityAuditEventNames.FIREWALL_RULE_FAILED,
+                UserAuditEventNames.REGISTERED,
+                UserAuditEventNames.RENAMED,
+                UserAuditEventNames.EMAIL_CHANGED,
+                UserAuditEventNames.ROLES_CHANGED,
+                UserAuditEventNames.STATUS_CHANGED,
+                UserAuditEventNames.PASSWORD_CHANGED,
                 "application.test"
         );
         for (String eventName : eventNames) {
@@ -125,7 +134,13 @@ class StandardAuditEventRegistryTest {
             throw new AssertionError("Audit listener failed", failure);
         });
 
-        try (AuditEventRegistry ignored = StandardAuditEventCatalog.createEventRegistry(dispatcher, publisher)) {
+        try (EventSubscription ignored = subscribe(
+                dispatcher,
+                publisher,
+                new ConfigAuditEventDefinitionContributor(),
+                new SecurityAuditEventDefinitionContributor(),
+                new UserAuditEventDefinitionContributor()
+        )) {
             dispatcher.publish(new ConfigSourceChangedEvent(
                     ConfigSourceId.of("environment"),
                     ConfigKey.of("app.mode"),
@@ -208,48 +223,48 @@ class StandardAuditEventRegistryTest {
         }
 
         assertEquals(15, entries.size());
-        assertEquals(LuxspecAuditEventNames.CONFIG_SOURCE_CHANGED, entries.get(0).eventName());
+        assertEquals(ConfigAuditEventNames.SOURCE_CHANGED, entries.get(0).eventName());
         assertEquals(AuditOutcome.SUCCESS, entries.get(0).outcome());
-        assertEquals(LuxspecAuditEventNames.CONFIG_EFFECTIVE_CHANGED, entries.get(1).eventName());
+        assertEquals(ConfigAuditEventNames.EFFECTIVE_CHANGED, entries.get(1).eventName());
         assertTrue(entries.get(1).fields().get(ConfigAuditFields.CONFIG_SENSITIVE).orElseThrow());
-        assertEquals(LuxspecAuditEventNames.SECURITY_AUTHORIZATION_DECIDED, entries.get(2).eventName());
+        assertEquals(SecurityAuditEventNames.AUTHORIZATION_DECIDED, entries.get(2).eventName());
         assertEquals(AuditOutcome.DENIED, entries.get(2).outcome());
-        assertEquals(LuxspecAuditEventNames.SECURITY_FIREWALL_RULE_FAILED, entries.get(3).eventName());
+        assertEquals(SecurityAuditEventNames.FIREWALL_RULE_FAILED, entries.get(3).eventName());
         assertEquals(AuditOutcome.FAILURE, entries.get(3).outcome());
-        assertEquals(LuxspecAuditEventNames.SECURITY_AUTHENTICATION, entries.get(4).eventName());
+        assertEquals(SecurityAuditEventNames.AUTHENTICATION, entries.get(4).eventName());
         assertEquals(AuditOutcome.SUCCESS, entries.get(4).outcome());
-        assertEquals(LuxspecAuditEventNames.SECURITY_AUTHENTICATION, entries.get(5).eventName());
+        assertEquals(SecurityAuditEventNames.AUTHENTICATION, entries.get(5).eventName());
         assertEquals(AuditOutcome.FAILURE, entries.get(5).outcome());
-        assertEquals(LuxspecAuditEventNames.SECURITY_TOKEN_LIFECYCLE, entries.get(6).eventName());
+        assertEquals(SecurityAuditEventNames.TOKEN_LIFECYCLE, entries.get(6).eventName());
         assertEquals(AuditOutcome.SUCCESS, entries.get(6).outcome());
-        assertEquals(LuxspecAuditEventNames.SECURITY_TOKEN_LIFECYCLE, entries.get(7).eventName());
+        assertEquals(SecurityAuditEventNames.TOKEN_LIFECYCLE, entries.get(7).eventName());
         assertEquals(AuditOutcome.DENIED, entries.get(7).outcome());
-        assertEquals(LuxspecAuditEventNames.SECURITY_FIREWALL_RULE_DENIED, entries.get(8).eventName());
+        assertEquals(SecurityAuditEventNames.FIREWALL_RULE_DENIED, entries.get(8).eventName());
         assertEquals(AuditOutcome.DENIED, entries.get(8).outcome());
-        assertEquals(LuxspecAuditEventNames.USER_REGISTERED, entries.get(9).eventName());
+        assertEquals(UserAuditEventNames.REGISTERED, entries.get(9).eventName());
         ResourceReference<?> userReference = entries.get(9).resource();
         assertNotNull(userReference);
         assertEquals(UserResourceTypes.USER, userReference.resourceType());
-        assertEquals(LuxspecAuditEventNames.USER_RENAMED, entries.get(10).eventName());
-        assertEquals(LuxspecAuditEventNames.USER_EMAIL_CHANGED, entries.get(11).eventName());
-        assertEquals(LuxspecAuditEventNames.USER_ROLES_CHANGED, entries.get(12).eventName());
-        assertEquals(LuxspecAuditEventNames.USER_STATUS_CHANGED, entries.get(13).eventName());
-        assertEquals(LuxspecAuditEventNames.USER_PASSWORD_CHANGED, entries.get(14).eventName());
+        assertEquals(UserAuditEventNames.RENAMED, entries.get(10).eventName());
+        assertEquals(UserAuditEventNames.EMAIL_CHANGED, entries.get(11).eventName());
+        assertEquals(UserAuditEventNames.ROLES_CHANGED, entries.get(12).eventName());
+        assertEquals(UserAuditEventNames.STATUS_CHANGED, entries.get(13).eventName());
+        assertEquals(UserAuditEventNames.PASSWORD_CHANGED, entries.get(14).eventName());
     }
 
     @Test
-    void exposesASelectablePublicEventRegistry() {
+    void allowsAFeatureContributorToBeSelectedIndependently() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
         EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
 
-        try (AuditEventRegistry registry = StandardAuditEventCatalog.register(
-                new AuditEventRegistry(dispatcher, publisher),
-                StandardAuditEventCatalog.configuration()
+        try (EventSubscription ignored = subscribe(
+                dispatcher,
+                publisher,
+                new ConfigAuditEventDefinitionContributor()
         )) {
-            assertEquals(2, registry.definitions().size());
             dispatcher.publish(new ConfigSourceChangedEvent(
                     ConfigSourceId.of("environment"),
                     ConfigKey.of("app.mode"),
@@ -263,7 +278,7 @@ class StandardAuditEventRegistryTest {
         }
 
         assertEquals(1, entries.size());
-        assertEquals(LuxspecAuditEventNames.CONFIG_SOURCE_CHANGED, entries.get(0).eventName());
+        assertEquals(ConfigAuditEventNames.SOURCE_CHANGED, entries.get(0).eventName());
     }
 
     @Test
@@ -273,9 +288,15 @@ class StandardAuditEventRegistryTest {
         EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
-        AuditEventRegistry registry = StandardAuditEventCatalog.createEventRegistry(dispatcher, publisher);
+        EventSubscription registry = subscribe(
+                dispatcher,
+                publisher,
+                new SecurityAuditEventDefinitionContributor()
+        );
 
-        registry.close();
+        assertTrue(registry.isActive());
+        registry.unsubscribe();
+        assertFalse(registry.isActive());
         dispatcher.publish(new FirewallRuleFailureEvent(
                 "example.FirewallRule",
                 SecurityErrorCode.FIREWALL_RULE_FAILURE,
@@ -283,7 +304,7 @@ class StandardAuditEventRegistryTest {
         ));
 
         assertTrue(entries.isEmpty());
-        registry.close();
+        registry.unsubscribe();
     }
 
     @Test
@@ -314,7 +335,7 @@ class StandardAuditEventRegistryTest {
                 Duration.ZERO
         );
 
-        publisher.publish(LuxspecAuditEventNames.SECURITY_AUTHENTICATION, event);
+        publisher.publish(SecurityAuditEventNames.AUTHENTICATION, event);
 
         assertEquals(1, entries.size());
         assertEquals(AuditOutcome.FAILURE, entries.get(0).outcome());
@@ -329,7 +350,7 @@ class StandardAuditEventRegistryTest {
                 AuditFieldSet.empty()
         );
         return new DefaultAuditPublisher(
-                StandardAuditEventCatalog.createRegistry(),
+                standardRegistry(),
                 entries::add,
                 Clock.fixed(PUBLISHED_AT, ZoneOffset.UTC),
                 eventName -> AuditEventId.of(eventName),
@@ -337,6 +358,34 @@ class StandardAuditEventRegistryTest {
                 AuditDeliveryPolicy.REQUIRED,
                 null
         );
+    }
+
+    private static AuditRegistry.Builder standardRegistryBuilder() {
+        AuditRegistry.Builder registry = AuditRegistry.builder();
+        new ConfigAuditEventDefinitionContributor().contribute(definition -> definition.register(registry));
+        new SecurityAuditEventDefinitionContributor().contribute(definition -> definition.register(registry));
+        new UserAuditEventDefinitionContributor().contribute(definition -> definition.register(registry));
+        return registry;
+    }
+
+    private static EventSubscription subscribe(
+            EventDispatcher dispatcher,
+            AuditPublisher publisher,
+            AuditEventDefinitionContributor... contributors
+    ) {
+        List<EventSubscription> subscriptions = new ArrayList<>();
+        for (AuditEventDefinitionContributor contributor : contributors) {
+            Objects.requireNonNull(contributor, "contributor").contribute(definition -> {
+                EventSubscription subscription = Objects.requireNonNull(definition, "definition")
+                        .subscribe(dispatcher, publisher);
+                subscriptions.add(subscription);
+            });
+        }
+        return EventSubscription.combine(subscriptions);
+    }
+
+    private static AuditRegistry standardRegistry() {
+        return standardRegistryBuilder().build();
     }
 
     private static ConfigBinding<String> binding() {

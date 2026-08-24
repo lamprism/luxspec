@@ -14,13 +14,20 @@
  * limitations under the License.
  */
 
-plugins {
-    id("luxspec.java-conventions")
-}
+package com.lamprism.luxspec.web.spring;
 
-description = "Web core contracts and defaults."
+import com.lamprism.luxspec.context.CorrelationId;
 
-dependencies {
-    api(project(":core:core-base"))
-    api(project(":config:config-core"))
+import java.util.UUID;
+
+/**
+ * Generates correlation identifiers from random UUIDs.
+ *
+ * @author RollW
+ */
+public final class UuidCorrelationIdGenerator implements CorrelationIdGenerator {
+    @Override
+    public CorrelationId generate() {
+        return CorrelationId.of(UUID.randomUUID().toString());
+    }
 }

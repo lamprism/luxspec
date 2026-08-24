@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.security.authentication.AuthenticationEvent;
 
@@ -30,6 +31,19 @@ import com.lamprism.luxspec.security.authentication.AuthenticationEvent;
  * @author RollW
  */
 public class AuthenticationAuditTranslator implements AuditEventTranslator<AuthenticationEvent> {
+    /**
+     * Creates the authentication definition owned by this translator.
+     *
+     * @return the authentication definition
+     */
+    public static AuditEventDefinition<AuthenticationEvent> definition() {
+        return AuditEventDefinition.of(
+                SecurityAuditEventNames.AUTHENTICATION,
+                AuthenticationEvent.class,
+                new AuthenticationAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<AuthenticationEvent> envelope) {
         AuthenticationEvent event = envelope.event();

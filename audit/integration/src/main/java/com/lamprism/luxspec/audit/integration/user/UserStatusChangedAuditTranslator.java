@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.lifecycle.UserStatusChangedEvent;
@@ -32,6 +33,19 @@ import com.lamprism.luxspec.user.resource.UserResourceTypes;
  * @author RollW
  */
 public class UserStatusChangedAuditTranslator implements AuditEventTranslator<UserStatusChangedEvent> {
+    /**
+     * Creates the user status change definition owned by this translator.
+     *
+     * @return the user status change definition
+     */
+    public static AuditEventDefinition<UserStatusChangedEvent> definition() {
+        return AuditEventDefinition.of(
+                UserAuditEventNames.STATUS_CHANGED,
+                UserStatusChangedEvent.class,
+                new UserStatusChangedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserStatusChangedEvent> envelope) {
         UserStatusChangedEvent event = envelope.event();

@@ -13,15 +13,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class DefaultMySqlKeyStoreMaterializerTest {
+class DefaultSslMaterializerTest {
     @Test
     void materializesCertificateAndPrivateKeyIntoTemporaryPkcs12Stores() throws Exception {
-        DefaultMySqlKeyStoreMaterializer materializer = new DefaultMySqlKeyStoreMaterializer();
-        MySqlKeyStoreArtifact trustStore = materializer.materializeTrustStore(
+        SslMaterializer materializer = new DefaultSslMaterializer();
+        KeyStoreArtifact trustStore = materializer.materializeTrustStore(
                 "test-ca",
                 SslMaterial.file(resourcePath("mysql/client-cert.pem"))
         );
-        MySqlKeyStoreArtifact clientStore = materializer.materializeClientKeyStore(
+        KeyStoreArtifact clientStore = materializer.materializeClientKeyStore(
                 "test-client",
                 SslMaterial.file(resourcePath("mysql/client-cert.pem")),
                 SslMaterial.file(resourcePath("mysql/client-key.pem"))
@@ -31,7 +31,7 @@ class DefaultMySqlKeyStoreMaterializerTest {
         try {
             assertEquals(1, load(trustStore).size());
             KeyStore loadedClientStore = load(clientStore);
-            assertTrue(loadedClientStore.isKeyEntry("mysql-client"));
+            assertTrue(loadedClientStore.isKeyEntry("client"));
         } finally {
             clientStore.close();
             trustStore.close();
@@ -41,7 +41,7 @@ class DefaultMySqlKeyStoreMaterializerTest {
         assertFalse(Files.exists(clientStorePath));
     }
 
-    private static KeyStore load(MySqlKeyStoreArtifact artifact) throws Exception {
+    private static KeyStore load(KeyStoreArtifact artifact) throws Exception {
         KeyStore keyStore = KeyStore.getInstance(artifact.getKeyStoreType());
         try (InputStream input = Files.newInputStream(artifact.getPath())) {
             keyStore.load(input, artifact.getPassword().toCharArray());
@@ -51,7 +51,7 @@ class DefaultMySqlKeyStoreMaterializerTest {
 
     private static Path resourcePath(String name) throws Exception {
         return Path.of(Objects.requireNonNull(
-                DefaultMySqlKeyStoreMaterializerTest.class.getClassLoader().getResource(name)
+                DefaultSslMaterializerTest.class.getClassLoader().getResource(name)
         ).toURI());
     }
 }

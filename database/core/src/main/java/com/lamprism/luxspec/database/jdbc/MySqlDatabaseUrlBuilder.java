@@ -19,14 +19,14 @@ import java.util.Set;
  * @author RollW
  */
 public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
-    private final MySqlKeyStoreMaterializer keyStoreMaterializer;
+    private final SslMaterializer sslMaterializer;
 
     public MySqlDatabaseUrlBuilder() {
-        this(new DefaultMySqlKeyStoreMaterializer());
+        this(new DefaultSslMaterializer());
     }
 
-    public MySqlDatabaseUrlBuilder(MySqlKeyStoreMaterializer keyStoreMaterializer) {
-        this.keyStoreMaterializer = Objects.requireNonNull(keyStoreMaterializer, "keyStoreMaterializer");
+    public MySqlDatabaseUrlBuilder(SslMaterializer sslMaterializer) {
+        this.sslMaterializer = Objects.requireNonNull(sslMaterializer, "sslMaterializer");
     }
 
     @Override
@@ -87,8 +87,8 @@ public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
         if (serverCaCertificate == null) {
             return;
         }
-        MySqlKeyStoreArtifact artifact = Objects.requireNonNull(
-                keyStoreMaterializer.materializeTrustStore("mysql-ca", serverCaCertificate),
+        KeyStoreArtifact artifact = Objects.requireNonNull(
+                sslMaterializer.materializeTrustStore("mysql-ca", serverCaCertificate),
                 "trust store artifact"
         );
         resources.add(artifact);
@@ -111,8 +111,8 @@ public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
         if (clientCertificate == null) {
             return;
         }
-        MySqlKeyStoreArtifact artifact = Objects.requireNonNull(
-                keyStoreMaterializer.materializeClientKeyStore(
+        KeyStoreArtifact artifact = Objects.requireNonNull(
+                sslMaterializer.materializeClientKeyStore(
                         "mysql-client",
                         clientCertificate,
                         Objects.requireNonNull(clientPrivateKey, "clientPrivateKey")
@@ -132,7 +132,7 @@ public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
 
     private static void putKeyStoreProperties(
             Map<String, String> properties,
-            MySqlKeyStoreArtifact artifact,
+            KeyStoreArtifact artifact,
             String urlProperty,
             String typeProperty,
             String passwordProperty

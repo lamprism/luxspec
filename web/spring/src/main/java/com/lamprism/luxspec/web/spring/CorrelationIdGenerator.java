@@ -14,13 +14,21 @@
  * limitations under the License.
  */
 
-plugins {
-    id("luxspec.java-conventions")
-}
+package com.lamprism.luxspec.web.spring;
 
-description = "Web core contracts and defaults."
+import com.lamprism.luxspec.context.CorrelationId;
 
-dependencies {
-    api(project(":core:core-base"))
-    api(project(":config:config-core"))
+/**
+ * Generates correlation identifiers for web requests.
+ *
+ * @author RollW
+ */
+@FunctionalInterface
+public interface CorrelationIdGenerator {
+    /**
+     * Generates one correlation identifier.
+     *
+     * @return the generated identifier
+     */
+    CorrelationId generate();
 }

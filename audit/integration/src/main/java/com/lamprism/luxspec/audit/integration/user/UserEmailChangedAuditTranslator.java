@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.lifecycle.UserEmailChangedEvent;
@@ -32,6 +33,19 @@ import com.lamprism.luxspec.user.resource.UserResourceTypes;
  * @author RollW
  */
 public class UserEmailChangedAuditTranslator implements AuditEventTranslator<UserEmailChangedEvent> {
+    /**
+     * Creates the user email change definition owned by this translator.
+     *
+     * @return the user email change definition
+     */
+    public static AuditEventDefinition<UserEmailChangedEvent> definition() {
+        return AuditEventDefinition.of(
+                UserAuditEventNames.EMAIL_CHANGED,
+                UserEmailChangedEvent.class,
+                new UserEmailChangedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserEmailChangedEvent> envelope) {
         UserEmailChangedEvent event = envelope.event();

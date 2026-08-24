@@ -16,12 +16,18 @@
 
 package com.lamprism.luxspec.web.autoconfigure;
 
+import com.lamprism.luxspec.config.ConfigReader;
+import com.lamprism.luxspec.config.ConfigValue;
+import com.lamprism.luxspec.config.catalog.ConfigSpecContributor;
 import com.lamprism.luxspec.message.MessageResolver;
 import com.lamprism.luxspec.message.spring.SpringMessageResolver;
+import com.lamprism.luxspec.web.WebConfigSpec;
+import com.lamprism.luxspec.web.spring.CorrelationIdGenerator;
 import com.lamprism.luxspec.web.spring.DefaultErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.spring.ErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.spring.LuxspecExceptionHandler;
 import com.lamprism.luxspec.web.spring.LuxspecRequestContextFilter;
+import com.lamprism.luxspec.web.spring.UuidCorrelationIdGenerator;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -30,6 +36,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.servlet.DispatcherServlet;
+
+import java.util.Objects;
 
 /**
  * Registers default MVC error-envelope support when an application has not supplied replacements.
@@ -81,13 +89,46 @@ public class LuxspecWebAutoConfiguration {
     }
 
     /**
+     * Registers the Web configuration definitions with the application catalog.
+     *
+     * @return the Web configuration contributor
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "webConfigSpecContributor")
+    public ConfigSpecContributor webConfigSpecContributor() {
+        return registry -> registry.register(WebConfigSpec.CORRELATION_ID_HEADER);
+    }
+
+    /**
      * Supplies the request-scope filter when an application has not supplied one.
      *
+     * @param configReaders the optional Luxspec configuration reader
+     * @param generators    the optional correlation ID generators
      * @return the request context filter
      */
     @Bean
     @ConditionalOnMissingBean(LuxspecRequestContextFilter.class)
-    public LuxspecRequestContextFilter luxspecRequestContextFilter() {
-        return new LuxspecRequestContextFilter();
+    public LuxspecRequestContextFilter luxspecRequestContextFilter(
+            ObjectProvider<ConfigReader> configReaders,
+            ObjectProvider<CorrelationIdGenerator> generators
+    ) {
+        CorrelationIdGenerator generator = generators.getIfAvailable(UuidCorrelationIdGenerator::new);
+        return new LuxspecRequestContextFilter(correlationIdHeader(configReaders), generator);
+    }
+
+    private static String correlationIdHeader(ObjectProvider<ConfigReader> configReaders) {
+        ConfigReader reader = configReaders.getIfAvailable();
+        if (reader == null) {
+            return defaultCorrelationIdHeader();
+        }
+        ConfigValue<String> value = reader.get(WebConfigSpec.CORRELATION_ID_HEADER);
+        if (!value.hasValue()) {
+            return defaultCorrelationIdHeader();
+        }
+        return value.requireValue();
+    }
+
+    private static String defaultCorrelationIdHeader() {
+        return Objects.requireNonNull(WebConfigSpec.CORRELATION_ID_HEADER.getDefaultValue());
     }
 }

@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.config.event.ConfigChangedEvent;
 
@@ -30,6 +31,19 @@ import com.lamprism.luxspec.config.event.ConfigChangedEvent;
  * @author RollW
  */
 public class ConfigChangedAuditTranslator implements AuditEventTranslator<ConfigChangedEvent> {
+    /**
+     * Creates the effective configuration change definition owned by this translator.
+     *
+     * @return the effective configuration change definition
+     */
+    public static AuditEventDefinition<ConfigChangedEvent> definition() {
+        return AuditEventDefinition.of(
+                ConfigAuditEventNames.EFFECTIVE_CHANGED,
+                ConfigChangedEvent.class,
+                new ConfigChangedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<ConfigChangedEvent> envelope) {
         ConfigChangedEvent event = envelope.event();

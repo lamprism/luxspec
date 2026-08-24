@@ -27,8 +27,8 @@ import java.util.Objects;
  * Unified event type, audit name, and translator definition.
  *
  * <p>The definition is the shared assembly contract for registry entries and
- * event subscriptions. It does not decide which definitions an application
- * enables; a catalog or caller owns that selection.</p>
+ * event subscriptions. A feature-owned contributor decides when it is
+ * included in an application assembly.</p>
  *
  * @param <E> the event payload type
  * @author RollW
@@ -65,14 +65,29 @@ public final class AuditEventDefinition<E extends Event> {
         return new AuditEventDefinition<>(eventName, eventType, translator);
     }
 
+    /**
+     * Returns the stable audit event name.
+     *
+     * @return the audit event name
+     */
     public String getEventName() {
         return eventName;
     }
 
+    /**
+     * Returns the exact event payload type handled by this definition.
+     *
+     * @return the event payload type
+     */
     public Class<E> getEventType() {
         return eventType;
     }
 
+    /**
+     * Returns the translator associated with this definition.
+     *
+     * @return the event translator
+     */
     public AuditEventTranslator<E> getTranslator() {
         return translator;
     }

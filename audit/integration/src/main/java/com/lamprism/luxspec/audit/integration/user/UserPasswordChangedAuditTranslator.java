@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.resource.UserResourceTypes;
@@ -33,6 +34,19 @@ import com.lamprism.luxspec.user.security.password.UserPasswordChangedEvent;
  * @author RollW
  */
 public class UserPasswordChangedAuditTranslator implements AuditEventTranslator<UserPasswordChangedEvent> {
+    /**
+     * Creates the user password change definition owned by this translator.
+     *
+     * @return the user password change definition
+     */
+    public static AuditEventDefinition<UserPasswordChangedEvent> definition() {
+        return AuditEventDefinition.of(
+                UserAuditEventNames.PASSWORD_CHANGED,
+                UserPasswordChangedEvent.class,
+                new UserPasswordChangedAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserPasswordChangedEvent> envelope) {
         UserPasswordChangedEvent event = envelope.event();

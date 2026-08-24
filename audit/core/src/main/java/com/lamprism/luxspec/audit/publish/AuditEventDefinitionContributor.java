@@ -14,13 +14,22 @@
  * limitations under the License.
  */
 
-plugins {
-    id("luxspec.java-conventions")
-}
+package com.lamprism.luxspec.audit.publish;
 
-description = "Web core contracts and defaults."
-
-dependencies {
-    api(project(":core:core-base"))
-    api(project(":config:config-core"))
+/**
+ * Contributes event definitions owned by one feature or integration.
+ *
+ * <p>The contributor owns the definitions it provides. Runtime components
+ * decide how those definitions are registered or subscribed.</p>
+ *
+ * @author RollW
+ */
+@FunctionalInterface
+public interface AuditEventDefinitionContributor {
+    /**
+     * Contributes event definitions to an assembly.
+     *
+     * @param registrar the definition registrar
+     */
+    void contribute(AuditEventDefinitionRegistrar registrar);
 }

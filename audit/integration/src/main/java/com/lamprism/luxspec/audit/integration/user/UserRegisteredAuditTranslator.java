@@ -21,6 +21,7 @@ import com.lamprism.luxspec.audit.AuditEntryContent;
 import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventTranslator;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.Role;
@@ -33,6 +34,19 @@ import com.lamprism.luxspec.user.resource.UserResourceTypes;
  * @author RollW
  */
 public class UserRegisteredAuditTranslator implements AuditEventTranslator<UserRegisteredEvent> {
+    /**
+     * Creates the user registration definition owned by this translator.
+     *
+     * @return the user registration definition
+     */
+    public static AuditEventDefinition<UserRegisteredEvent> definition() {
+        return AuditEventDefinition.of(
+                UserAuditEventNames.REGISTERED,
+                UserRegisteredEvent.class,
+                new UserRegisteredAuditTranslator()
+        );
+    }
+
     @Override
     public AuditEntryContent translate(AuditEnvelope<UserRegisteredEvent> envelope) {
         UserRegisteredEvent event = envelope.event();
