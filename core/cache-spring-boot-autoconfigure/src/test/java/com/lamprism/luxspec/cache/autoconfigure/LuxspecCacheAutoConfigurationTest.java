@@ -56,14 +56,27 @@ class LuxspecCacheAutoConfigurationTest {
     }
 
     @Test
-    void backsOffWhenApplicationProvidesCacheFactory() {
+    void keepsTheDefaultFactoryAsFallbackWhenApplicationProvidesOne() {
         CacheFactory applicationFactory = new CaffeineCacheFactory();
 
         contextRunner
                 .withBean(CacheFactory.class, () -> applicationFactory)
                 .run(context -> {
                     assertThat(context.getBean(CacheFactory.class)).isSameAs(applicationFactory);
+                    assertThat(context.getBeansOfType(CacheFactory.class)).hasSize(2);
                     assertThat(context).doesNotHaveBean(Cache.class);
+                });
+    }
+
+    @Test
+    void keepsTheDefaultProfileAsFallbackWhenApplicationProvidesOne() {
+        CacheProfile applicationProfile = CacheProfile.builder().maximumSize(8).build();
+
+        contextRunner
+                .withBean(CacheProfile.class, () -> applicationProfile)
+                .run(context -> {
+                    assertThat(context.getBean(CacheProfile.class)).isSameAs(applicationProfile);
+                    assertThat(context.getBeansOfType(CacheProfile.class)).hasSize(2);
                 });
     }
 }

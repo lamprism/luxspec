@@ -27,11 +27,11 @@ import com.lamprism.luxspec.observability.observation.ObservationView;
 import com.lamprism.luxspec.observability.runtime.observation.ObservationRegistryEventSource;
 import io.micrometer.observation.Observation;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Projects Luxspec observation lifecycles into Micrometer Observation.
@@ -44,7 +44,7 @@ public class MicrometerObservationBridge implements AutoCloseable {
     private final Map<ObservationId, ProviderObservation> observations = new ConcurrentHashMap<>();
     private final ObservationHandler handler = new BridgeHandler();
     private final AutoCloseable listener;
-    private volatile boolean closed;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     public MicrometerObservationBridge(
             ObservationRegistry observationRegistry,
@@ -60,11 +60,10 @@ public class MicrometerObservationBridge implements AutoCloseable {
     }
 
     @Override
-    public synchronized void close() {
-        if (closed) {
+    public void close() {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
-        closed = true;
         try {
             listener.close();
         } catch (Exception failure) {
@@ -80,7 +79,7 @@ public class MicrometerObservationBridge implements AutoCloseable {
     private final class BridgeHandler implements ObservationHandler {
         @Override
         public void onStart(ObservationView view) {
-            if (closed) {
+            if (closed.get()) {
                 return;
             }
             Observation providerObservation =
@@ -181,45 +180,45 @@ public class MicrometerObservationBridge implements AutoCloseable {
 
     private static final class ProviderObservation {
         private final Observation observation;
-        private final Deque<Observation.Scope> scopes = new ArrayDeque<>();
-        private boolean stopped;
+        private final ConcurrentLinkedDeque<Observation.Scope> scopes = new ConcurrentLinkedDeque<>();
+        private final AtomicBoolean stopped = new AtomicBoolean();
 
         private ProviderObservation(Observation observation) {
             this.observation = observation;
         }
 
-        private synchronized void openScope() {
-            if (!stopped) {
+        private void openScope() {
+            if (!stopped.get()) {
                 scopes.push(observation.openScope());
             }
         }
 
-        private synchronized void closeScope() {
-            Observation.Scope scope = scopes.poll();
+        private void closeScope() {
+            Observation.Scope scope = scopes.pollFirst();
             if (scope != null) {
                 scope.close();
             }
         }
 
-        private synchronized void stop() {
-            if (stopped) {
+        private void stop() {
+            if (!stopped.compareAndSet(false, true)) {
                 return;
             }
-            stopped = true;
             observation.stop();
         }
 
-        private synchronized boolean isScopeFree() {
+        private boolean isScopeFree() {
             return scopes.isEmpty();
         }
 
-        private synchronized boolean isStopped() {
-            return stopped;
+        private boolean isStopped() {
+            return stopped.get();
         }
 
-        private synchronized void close() {
-            while (!scopes.isEmpty()) {
-                scopes.pop().close();
+        private void close() {
+            Observation.Scope scope;
+            while ((scope = scopes.pollFirst()) != null) {
+                scope.close();
             }
             stop();
         }

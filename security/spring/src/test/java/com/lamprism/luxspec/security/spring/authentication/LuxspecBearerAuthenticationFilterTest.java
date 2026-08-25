@@ -17,7 +17,8 @@
 package com.lamprism.luxspec.security.spring.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.security.authentication.AccessTokenCredentials;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
@@ -53,7 +54,7 @@ class LuxspecBearerAuthenticationFilterTest {
     }
 
     @Test
-    void authenticatesBearerCredentialsAndBridgesTheExecutionContext() throws Exception {
+    void authenticatesBearerCredentialsForTheDownstreamChain() throws Exception {
         Authentication authentication = authentication();
         TestAuthenticator authenticator = new TestAuthenticator(authentication, false);
         LuxspecBearerAuthenticationFilter filter = new LuxspecBearerAuthenticationFilter(authenticator);
@@ -68,7 +69,26 @@ class LuxspecBearerAuthenticationFilterTest {
         assertEquals(1, authenticator.getInvocationCount());
         assertEquals("opaque-access-token", authenticator.getPresentedTokenValue());
         assertNull(SecurityContextHolder.getContext().getAuthentication());
-        assertTrue(ExecutionContexts.current().isEmpty());
+    }
+
+    @Test
+    void opensTheExplicitAuthenticationContextWhenConfigured() throws Exception {
+        Authentication authentication = authentication();
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        LuxspecBearerAuthenticationFilter filter = new LuxspecBearerAuthenticationFilter(
+                new TestAuthenticator(authentication, false),
+                storage
+        );
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer opaque-access-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> assertSame(
+                authentication,
+                storage.requireCurrent().get(SecurityContextKeys.AUTHENTICATION).orElseThrow()
+        ));
+
+        assertTrue(storage.current().isEmpty());
     }
 
     @Test
@@ -124,10 +144,6 @@ class LuxspecBearerAuthenticationFilterTest {
                     SecurityContextHolder.getContext().getAuthentication()
             );
             assertSame(expectedAuthentication, springAuthentication.getLuxspecAuthentication());
-            assertSame(
-                    expectedAuthentication,
-                    ExecutionContexts.requireCurrent().get(SecurityContextKeys.AUTHENTICATION).orElseThrow()
-            );
             chainReached.set(true);
         };
     }

@@ -17,10 +17,11 @@
 package com.lamprism.luxspec.context;
 
 import com.lamprism.luxspec.validation.ValidationRules;
+
 import java.util.Objects;
 
 /**
- * Identifies one typed immutable ExecutionContext element.
+ * Identifies one typed immutable context element.
  *
  * @param <T> the element type
  * @author RollW

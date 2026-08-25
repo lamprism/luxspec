@@ -19,15 +19,16 @@ package com.lamprism.luxspec.web.autoconfigure;
 import com.lamprism.luxspec.config.ConfigReader;
 import com.lamprism.luxspec.config.ConfigValue;
 import com.lamprism.luxspec.config.catalog.ConfigSpecContributor;
+import com.lamprism.luxspec.context.CorrelationIdGenerator;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.UuidCorrelationIdGenerator;
 import com.lamprism.luxspec.message.MessageResolver;
 import com.lamprism.luxspec.message.spring.SpringMessageResolver;
 import com.lamprism.luxspec.web.WebConfigSpec;
-import com.lamprism.luxspec.web.spring.CorrelationIdGenerator;
 import com.lamprism.luxspec.web.spring.DefaultErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.spring.ErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.spring.LuxspecExceptionHandler;
 import com.lamprism.luxspec.web.spring.LuxspecRequestContextFilter;
-import com.lamprism.luxspec.web.spring.UuidCorrelationIdGenerator;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -100,20 +101,26 @@ public class LuxspecWebAutoConfiguration {
     }
 
     /**
-     * Supplies the request-scope filter when an application has not supplied one.
+     * Supplies the request filter when an application has not supplied one.
      *
      * @param configReaders the optional Luxspec configuration reader
      * @param generators    the optional correlation ID generators
-     * @return the request context filter
+     * @param storage       the optional explicitly selected context storage
+     * @return the request filter
      */
     @Bean
     @ConditionalOnMissingBean(LuxspecRequestContextFilter.class)
     public LuxspecRequestContextFilter luxspecRequestContextFilter(
             ObjectProvider<ConfigReader> configReaders,
-            ObjectProvider<CorrelationIdGenerator> generators
+            ObjectProvider<CorrelationIdGenerator> generators,
+            ObjectProvider<ExecutionContextStorage> storage
     ) {
         CorrelationIdGenerator generator = generators.getIfAvailable(UuidCorrelationIdGenerator::new);
-        return new LuxspecRequestContextFilter(correlationIdHeader(configReaders), generator);
+        return new LuxspecRequestContextFilter(
+                correlationIdHeader(configReaders),
+                generator,
+                storage.getIfAvailable()
+        );
     }
 
     private static String correlationIdHeader(ObjectProvider<ConfigReader> configReaders) {

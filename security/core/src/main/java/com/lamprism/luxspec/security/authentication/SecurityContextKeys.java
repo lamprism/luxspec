@@ -19,13 +19,13 @@ package com.lamprism.luxspec.security.authentication;
 import com.lamprism.luxspec.context.ContextKey;
 
 /**
- * Defines typed ExecutionContext keys owned by the security domain.
+ * Defines typed context keys owned by the Security domain.
  *
  * @author RollW
  */
 public final class SecurityContextKeys {
     /**
-     * Identifies the effective Luxspec Authentication for an execution scope.
+     * Identifies the effective Luxspec Authentication for one execution context.
      */
     public static final ContextKey<Authentication> AUTHENTICATION = ContextKey.of(
             "security.authentication",

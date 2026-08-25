@@ -15,7 +15,7 @@
  */
 
 /**
- * Spring adapters for provider-independent execution-context propagation.
+ * Spring task integration for explicitly selected execution-context storage.
  */
 @org.jspecify.annotations.NullMarked
 package com.lamprism.luxspec.context.spring;

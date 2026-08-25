@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.runtime;
 
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.observability.ObservabilityClock;
 import com.lamprism.luxspec.observability.health.HealthGroup;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
@@ -116,7 +118,7 @@ class ObservabilityRuntimeTest {
     }
 
     @Test
-    void runsObservationLifecycleWithLocalParentAndScope() {
+    void runsObservationLifecycleWithExplicitParent() {
         ObservationSpec parentSpec = ObservationSpec.builder("request").build();
         ObservationSpec childSpec = ObservationSpec.builder("database").build();
         ObservationAttributeSpec<String> route = ObservationAttributeSpec.string(
@@ -130,16 +132,6 @@ class ObservabilityRuntimeTest {
             public void onStart(ObservationView view) {
                 starts.add(view);
                 callbacks.add("start:" + view.spec().getName().value());
-            }
-
-            @Override
-            public void onScopeOpened(ObservationView view) {
-                callbacks.add("open");
-            }
-
-            @Override
-            public void onScopeClosed(ObservationView view) {
-                callbacks.add("close");
             }
 
             @Override
@@ -159,12 +151,11 @@ class ObservabilityRuntimeTest {
             Observation parent = registry.start(ObservationStart.builder(parentSpec)
                     .attributes(ObservationAttributeSet.builder().put(route, "/accounts").build())
                     .build());
-            Observation child;
-            try (var ignored = parent.openScope()) {
-                child = registry.start(childSpec);
-                child.error(new IllegalStateException("expected"));
-                child.stop();
-            }
+            Observation child = registry.start(ObservationStart.builder(childSpec)
+                    .parent(parent)
+                    .build());
+            child.error(new IllegalStateException("expected"));
+            child.stop();
             parent.setOutcome(ObservationOutcome.SUCCESS);
             parent.stop();
 
@@ -172,12 +163,53 @@ class ObservabilityRuntimeTest {
             ObservationView childView = starts.get(1);
             assertEquals(childSpec, childView.spec());
             assertEquals(starts.get(0).id(), childView.parentId());
-            assertTrue(callbacks.contains("open"));
-            assertTrue(callbacks.contains("close"));
             assertTrue(callbacks.contains("error"));
             assertEquals(ObservationOutcome.ERROR, child.outcome());
             assertEquals(ObservationOutcome.SUCCESS, parent.outcome());
         }
+    }
+
+    @Test
+    void usesTheSelectedContextStorageForObservationScopes() {
+        ObservationSpec parentSpec = ObservationSpec.builder("request").build();
+        ObservationSpec childSpec = ObservationSpec.builder("database").build();
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        List<String> callbacks = new ArrayList<>();
+        List<ObservationView> starts = new ArrayList<>();
+        ObservationHandler handler = new ObservationHandler() {
+            @Override
+            public void onStart(ObservationView view) {
+                starts.add(view);
+            }
+
+            @Override
+            public void onScopeOpened(ObservationView view) {
+                callbacks.add("open");
+            }
+
+            @Override
+            public void onScopeClosed(ObservationView view) {
+                callbacks.add("close");
+            }
+        };
+
+        try (var registry = ObservationRegistryBuilder.builder()
+                .contextStorage(storage)
+                .handler(handler)
+                .build()) {
+            registry.register(parentSpec);
+            registry.register(childSpec);
+            Observation parent = registry.start(parentSpec);
+            try (var ignored = parent.openScope()) {
+                Observation child = registry.start(childSpec);
+                assertEquals(starts.get(0).id(), starts.get(1).parentId());
+                child.stop();
+            }
+            parent.stop();
+        }
+
+        assertEquals(List.of("open", "close"), callbacks);
+        assertTrue(storage.current().isEmpty());
     }
 
     @Test

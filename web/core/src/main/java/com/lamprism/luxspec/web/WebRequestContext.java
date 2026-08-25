@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Immutable request facts that are safe to expose through an execution context.
+ * Immutable request facts that are safe to carry through an execution context.
  *
  * @author RollW
  */
@@ -42,29 +42,14 @@ public final class WebRequestContext {
         this.locale = Objects.requireNonNull(locale, "locale");
     }
 
-    /**
-     * Returns the HTTP method.
-     *
-     * @return the HTTP method
-     */
     public String method() {
         return method;
     }
 
-    /**
-     * Returns the request path.
-     *
-     * @return the request path
-     */
     public String path() {
         return path;
     }
 
-    /**
-     * Returns the request locale selected by the framework boundary.
-     *
-     * @return the request locale
-     */
     public Locale locale() {
         return locale;
     }

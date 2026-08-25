@@ -17,7 +17,10 @@
 package com.lamprism.luxspec.observability.observation;
 
 /**
- * A thread-owned current-observation projection.
+ * One explicit observation context projection.
+ *
+ * <p>The observation itself remains thread-independent. A scope is meaningful only when the
+ * registry has been configured with a context storage implementation.</p>
  *
  * @author RollW
  */

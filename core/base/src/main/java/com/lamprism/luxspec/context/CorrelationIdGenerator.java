@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.web.spring;
-
-import com.lamprism.luxspec.context.CorrelationId;
-
-import java.util.UUID;
+package com.lamprism.luxspec.context;
 
 /**
- * Generates correlation identifiers from random UUIDs.
+ * Generates correlation identifiers at an application boundary.
  *
  * @author RollW
  */
-public final class UuidCorrelationIdGenerator implements CorrelationIdGenerator {
-    @Override
-    public CorrelationId generate() {
-        return CorrelationId.of(UUID.randomUUID().toString());
-    }
+@FunctionalInterface
+public interface CorrelationIdGenerator {
+    /**
+     * Generates one correlation identifier.
+     *
+     * @return the generated identifier
+     */
+    CorrelationId generate();
 }

@@ -48,7 +48,8 @@ import com.lamprism.luxspec.config.source.ConfigSourceId;
 import com.lamprism.luxspec.context.CorrelationId;
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextKeys;
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.event.EventSubscription;
@@ -308,20 +309,21 @@ class AuditEventDefinitionContributorTest {
     }
 
     @Test
-    void capturesTheExecutionContextActorAndCorrelationId() {
+    void capturesTheExplicitContextActorAndCorrelationId() {
         Authentication authentication = authentication();
-        ExecutionContextAuditMetadataProvider provider = new ExecutionContextAuditMetadataProvider();
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
         ExecutionContext context = ExecutionContext.empty()
-                .with(ExecutionContextKeys.CORRELATION_ID,
-                        CorrelationId.of("request-1"))
+                .with(ExecutionContextKeys.CORRELATION_ID, CorrelationId.of("request-1"))
                 .with(SecurityContextKeys.AUTHENTICATION, authentication);
+        ExecutionContextAuditMetadataProvider provider = new ExecutionContextAuditMetadataProvider(storage);
 
-        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(context)) {
+        try (ExecutionContextStorage.Scope ignored = storage.open(context)) {
             AuditMetadata metadata = provider.capture();
             assertEquals(AuditActor.Kind.USER, metadata.actor().kind());
             assertEquals("7", metadata.actor().id());
             assertEquals(CorrelationId.of("request-1"), metadata.correlationId());
         }
+        assertTrue(storage.current().isEmpty());
     }
 
     @Test

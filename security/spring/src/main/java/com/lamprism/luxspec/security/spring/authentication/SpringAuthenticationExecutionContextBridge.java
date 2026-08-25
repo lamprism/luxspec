@@ -17,30 +17,36 @@
 package com.lamprism.luxspec.security.spring.authentication;
 
 import com.lamprism.luxspec.context.ExecutionContext;
-import com.lamprism.luxspec.context.ExecutionContexts;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.SecurityContextKeys;
 
 import java.util.Objects;
 
 /**
- * Opens a nested ExecutionContext containing one successful Luxspec Authentication.
+ * Derives an explicit execution context containing one successful Luxspec Authentication.
+ *
+ * <p>The bridge does not install or own context storage. The caller decides whether to pass the
+ * derived value directly or expose it through an explicitly selected boundary.</p>
  *
  * @author RollW
  */
-public class SpringAuthenticationExecutionContextBridge {
+public final class SpringAuthenticationExecutionContextBridge {
     /**
-     * Opens a derived context that exposes the authenticated actor for downstream work.
+     * Returns a context containing the supplied authentication.
      *
+     * @param context        the current explicit context
      * @param authentication the successful Luxspec authentication
-     * @return the scope that restores the prior execution context
+     * @return the derived context
      */
-    public ExecutionContexts.Scope open(Authentication authentication) {
+    public ExecutionContext withAuthentication(
+            ExecutionContext context,
+            Authentication authentication
+    ) {
+        ExecutionContext nonNullContext = Objects.requireNonNull(context, "context");
         Authentication nonNullAuthentication = Objects.requireNonNull(authentication, "authentication");
-        ExecutionContext currentContext = ExecutionContexts.current().orElse(ExecutionContext.empty());
-        ExecutionContext authenticatedContext = currentContext.get(SecurityContextKeys.AUTHENTICATION).isPresent()
-                ? currentContext.replace(SecurityContextKeys.AUTHENTICATION, nonNullAuthentication)
-                : currentContext.with(SecurityContextKeys.AUTHENTICATION, nonNullAuthentication);
-        return ExecutionContexts.open(authenticatedContext);
+        if (nonNullContext.get(SecurityContextKeys.AUTHENTICATION).isPresent()) {
+            return nonNullContext.replace(SecurityContextKeys.AUTHENTICATION, nonNullAuthentication);
+        }
+        return nonNullContext.with(SecurityContextKeys.AUTHENTICATION, nonNullAuthentication);
     }
 }

@@ -22,28 +22,37 @@ import com.lamprism.luxspec.audit.AuditMetadata;
 import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextKeys;
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.SecurityContextKeys;
 import com.lamprism.luxspec.security.authentication.Subject;
 
 import java.util.Locale;
+import java.util.Objects;
 
 /**
- * Captures correlation and security identity from the current immutable execution context.
+ * Captures correlation and security identity from an explicitly selected context storage.
  *
- * <p>No credentials, grants, or provider-specific security objects are copied into audit
- * metadata. An absent context produces {@link AuditActor#UNKNOWN}.</p>
+ * <p>The provider does not select a storage strategy. When the storage has no current value, it
+ * returns unknown actor metadata and no correlation identifier.</p>
  *
  * @author RollW
  */
-public class ExecutionContextAuditMetadataProvider implements AuditMetadataProvider {
+public final class ExecutionContextAuditMetadataProvider implements AuditMetadataProvider {
+    private final ExecutionContextStorage storage;
+
+    /**
+     * Creates a provider backed by one explicitly selected context storage.
+     *
+     * @param storage the context storage used for metadata capture
+     */
+    public ExecutionContextAuditMetadataProvider(ExecutionContextStorage storage) {
+        this.storage = Objects.requireNonNull(storage, "storage");
+    }
+
     @Override
     public AuditMetadata capture() {
-        ExecutionContext context = ExecutionContexts.current().orElse(null);
-        if (context == null) {
-            return unknownMetadata();
-        }
+        ExecutionContext context = storage.current().orElseGet(ExecutionContext::empty);
         Authentication authentication = context.get(SecurityContextKeys.AUTHENTICATION).orElse(null);
         AuditActor actor = authentication == null ? AuditActor.unknown() : actor(authentication);
         return new AuditMetadata(
@@ -51,10 +60,6 @@ public class ExecutionContextAuditMetadataProvider implements AuditMetadataProvi
                 context.get(ExecutionContextKeys.CORRELATION_ID).orElse(null),
                 AuditFieldSet.empty()
         );
-    }
-
-    private static AuditMetadata unknownMetadata() {
-        return new AuditMetadata(AuditActor.unknown(), null, AuditFieldSet.empty());
     }
 
     private static AuditActor actor(Authentication authentication) {

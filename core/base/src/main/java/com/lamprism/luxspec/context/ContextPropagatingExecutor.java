@@ -20,41 +20,54 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
- * Captures the complete active ExecutionContext when work is submitted to another Executor.
+ * Installs an explicitly selected context while an executor task runs.
+ *
+ * <p>The executor does not own a global context. It uses the supplied
+ * {@link ExecutionContextStorage} for capture and task installation.</p>
  *
  * @author RollW
  */
-public class ContextPropagatingExecutor implements Executor {
+public final class ContextPropagatingExecutor implements Executor {
     private final Executor delegate;
+    private final ExecutionContextStorage storage;
 
     /**
-     * Creates an executor wrapper that propagates the submitting thread's active context.
+     * Creates an executor backed by an explicitly selected context storage.
      *
      * @param delegate the executor that runs submitted work
+     * @param storage  the context storage used for capture and installation
      */
-    public ContextPropagatingExecutor(Executor delegate) {
+    public ContextPropagatingExecutor(Executor delegate, ExecutionContextStorage storage) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-    }
-
-    @Override
-    public void execute(Runnable command) {
-        Runnable nonNullCommand = Objects.requireNonNull(command, "command");
-        ExecutionContext captured = ExecutionContexts.snapshot().orElseGet(ExecutionContext::empty);
-        delegate.execute(() -> run(captured, nonNullCommand));
+        this.storage = Objects.requireNonNull(storage, "storage");
     }
 
     /**
-     * Executes work inside a new empty root context instead of inheriting the submitting context.
+     * Executes work with the supplied immutable context.
      *
-     * @param command the detached work to run
+     * @param context the context to install for the task
+     * @param command the task to run
      */
-    public void executeDetached(Runnable command) {
+    public void execute(ExecutionContext context, Runnable command) {
+        ExecutionContext nonNullContext = Objects.requireNonNull(context, "context");
         Runnable nonNullCommand = Objects.requireNonNull(command, "command");
-        delegate.execute(() -> run(ExecutionContext.empty(), nonNullCommand));
+        delegate.execute(() -> run(nonNullContext, nonNullCommand));
+    }
+
+    /**
+     * Executes work using a snapshot from the explicitly selected context facade.
+     *
+     * @param command the task to run
+     */
+    @Override
+    public void execute(Runnable command) {
+        ExecutionContext captured = storage.current().orElseGet(ExecutionContext::empty);
+        execute(captured, command);
     }
 
     private void run(ExecutionContext context, Runnable command) {
-        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(context)) {
+        try (ExecutionContextStorage.Scope ignored = storage.open(context);
+             Slf4jMdcScope mdcScope = Slf4jMdcScope.open(context)) {
             command.run();
         }
     }

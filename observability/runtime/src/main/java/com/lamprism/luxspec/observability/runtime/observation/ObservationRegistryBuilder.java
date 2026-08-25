@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.observability.runtime.observation;
 
+import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.observability.ObservabilityClock;
 import com.lamprism.luxspec.observability.SystemObservabilityClock;
 import com.lamprism.luxspec.observability.observation.ObservationActivation;
@@ -24,6 +25,7 @@ import com.lamprism.luxspec.observability.observation.ObservationHandler;
 import com.lamprism.luxspec.observability.observation.ObservationPredicate;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
 import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +37,7 @@ import java.util.Objects;
  * @author RollW
  */
 public final class ObservationRegistryBuilder {
+    private @Nullable ExecutionContextStorage contextStorage;
     private ObservabilityClock clock = new SystemObservabilityClock();
     private ObservationActivation activation = spec -> true;
     private final List<ObservationPredicate> predicates = new ArrayList<>();
@@ -47,6 +50,17 @@ public final class ObservationRegistryBuilder {
 
     public static ObservationRegistryBuilder builder() {
         return new ObservationRegistryBuilder();
+    }
+
+    /**
+     * Selects the context storage used for optional observation scopes and parent lookup.
+     *
+     * @param storage the explicitly selected context storage
+     * @return this builder
+     */
+    public ObservationRegistryBuilder contextStorage(ExecutionContextStorage storage) {
+        this.contextStorage = Objects.requireNonNull(storage, "storage");
+        return this;
     }
 
     public ObservationRegistryBuilder clock(ObservabilityClock clock) {
@@ -87,6 +101,7 @@ public final class ObservationRegistryBuilder {
 
     public ObservationRegistry build() {
         ObservationRegistry registry = new DefaultObservationRegistry(
+                contextStorage,
                 clock,
                 activation,
                 predicates,

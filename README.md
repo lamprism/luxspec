@@ -11,8 +11,9 @@
 </div>
 
 Luxspec is a modular Java library for backend applications that need clear boundaries between domain contracts, runtime
-behavior, and framework integrations. It provides provider-independent capabilities for typed configuration, query and
-pagination models, execution context, resources, security, users, and web responses, with optional Spring, JPA, Servlet,
+behavior, and framework integrations. It provides provider-independent capabilities for typed configuration, query,
+pagination, explicit execution context, resources, security, users, and web responses, with optional Spring, JPA,
+Servlet,
 Nimbus JWT, and Spring Boot adapters.
 
 > **Development status:** The current project version is `0.1.0-SNAPSHOT`. The public API is under active development
@@ -33,15 +34,15 @@ Nimbus JWT, and Spring Boot adapters.
 
 ## Capabilities
 
-| Area          | What it provides                                                                                                                                                                                                                  |
-|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Core          | Immutable scoped execution context, typed resource identity and provider registration, synchronous events, cache contracts, error codes, and message resolution contracts.                                                        |
-| Data          | Typed query fields and expressions, explicit complete/page/slice results, ordering, query windows, validation limits, and JPA Criteria translation.                                                                               |
-| Configuration | Typed `ConfigSpec<T>` definitions, parameter binding, codecs, validation, layered sources, operation-aware policies, fallback and origin tracking, cache coordination, and value-free change events.                              |
-| Security      | Authentication dispatch, subjects and grants, authorization scopes and resource actions, fail-closed request firewalls, cryptographic key-set contracts, access tokens, refresh-token lifecycle roles, and revocation boundaries. |
-| Users         | User and role contracts, lifecycle state, user browsing, password schemes, and user-to-security adapters. User persistence remains application-owned.                                                                             |
-| Web           | Provider-independent HTTP response and collection representation models, explicit pagination metadata, and Spring MVC adapters.                                                                                                   |
-| Spring Boot   | Focused auto-configuration modules for core, cache, configuration, data, security, users, and web utilities, plus one aggregate MVC starter.                                                                                      |
+| Area          | What it provides                                                                                                                                                                                                                    |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Core          | Immutable typed execution-context carriers with selectable storage, correlation identifiers, typed resource identity and provider registration, synchronous events, cache contracts, error codes, and message resolution contracts. |
+| Data          | Typed query fields and expressions, explicit complete/page/slice results, ordering, query windows, validation limits, and JPA Criteria translation.                                                                                 |
+| Configuration | Typed `ConfigSpec<T>` definitions, parameter binding, codecs, validation, layered sources, operation-aware policies, fallback and origin tracking, cache coordination, and value-free change events.                                |
+| Security      | Authentication dispatch, subjects and grants, authorization scopes and resource actions, fail-closed request firewalls, cryptographic key-set contracts, access tokens, refresh-token lifecycle roles, and revocation boundaries.   |
+| Users         | User and role contracts, lifecycle state, user browsing, password schemes, and user-to-security adapters. User persistence remains application-owned.                                                                               |
+| Web           | Provider-independent HTTP response and collection representation models, explicit pagination metadata, and Spring MVC adapters.                                                                                                     |
+| Spring Boot   | Focused auto-configuration modules for core, cache, configuration, data, security, users, and web utilities, plus one aggregate MVC starter.                                                                                        |
 
 ## Architecture
 
@@ -114,29 +115,26 @@ dependencies {
 
 ## Quick Start
 
-The core context API is immutable and typed. A scope restores the previous context when it closes:
+The core context API is an immutable carrier. It does not select a storage implementation, so a caller can pass the
+value directly through an invocation:
 
 ```java
 import com.lamprism.luxspec.context.ContextKey;
 import com.lamprism.luxspec.context.ExecutionContext;
-import com.lamprism.luxspec.context.ExecutionContexts;
 
-public final class RequestContextExample {
-    private static final ContextKey<String> REQUEST_ID =
-            ContextKey.of("requestId", String.class);
+ContextKey<String> requestId = ContextKey.of("requestId", String.class);
+ExecutionContext context = ExecutionContext.empty().with(requestId, "request-42");
+String value = context.get(requestId).orElseThrow();
+```
 
-    public static void run(String requestId) {
-        ExecutionContext context = ExecutionContext.empty()
-                .with(REQUEST_ID, requestId);
+An application that needs current-context lookup may explicitly select a storage implementation. The core API does not
+select one by default:
 
-        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(context)) {
-            String currentRequestId = ExecutionContexts.requireCurrent()
-                    .get(REQUEST_ID)
-                    .orElseThrow();
-            System.out.println(currentRequestId);
-        }
-    }
-}
+```java
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
+
+ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
 ```
 
 Configuration definitions are similarly independent from their storage provider:
@@ -196,7 +194,7 @@ the remaining modules follow the `luxspec-<project-name>` naming convention.
 |----------------------------------------------|------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
 | `:core:core-base`                            | `luxspec-core`                                 | Foundational validation, query, pagination, resource, context, event, cache, error, and message contracts, plus the bounded local Caffeine cache. |
 | `:core:core-spring`                          | `luxspec-core-spring`                          | Spring adapters for core capabilities.                                                                                                            |
-| `:core:core-spring-boot-autoconfigure`       | `luxspec-core-spring-boot-autoconfigure`       | Spring Boot defaults for core Spring adapters, including execution-context task propagation.                                                      |
+| `:core:core-spring-boot-autoconfigure`       | `luxspec-core-spring-boot-autoconfigure`       | Spring Boot defaults for core Spring adapters, plus optional context/task adapters when storage is supplied.                                      |
 | `:core:core-cache-spring-boot-autoconfigure` | `luxspec-core-cache-spring-boot-autoconfigure` | Spring Boot properties and default cache assembly for the local Caffeine cache.                                                                   |
 | `:data:data-jpa`                             | `luxspec-data-jpa`                             | JPA Criteria adapters for provider-independent query and pagination contracts.                                                                    |
 | `:data:data-jpa-spring-boot-autoconfigure`   | `luxspec-data-jpa-spring-boot-autoconfigure`   | Spring Boot defaults for JPA Criteria translation and the application-managed query executor factory.                                             |

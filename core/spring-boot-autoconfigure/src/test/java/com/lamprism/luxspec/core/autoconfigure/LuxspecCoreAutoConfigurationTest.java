@@ -16,7 +16,8 @@
 
 package com.lamprism.luxspec.core.autoconfigure;
 
-import com.lamprism.luxspec.context.spring.SpringExecutionContextTaskDecorator;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.resource.ResourceIdGenerator;
@@ -31,22 +32,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LuxspecCoreAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(LuxspecCoreAutoConfiguration.class));
-
-    @Test
-    void createsExecutionContextTaskDecoratorByDefault() {
-        contextRunner.run(context -> assertThat(context.getBean(TaskDecorator.class))
-                .isInstanceOf(SpringExecutionContextTaskDecorator.class));
-    }
-
-    @Test
-    void backsOffWhenApplicationProvidesTaskDecorator() {
-        TaskDecorator applicationDecorator = runnable -> runnable;
-
-        contextRunner
-                .withBean(TaskDecorator.class, () -> applicationDecorator)
-                .run(context -> assertThat(context.getBean(TaskDecorator.class))
-                        .isSameAs(applicationDecorator));
-    }
 
     @Test
     void createsUuidResourceIdGeneratorByDefault() {
@@ -68,5 +53,23 @@ class LuxspecCoreAutoConfigurationTest {
     void createsEventDispatcherByDefault() {
         contextRunner.run(context -> assertThat(context.getBean(EventDispatcher.class))
                 .isInstanceOf(EventDispatcherImpl.class));
+    }
+
+    @Test
+    void createsContextAdaptersOnlyWhenStorageIsExplicitlySupplied() {
+        contextRunner
+                .withBean(ExecutionContextStorage.class, ThreadLocalExecutionContextStorage::new)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(ExecutionContextStorage.class);
+                    assertThat(context).hasSingleBean(TaskDecorator.class);
+                });
+    }
+
+    @Test
+    void doesNotSelectAContextStorageByDefault() {
+        contextRunner.run(context -> {
+            assertThat(context).doesNotHaveBean(ExecutionContextStorage.class);
+            assertThat(context).doesNotHaveBean(TaskDecorator.class);
+        });
     }
 }

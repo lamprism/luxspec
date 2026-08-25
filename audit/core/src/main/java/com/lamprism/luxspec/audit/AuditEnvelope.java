@@ -25,7 +25,7 @@ import java.util.Objects;
  * <p>The event ID, publication time, metadata, event name, and payload are all
  * required. The event name follows {@link AuditNameValidator#require(String)}. The
  * envelope preserves its supplied identity and metadata; it does not copy the
- * payload or read ambient context.
+ * payload or infer missing publication metadata.
  *
  * @author RollW
  */

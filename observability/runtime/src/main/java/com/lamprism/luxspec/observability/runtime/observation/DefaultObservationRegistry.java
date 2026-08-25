@@ -18,7 +18,7 @@ package com.lamprism.luxspec.observability.runtime.observation;
 
 import com.lamprism.luxspec.context.ContextKey;
 import com.lamprism.luxspec.context.ExecutionContext;
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.observability.ObservabilityClock;
 import com.lamprism.luxspec.observability.observation.Observation;
 import com.lamprism.luxspec.observability.observation.ObservationActivation;
@@ -46,7 +46,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -60,6 +59,7 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
             Observation.class
     );
 
+    private final @Nullable ExecutionContextStorage contextStorage;
     private final ObservabilityClock clock;
     private final ObservationActivation activation;
     private final List<ObservationPredicate> predicates;
@@ -69,12 +69,14 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
     private boolean closed;
 
     DefaultObservationRegistry(
+            @Nullable ExecutionContextStorage contextStorage,
             ObservabilityClock clock,
             ObservationActivation activation,
             List<ObservationPredicate> predicates,
             List<ObservationFilter> filters,
             List<ObservationHandler> handlers
     ) {
+        this.contextStorage = contextStorage;
         this.clock = Objects.requireNonNull(clock, "clock");
         this.activation = Objects.requireNonNull(activation, "activation");
         this.predicates = List.copyOf(predicates);
@@ -186,8 +188,12 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
         if (start.parent() != null) {
             return start.parent();
         }
-        Optional<ExecutionContext> context = ExecutionContexts.current();
-        return context.flatMap(value -> value.get(CURRENT_OBSERVATION)).orElse(null);
+        if (contextStorage == null) {
+            return null;
+        }
+        return contextStorage.current()
+                .flatMap(context -> context.get(CURRENT_OBSERVATION))
+                .orElse(null);
     }
 
     private void requireOpen() {
@@ -350,17 +356,17 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
 
         @Override
         public ObservationScope openScope() {
-            synchronized (this) {
-                requireActive();
-            }
-            ExecutionContext current = ExecutionContexts.current().orElse(ExecutionContext.empty());
-            ExecutionContext scopedContext;
-            if (current.get(CURRENT_OBSERVATION).isPresent()) {
-                scopedContext = current.replace(CURRENT_OBSERVATION, this);
-            } else {
-                scopedContext = current.with(CURRENT_OBSERVATION, this);
-            }
-            ExecutionContexts.Scope contextScope = ExecutionContexts.open(scopedContext);
+            requireActive();
+            ExecutionContextStorage storage = registry.contextStorage;
+            ExecutionContext current = storage == null
+                    ? ExecutionContext.empty()
+                    : storage.current().orElseGet(ExecutionContext::empty);
+            ExecutionContext scopedContext = current.get(CURRENT_OBSERVATION).isPresent()
+                    ? current.replace(CURRENT_OBSERVATION, this)
+                    : current.with(CURRENT_OBSERVATION, this);
+            ExecutionContextStorage.@Nullable Scope contextScope = storage == null
+                    ? null
+                    : storage.open(scopedContext);
             registry.dispatchScopeOpened(view());
             return new Scope(contextScope);
         }
@@ -414,23 +420,26 @@ final class DefaultObservationRegistry implements ObservationRegistry, Observati
         }
 
         private final class Scope implements ObservationScope {
-            private final ExecutionContexts.Scope contextScope;
+            private final ExecutionContextStorage.@Nullable Scope contextScope;
             private boolean closed;
 
-            private Scope(ExecutionContexts.Scope contextScope) {
+            private Scope(ExecutionContextStorage.@Nullable Scope contextScope) {
                 this.contextScope = contextScope;
             }
 
             @Override
-            public synchronized void close() {
+            public void close() {
                 if (closed) {
                     return;
                 }
-                contextScope.close();
+                if (contextScope != null) {
+                    contextScope.close();
+                }
                 closed = true;
                 registry.dispatchScopeClosed(view());
             }
         }
+
     }
 
     private static final class SnapshotView implements ObservationView {

@@ -16,7 +16,9 @@
 
 package com.lamprism.luxspec.security.spring.authentication;
 
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContext;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.Slf4jMdcScope;
 import com.lamprism.luxspec.security.authentication.AccessTokenCredentials;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.Authenticator;
@@ -26,6 +28,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -51,8 +54,9 @@ import java.util.Optional;
 public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
     private final AuthenticationManager authenticationManager;
     private final AuthorizationHeaderBearerTokenResolver tokenResolver;
-    private final SpringAuthenticationExecutionContextBridge contextBridge;
     private final AuthenticationEntryPoint authenticationEntryPoint;
+    private final @Nullable ExecutionContextStorage storage;
+    private final SpringAuthenticationExecutionContextBridge contextBridge;
 
     /**
      * Creates a stateless filter with standard Authorization-header resolution and HTTP 401 failures.
@@ -63,8 +67,26 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
         this(
                 new ProviderManager(new LuxspecAccessTokenAuthenticationProvider(authenticator)),
                 new AuthorizationHeaderBearerTokenResolver(),
-                new SpringAuthenticationExecutionContextBridge(),
-                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)
+                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                null
+        );
+    }
+
+    /**
+     * Creates a stateless filter with optional context storage.
+     *
+     * @param authenticator the access-token authenticator
+     * @param storage       the optional context storage for authenticated request values
+     */
+    public LuxspecBearerAuthenticationFilter(
+            Authenticator<AccessTokenCredentials> authenticator,
+            @Nullable ExecutionContextStorage storage
+    ) {
+        this(
+                new ProviderManager(new LuxspecAccessTokenAuthenticationProvider(authenticator)),
+                new AuthorizationHeaderBearerTokenResolver(),
+                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                storage
         );
     }
 
@@ -77,29 +99,45 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
         this(
                 authenticationManager,
                 new AuthorizationHeaderBearerTokenResolver(),
-                new SpringAuthenticationExecutionContextBridge(),
-                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)
+                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                null
         );
     }
 
     /**
-     * Creates a stateless filter with explicit resolution, context, and failure policies.
+     * Creates a stateless filter with explicit resolution and failure policies.
      *
      * @param authenticationManager    the manager that authenticates Bearer request tokens
      * @param tokenResolver            the Bearer header resolver
-     * @param contextBridge            the downstream ExecutionContext bridge
      * @param authenticationEntryPoint the Spring Security authentication failure handler
      */
     public LuxspecBearerAuthenticationFilter(
             AuthenticationManager authenticationManager,
             AuthorizationHeaderBearerTokenResolver tokenResolver,
-            SpringAuthenticationExecutionContextBridge contextBridge,
             AuthenticationEntryPoint authenticationEntryPoint
+    ) {
+        this(authenticationManager, tokenResolver, authenticationEntryPoint, null);
+    }
+
+    /**
+     * Creates a stateless filter with optional context storage.
+     *
+     * @param authenticationManager    the manager that authenticates Bearer request tokens
+     * @param tokenResolver            the Bearer header resolver
+     * @param authenticationEntryPoint the Spring Security authentication failure handler
+     * @param storage                  the optional context storage for authenticated request values
+     */
+    public LuxspecBearerAuthenticationFilter(
+            AuthenticationManager authenticationManager,
+            AuthorizationHeaderBearerTokenResolver tokenResolver,
+            AuthenticationEntryPoint authenticationEntryPoint,
+            @Nullable ExecutionContextStorage storage
     ) {
         this.authenticationManager = Objects.requireNonNull(authenticationManager, "authenticationManager");
         this.tokenResolver = Objects.requireNonNull(tokenResolver, "tokenResolver");
-        this.contextBridge = Objects.requireNonNull(contextBridge, "contextBridge");
         this.authenticationEntryPoint = Objects.requireNonNull(authenticationEntryPoint, "authenticationEntryPoint");
+        this.storage = storage;
+        this.contextBridge = new SpringAuthenticationExecutionContextBridge();
     }
 
     @Override
@@ -151,8 +189,24 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
         SecurityContext authenticatedContext = SecurityContextHolder.createEmptyContext();
         authenticatedContext.setAuthentication(new LuxspecSpringAuthentication(authentication));
         SecurityContextHolder.setContext(authenticatedContext);
-        try (ExecutionContexts.Scope ignored = contextBridge.open(authentication)) {
-            filterChain.doFilter(request, response);
+        if (storage == null) {
+            try {
+                filterChain.doFilter(request, response);
+            } finally {
+                SecurityContextHolder.setContext(previousContext);
+            }
+            return;
+        }
+        ExecutionContext currentContext = storage.current().orElseGet(ExecutionContext::empty);
+        ExecutionContext authenticatedExecutionContext = contextBridge.withAuthentication(
+                currentContext,
+                authentication
+        );
+        try {
+            try (ExecutionContextStorage.Scope ignored = storage.open(authenticatedExecutionContext);
+                 Slf4jMdcScope mdcScope = Slf4jMdcScope.open(authenticatedExecutionContext)) {
+                filterChain.doFilter(request, response);
+            }
         } finally {
             SecurityContextHolder.setContext(previousContext);
         }

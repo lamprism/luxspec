@@ -17,9 +17,11 @@
 package com.lamprism.luxspec.web.spring;
 
 import com.lamprism.luxspec.context.CorrelationId;
+import com.lamprism.luxspec.context.CorrelationIdGenerator;
 import com.lamprism.luxspec.context.ExecutionContext;
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.Slf4jMdcScope;
+import com.lamprism.luxspec.context.UuidCorrelationIdGenerator;
 import com.lamprism.luxspec.web.WebContextKeys;
 import com.lamprism.luxspec.web.WebRequestContext;
 import jakarta.servlet.FilterChain;
@@ -34,10 +36,12 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Creates and cleans the immutable Web request scope around one servlet request.
+ * Creates immutable Web request context facts and returns one correlation identifier around one
+ * servlet request.
  *
- * <p>The filter retains request facts and a safe correlation identifier, never the mutable servlet
- * request or response objects.</p>
+ * <p>Context lookup is optional. When an {@link ExecutionContextStorage} is supplied, the filter
+ * opens the derived request context around the downstream chain. The filter does not select a
+ * storage implementation itself.</p>
  *
  * @author RollW
  */
@@ -46,12 +50,13 @@ public class LuxspecRequestContextFilter extends OncePerRequestFilter implements
 
     private final String correlationIdHeader;
     private final CorrelationIdGenerator correlationIdGenerator;
+    private final @Nullable ExecutionContextStorage storage;
 
     /**
      * Creates a filter with the default correlation ID header and UUID generator.
      */
     public LuxspecRequestContextFilter() {
-        this(DEFAULT_CORRELATION_ID_HEADER, new UuidCorrelationIdGenerator());
+        this(DEFAULT_CORRELATION_ID_HEADER, new UuidCorrelationIdGenerator(), null);
     }
 
     /**
@@ -64,15 +69,32 @@ public class LuxspecRequestContextFilter extends OncePerRequestFilter implements
             String correlationIdHeader,
             CorrelationIdGenerator correlationIdGenerator
     ) {
+        this(correlationIdHeader, correlationIdGenerator, null);
+    }
+
+    /**
+     * Creates a filter with explicit correlation and optional context-storage dependencies.
+     *
+     * @param correlationIdHeader    the request and response header name
+     * @param correlationIdGenerator the generator used when the request header is absent or invalid
+     * @param storage                the optional context storage used around the downstream chain
+     */
+    public LuxspecRequestContextFilter(
+            String correlationIdHeader,
+            CorrelationIdGenerator correlationIdGenerator,
+            @Nullable ExecutionContextStorage storage
+    ) {
         this.correlationIdHeader = requireHeaderName(correlationIdHeader);
         this.correlationIdGenerator = Objects.requireNonNull(
                 correlationIdGenerator,
                 "correlationIdGenerator"
         );
+        this.storage = storage;
     }
 
     /**
-     * Runs before the Security filter chain so downstream authentication augments the request root.
+     * Runs before the Security filter chain so the response correlation header and request context
+     * are available early.
      *
      * @return the highest servlet filter precedence
      */
@@ -89,26 +111,21 @@ public class LuxspecRequestContextFilter extends OncePerRequestFilter implements
     ) throws ServletException, IOException {
         CorrelationId correlationId = resolveCorrelationId(request.getHeader(correlationIdHeader));
         response.setHeader(correlationIdHeader, correlationId.value());
-        ExecutionContext context = createContext(request, correlationId);
-        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(context);
+        ExecutionContext context = ExecutionContext.empty()
+                .with(WebContextKeys.REQUEST, new WebRequestContext(
+                        request.getMethod(),
+                        request.getRequestURI(),
+                        request.getLocale()
+                ))
+                .with(WebContextKeys.CORRELATION_ID, correlationId);
+        if (storage == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        try (ExecutionContextStorage.Scope ignored = storage.open(context);
              Slf4jMdcScope mdcScope = Slf4jMdcScope.open(context)) {
             filterChain.doFilter(request, response);
         }
-    }
-
-    private static ExecutionContext createContext(
-            HttpServletRequest request,
-            CorrelationId correlationId
-    ) {
-        HttpServletRequest nonNullRequest = Objects.requireNonNull(request, "request");
-        WebRequestContext requestContext = new WebRequestContext(
-                nonNullRequest.getMethod(),
-                nonNullRequest.getRequestURI(),
-                nonNullRequest.getLocale()
-        );
-        return ExecutionContext.empty()
-                .with(WebContextKeys.REQUEST, requestContext)
-                .with(WebContextKeys.CORRELATION_ID, correlationId);
     }
 
     private CorrelationId resolveCorrelationId(@Nullable String headerValue) {

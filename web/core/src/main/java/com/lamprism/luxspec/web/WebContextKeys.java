@@ -21,13 +21,13 @@ import com.lamprism.luxspec.context.CorrelationId;
 import com.lamprism.luxspec.context.ExecutionContextKeys;
 
 /**
- * Typed execution-context keys owned by the Web domain.
+ * Typed context keys owned by the Web domain.
  *
  * @author RollW
  */
 public final class WebContextKeys {
     /**
-     * Identifies the immutable request facts for the current Web request.
+     * Identifies immutable request facts for the current Web request.
      */
     public static final ContextKey<WebRequestContext> REQUEST = ContextKey.of(
             "web.request",

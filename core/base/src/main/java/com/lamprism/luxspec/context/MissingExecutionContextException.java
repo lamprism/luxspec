@@ -16,19 +16,13 @@
 
 package com.lamprism.luxspec.context;
 
-import com.lamprism.luxspec.CommonErrorCode;
-import com.lamprism.luxspec.LuxspecException;
-
 /**
- * Indicates that code requiring an ambient ExecutionContext ran without one.
+ * Indicates that a required context was requested from a storage with no active context.
  *
  * @author RollW
  */
-public final class MissingExecutionContextException extends LuxspecException {
-    /**
-     * Creates a missing-context failure.
-     */
+public class MissingExecutionContextException extends IllegalStateException {
     public MissingExecutionContextException() {
-        super(CommonErrorCode.ILLEGAL_STATE, "No ExecutionContext is active");
+        super("No execution context is available");
     }
 }

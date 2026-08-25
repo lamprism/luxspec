@@ -23,7 +23,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Projects safe shared execution values into SLF4J MDC for one lexical scope.
+ * Optionally projects the shared correlation identifier into SLF4J MDC for one lexical scope.
+ *
+ * <p>MDC is a provider-owned thread-bound projection. This class only activates when a caller
+ * explicitly opens it and never makes MDC part of the core context carrier.</p>
  *
  * @author RollW
  */
@@ -35,7 +38,8 @@ public final class Slf4jMdcScope implements AutoCloseable {
 
     private Slf4jMdcScope(Optional<ExecutionContext> context) {
         previousCorrelationId = MDC.get(CORRELATION_ID_KEY);
-        CorrelationId correlationId = context.flatMap(value -> value.get(ExecutionContextKeys.CORRELATION_ID))
+        CorrelationId correlationId = context
+                .flatMap(value -> value.get(ExecutionContextKeys.CORRELATION_ID))
                 .orElse(null);
         if (correlationId == null) {
             MDC.remove(CORRELATION_ID_KEY);
@@ -45,14 +49,10 @@ public final class Slf4jMdcScope implements AutoCloseable {
     }
 
     /**
-     * Opens an MDC projection from the current execution context.
-     */
-    public static Slf4jMdcScope open() {
-        return new Slf4jMdcScope(ExecutionContexts.current());
-    }
-
-    /**
-     * Opens an MDC projection from an explicit immutable execution context.
+     * Opens an MDC projection from an explicit immutable context.
+     *
+     * @param context the context to project
+     * @return the MDC projection scope
      */
     public static Slf4jMdcScope open(ExecutionContext context) {
         return new Slf4jMdcScope(Optional.of(Objects.requireNonNull(context, "context")));

@@ -16,7 +16,6 @@
 
 package com.lamprism.luxspec.context;
 
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -24,6 +23,9 @@ import java.util.Optional;
 
 /**
  * An immutable carrier for typed request and execution values.
+ *
+ * <p>The carrier is independent of how a boundary stores or passes it. Callers may pass it as an
+ * ordinary value, attach it to a request, or install it through an explicitly selected storage.</p>
  *
  * @author RollW
  */

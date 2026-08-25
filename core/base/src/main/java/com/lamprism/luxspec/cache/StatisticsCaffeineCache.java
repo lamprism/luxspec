@@ -17,6 +17,8 @@
 package com.lamprism.luxspec.cache;
 
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
@@ -47,6 +49,7 @@ class StatisticsCaffeineCache<K, V> implements Cache<K, V>, CacheStatisticsSourc
     }
 
     @Override
+    @Nullable
     public V getIfPresent(K key) {
         return cache.getIfPresent(key);
     }

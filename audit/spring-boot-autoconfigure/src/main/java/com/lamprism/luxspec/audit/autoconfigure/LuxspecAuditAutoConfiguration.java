@@ -16,6 +16,9 @@
 
 package com.lamprism.luxspec.audit.autoconfigure;
 
+import com.lamprism.luxspec.audit.AuditActor;
+import com.lamprism.luxspec.audit.AuditFieldSet;
+import com.lamprism.luxspec.audit.AuditMetadata;
 import com.lamprism.luxspec.audit.integration.ExecutionContextAuditMetadataProvider;
 import com.lamprism.luxspec.audit.integration.config.ConfigAuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.integration.security.SecurityAuditEventDefinitionContributor;
@@ -32,6 +35,7 @@ import com.lamprism.luxspec.audit.publish.DefaultAuditPublisher;
 import com.lamprism.luxspec.audit.publish.UuidAuditEventIdGenerator;
 import com.lamprism.luxspec.audit.query.AuditReader;
 import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.event.EventSubscription;
@@ -39,6 +43,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -102,6 +107,7 @@ public class LuxspecAuditAutoConfiguration {
      */
     @Bean
     @ConditionalOnBean(AuditSink.class)
+    @ConditionalOnClass(name = "com.lamprism.luxspec.config.event.ConfigSourceChangedEvent")
     public AuditEventDefinitionContributor luxspecConfigAuditEventDefinitionContributor() {
         return new ConfigAuditEventDefinitionContributor();
     }
@@ -113,6 +119,7 @@ public class LuxspecAuditAutoConfiguration {
      */
     @Bean
     @ConditionalOnBean(AuditSink.class)
+    @ConditionalOnClass(name = "com.lamprism.luxspec.security.authentication.AuthenticationEvent")
     public AuditEventDefinitionContributor luxspecSecurityAuditEventDefinitionContributor() {
         return new SecurityAuditEventDefinitionContributor();
     }
@@ -124,20 +131,23 @@ public class LuxspecAuditAutoConfiguration {
      */
     @Bean
     @ConditionalOnBean(AuditSink.class)
+    @ConditionalOnClass(name = "com.lamprism.luxspec.user.lifecycle.UserRegisteredEvent")
     public AuditEventDefinitionContributor luxspecUserAuditEventDefinitionContributor() {
         return new UserAuditEventDefinitionContributor();
     }
 
     /**
-     * Creates the execution-context metadata provider when no provider is supplied.
+     * Creates the context-backed metadata provider only when the application explicitly supplies
+     * context storage.
      *
-     * @return the default audit metadata provider
+     * @param storage the application-selected context storage
+     * @return the context-backed metadata provider
      */
     @Bean
-    @ConditionalOnBean(AuditSink.class)
+    @ConditionalOnBean({AuditSink.class, ExecutionContextStorage.class})
     @ConditionalOnMissingBean(AuditMetadataProvider.class)
-    public AuditMetadataProvider luxspecAuditMetadataProvider() {
-        return new ExecutionContextAuditMetadataProvider();
+    public AuditMetadataProvider luxspecAuditMetadataProvider(ExecutionContextStorage storage) {
+        return new ExecutionContextAuditMetadataProvider(storage);
     }
 
     /**
@@ -153,18 +163,6 @@ public class LuxspecAuditAutoConfiguration {
     }
 
     /**
-     * Creates the required delivery policy when no policy is supplied.
-     *
-     * @return the default required delivery policy
-     */
-    @Bean
-    @ConditionalOnBean(AuditSink.class)
-    @ConditionalOnMissingBean(AuditDeliveryPolicy.class)
-    public AuditDeliveryPolicy luxspecAuditDeliveryPolicy() {
-        return AuditDeliveryPolicy.REQUIRED;
-    }
-
-    /**
      * Creates the publisher from application-owned sink and optional assembly roles.
      *
      * @param registry          the translator registry
@@ -172,7 +170,6 @@ public class LuxspecAuditAutoConfiguration {
      * @param clocks            optional publication clocks
      * @param idGenerator       the event ID generator
      * @param metadataProviders optional metadata providers
-     * @param policy            the delivery policy
      * @param errorHandlers     optional best-effort failure handlers
      * @return the assembled audit publisher
      */
@@ -185,11 +182,16 @@ public class LuxspecAuditAutoConfiguration {
             ObjectProvider<Clock> clocks,
             AuditEventIdGenerator idGenerator,
             ObjectProvider<AuditMetadataProvider> metadataProviders,
-            AuditDeliveryPolicy policy,
             ObjectProvider<AuditPublicationErrorHandler> errorHandlers
     ) {
         Clock clock = clocks.getIfAvailable(Clock::systemUTC);
-        AuditMetadataProvider metadataProvider = metadataProviders.getIfAvailable(ExecutionContextAuditMetadataProvider::new);
+        AuditMetadataProvider metadataProvider = metadataProviders.getIfAvailable(
+                () -> () -> new AuditMetadata(
+                        AuditActor.unknown(),
+                        null,
+                        AuditFieldSet.empty()
+                )
+        );
         AuditPublicationErrorHandler errorHandler = errorHandlers.getIfAvailable();
         return new DefaultAuditPublisher(
                 registry,
@@ -197,7 +199,7 @@ public class LuxspecAuditAutoConfiguration {
                 clock,
                 idGenerator,
                 metadataProvider,
-                policy,
+                AuditDeliveryPolicy.REQUIRED,
                 errorHandler
         );
     }

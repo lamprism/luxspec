@@ -155,8 +155,8 @@ class CachingConfigProviderTest {
 
         @Override
         public <K, V> Cache<K, V> create(
-                CacheName name,
-                CacheProfile profile
+                @NonNull CacheName name,
+                @NonNull CacheProfile profile
         ) {
             RecordingCache<K, V> created = new RecordingCache<>();
             cache = created;
@@ -181,12 +181,12 @@ class CachingConfigProviderTest {
         }
 
         @Override
-        public V get(K key, Function<? super K, ? extends V> loader) {
+        public V get(@NonNull K key, @NonNull Function<? super K, ? extends V> loader) {
             return values.computeIfAbsent(key, loader);
         }
 
         @Override
-        public void put(K key, V value) {
+        public void put(@NonNull K key, @NonNull V value) {
             values.put(key, value);
         }
 

@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.core.autoconfigure;
 
+import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.spring.SpringExecutionContextTaskDecorator;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventDispatcherImpl;
@@ -23,7 +24,7 @@ import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.resource.ResourceIdGenerator;
 import com.lamprism.luxspec.resource.UuidResourceIdGenerator;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.TaskDecorator;
@@ -34,17 +35,19 @@ import org.springframework.core.task.TaskDecorator;
  * @author RollW
  */
 @AutoConfiguration
-@ConditionalOnClass(TaskDecorator.class)
 public class LuxspecCoreAutoConfiguration {
     /**
-     * Creates the execution-context task decorator when the application has not supplied one.
+     * Creates the Spring task decorator only when an application explicitly selects context
+     * storage. No storage implementation is selected by this auto-configuration.
      *
-     * @return the context-propagating task decorator
+     * @param storage the application-selected context storage
+     * @return the context task decorator
      */
     @Bean
+    @ConditionalOnBean(ExecutionContextStorage.class)
     @ConditionalOnMissingBean(TaskDecorator.class)
-    public TaskDecorator luxspecTaskDecorator() {
-        return new SpringExecutionContextTaskDecorator();
+    public TaskDecorator luxspecExecutionContextTaskDecorator(ExecutionContextStorage storage) {
+        return new SpringExecutionContextTaskDecorator(storage);
     }
 
     /**

@@ -179,12 +179,12 @@ class LuxspecConfigAutoConfigurationTest {
         }
 
         @Override
-        public V get(K key, Function<? super K, ? extends V> loader) {
+        public V get(@NonNull K key, @NonNull Function<? super K, ? extends V> loader) {
             return values.computeIfAbsent(key, loader);
         }
 
         @Override
-        public void put(K key, V value) {
+        public void put(@NonNull K key, @NonNull V value) {
             values.put(key, value);
         }
 
@@ -209,7 +209,7 @@ class LuxspecConfigAutoConfigurationTest {
         private final List<CacheProfile> profiles = new ArrayList<>();
 
         @Override
-        public <K, V> Cache<K, V> create(CacheName name, CacheProfile profile) {
+        public <K, V> Cache<K, V> create(@NonNull CacheName name, @NonNull CacheProfile profile) {
             names.add(name);
             profiles.add(profile);
             return new TestCache<>();

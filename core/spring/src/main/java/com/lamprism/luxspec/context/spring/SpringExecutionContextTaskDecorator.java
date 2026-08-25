@@ -17,30 +17,41 @@
 package com.lamprism.luxspec.context.spring;
 
 import com.lamprism.luxspec.context.ExecutionContext;
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.Slf4jMdcScope;
 import org.springframework.core.task.TaskDecorator;
 
 import java.util.Objects;
 
 /**
- * Propagates the complete Luxspec execution context through a Spring task executor.
+ * Installs a context snapshot through an explicitly selected Spring task boundary.
  *
- * <p>The snapshot is captured when Spring decorates the task and the scope is closed after the
- * task finishes, including when the task throws.</p>
+ * <p>The application supplies the storage implementation. This decorator does not select a
+ * storage strategy.</p>
  *
  * @author RollW
  */
-public class SpringExecutionContextTaskDecorator implements TaskDecorator {
+public final class SpringExecutionContextTaskDecorator implements TaskDecorator {
+    private final ExecutionContextStorage storage;
+
+    /**
+     * Creates a decorator using one explicitly selected context storage.
+     *
+     * @param storage the context storage used for capture and installation
+     */
+    public SpringExecutionContextTaskDecorator(ExecutionContextStorage storage) {
+        this.storage = Objects.requireNonNull(storage, "storage");
+    }
+
     @Override
     public Runnable decorate(Runnable runnable) {
         Runnable nonNullRunnable = Objects.requireNonNull(runnable, "runnable");
-        ExecutionContext capturedContext = ExecutionContexts.snapshot().orElseGet(ExecutionContext::empty);
-        return () -> run(capturedContext, nonNullRunnable);
-    }
-
-    private static void run(ExecutionContext capturedContext, Runnable runnable) {
-        try (ExecutionContexts.Scope ignored = ExecutionContexts.open(capturedContext)) {
-            runnable.run();
-        }
+        ExecutionContext capturedContext = storage.current().orElseGet(ExecutionContext::empty);
+        return () -> {
+            try (ExecutionContextStorage.Scope ignored = storage.open(capturedContext);
+                 Slf4jMdcScope mdcScope = Slf4jMdcScope.open(capturedContext)) {
+                nonNullRunnable.run();
+            }
+        };
     }
 }

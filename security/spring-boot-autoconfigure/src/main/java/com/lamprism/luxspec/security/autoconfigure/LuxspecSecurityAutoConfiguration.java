@@ -16,8 +16,10 @@
 
 package com.lamprism.luxspec.security.autoconfigure;
 
+import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.security.authentication.AccessTokenAuthenticator;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
+import com.lamprism.luxspec.security.spring.authentication.AuthorizationHeaderBearerTokenResolver;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecAccessTokenAuthenticationProvider;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecBearerAuthenticationFilter;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
@@ -159,6 +161,7 @@ public class LuxspecSecurityAutoConfiguration {
          *
          * @param httpSecurity          the servlet security builder
          * @param authenticationManager the configured Spring authentication manager
+         * @param storage               the optional explicitly selected context storage
          * @return the stateless protected filter chain
          */
         @ConditionalOnBean(AccessTokenAuthenticator.class)
@@ -166,7 +169,8 @@ public class LuxspecSecurityAutoConfiguration {
         @Bean
         public SecurityFilterChain luxspecSecurityFilterChain(
                 HttpSecurity httpSecurity,
-                AuthenticationManager authenticationManager
+                AuthenticationManager authenticationManager,
+                ObjectProvider<ExecutionContextStorage> storage
         ) {
             AuthenticationEntryPoint unauthorized = new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED);
             httpSecurity
@@ -179,7 +183,12 @@ public class LuxspecSecurityAutoConfiguration {
                     .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorized))
                     .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                     .addFilterAfter(
-                            new LuxspecBearerAuthenticationFilter(authenticationManager),
+                            new LuxspecBearerAuthenticationFilter(
+                                    authenticationManager,
+                                    new AuthorizationHeaderBearerTokenResolver(),
+                                    unauthorized,
+                                    storage.getIfAvailable()
+                            ),
                             SecurityContextHolderFilter.class
                     );
             return httpSecurity.build();

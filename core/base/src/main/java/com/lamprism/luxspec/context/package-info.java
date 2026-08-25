@@ -15,7 +15,7 @@
  */
 
 /**
- * Immutable scoped execution-context contracts and propagation support.
+ * Immutable execution-context carriers and selectable storage contracts.
  */
 @NullMarked
 package com.lamprism.luxspec.context;

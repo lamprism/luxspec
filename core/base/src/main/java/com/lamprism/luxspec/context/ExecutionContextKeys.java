@@ -17,7 +17,7 @@
 package com.lamprism.luxspec.context;
 
 /**
- * Shared safe values carried by an ExecutionContext.
+ * Shared safe values carried by an {@link ExecutionContext}.
  *
  * @author RollW
  */

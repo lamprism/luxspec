@@ -16,9 +16,10 @@
 
 package com.lamprism.luxspec.web.spring;
 
-import com.lamprism.luxspec.context.ContextKey;
 import com.lamprism.luxspec.context.CorrelationId;
-import com.lamprism.luxspec.context.ExecutionContexts;
+import com.lamprism.luxspec.context.ExecutionContext;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.web.WebContextKeys;
 import com.lamprism.luxspec.web.WebRequestContext;
 import org.junit.jupiter.api.Test;
@@ -26,10 +27,7 @@ import org.springframework.core.Ordered;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -42,53 +40,61 @@ class LuxspecRequestContextFilterTest {
     }
 
     @Test
-    void opensRequestAndCorrelationValuesAndReturnsTheCorrelationHeader() throws Exception {
+    void returnsTheCorrelationHeaderWithoutSelectingStorage() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/accounts");
         request.addHeader("X-Request-ID", "trace-123");
         MockHttpServletResponse response = new MockHttpServletResponse();
         LuxspecRequestContextFilter filter = new LuxspecRequestContextFilter();
-        AtomicReference<WebRequestContext> requestContext = new AtomicReference<>();
-        AtomicReference<CorrelationId> correlationId = new AtomicReference<>();
 
         filter.doFilter(request, response, (servletRequest, servletResponse) -> {
-            requestContext.set(ExecutionContexts.requireCurrent()
-                    .get(WebContextKeys.REQUEST)
-                    .orElseThrow());
-            correlationId.set(ExecutionContexts.requireCurrent()
-                    .get(WebContextKeys.CORRELATION_ID)
-                    .orElseThrow());
         });
 
-        assertEquals(new WebRequestContext("POST", "/accounts", request.getLocale()), requestContext.get());
-        assertEquals(CorrelationId.of("trace-123"), correlationId.get());
+        assertEquals(CorrelationId.of("trace-123"), CorrelationId.of(response.getHeader("X-Request-ID")));
         assertEquals("trace-123", response.getHeader("X-Request-ID"));
-        assertTrue(ExecutionContexts.current().isEmpty());
     }
 
     @Test
-    void isolatesTheRequestContextFromAnOuterContextAndRestoresItWhenTheChainFails() throws Exception {
-        ContextKey<String> outerKey = ContextKey.of("outer", String.class);
+    void opensTheExplicitRequestContextWhenConfigured() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/accounts");
+        request.addHeader("X-Request-ID", "trace-123");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        LuxspecRequestContextFilter filter = new LuxspecRequestContextFilter(
+                "X-Request-ID",
+                () -> CorrelationId.of("generated-id"),
+                storage
+        );
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            ExecutionContext context = storage.requireCurrent();
+            assertEquals(
+                    new WebRequestContext("POST", "/accounts", request.getLocale()),
+                    context.get(WebContextKeys.REQUEST).orElseThrow()
+            );
+            assertEquals(
+                    CorrelationId.of("trace-123"),
+                    context.get(WebContextKeys.CORRELATION_ID).orElseThrow()
+            );
+        });
+
+        assertTrue(storage.current().isEmpty());
+    }
+
+    @Test
+    void propagatesTheChainFailure() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/failure");
         MockHttpServletResponse response = new MockHttpServletResponse();
         LuxspecRequestContextFilter filter = new LuxspecRequestContextFilter();
         RuntimeException failure = new RuntimeException("expected");
 
-        try (ExecutionContexts.Scope outerScope = ExecutionContexts.open(
-                com.lamprism.luxspec.context.ExecutionContext.empty().with(outerKey, "outer-value")
-        )) {
-            RuntimeException thrown = assertThrows(
-                    RuntimeException.class,
-                    () -> filter.doFilter(request, response, (servletRequest, servletResponse) -> {
-                        assertFalse(ExecutionContexts.requireCurrent().get(outerKey).isPresent());
-                        throw failure;
-                    })
-            );
+        RuntimeException thrown = assertThrows(
+                RuntimeException.class,
+                () -> filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+                    throw failure;
+                })
+        );
 
-            assertSame(failure, thrown);
-            assertFalse(ExecutionContexts.requireCurrent().get(WebContextKeys.REQUEST).isPresent());
-            assertEquals("outer-value", ExecutionContexts.requireCurrent().get(outerKey).orElseThrow());
-        }
-        assertTrue(ExecutionContexts.current().isEmpty());
+        assertSame(failure, thrown);
     }
 
     @Test
@@ -99,13 +105,11 @@ class LuxspecRequestContextFilterTest {
         LuxspecRequestContextFilter filter = new LuxspecRequestContextFilter();
 
         filter.doFilter(request, response, (servletRequest, servletResponse) -> {
-            assertTrue(ExecutionContexts.requireCurrent().get(WebContextKeys.CORRELATION_ID).isPresent());
         });
 
         String responseCorrelationId = response.getHeader("X-Request-ID");
         assertNotEquals("invalid trace id", responseCorrelationId);
         CorrelationId.of(responseCorrelationId);
-        assertTrue(ExecutionContexts.current().isEmpty());
     }
 
     @Test
@@ -118,12 +122,6 @@ class LuxspecRequestContextFilterTest {
         );
 
         filter.doFilter(request, response, (servletRequest, servletResponse) -> {
-            assertEquals(
-                    CorrelationId.of("generated-id"),
-                    ExecutionContexts.requireCurrent()
-                            .get(WebContextKeys.CORRELATION_ID)
-                            .orElseThrow()
-            );
         });
 
         assertEquals("generated-id", response.getHeader("X-Correlation-ID"));

@@ -23,10 +23,13 @@ import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
 import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
+import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditSink;
 import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
+import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.core.autoconfigure.LuxspecCoreAutoConfiguration;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventDispatcherImpl;
@@ -35,6 +38,7 @@ import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.time.Instant;
@@ -62,9 +66,8 @@ class LuxspecAuditAutoConfigurationTest {
                     assertThat(context).hasSingleBean(AuditRegistry.class);
                     assertThat(context).hasSingleBean(AuditPublisher.class);
                     assertThat(context).hasSingleBean(AuditEventIdGenerator.class);
-                    assertThat(context).hasSingleBean(AuditDeliveryPolicy.class);
-                    assertThat(context.getBean(AuditDeliveryPolicy.class))
-                            .isEqualTo(AuditDeliveryPolicy.REQUIRED);
+                    assertThat(context).doesNotHaveBean(AuditMetadataProvider.class);
+                    assertThat(context).doesNotHaveBean(AuditDeliveryPolicy.class);
                     assertThat(context).hasSingleBean(EventDispatcher.class);
                     assertThat(context.getBean(EventDispatcher.class))
                             .isInstanceOf(EventDispatcherImpl.class);
@@ -108,6 +111,15 @@ class LuxspecAuditAutoConfigurationTest {
     }
 
     @Test
+    void createsContextMetadataProviderOnlyWhenContextStorageIsSupplied() {
+        contextRunner
+                .withBean(ExecutionContextStorage.class, ThreadLocalExecutionContextStorage::new)
+                .withBean(AuditSink.class, () -> entry -> {
+                })
+                .run(context -> assertThat(context).hasSingleBean(AuditMetadataProvider.class));
+    }
+
+    @Test
     void includesApplicationProvidedEventDefinitionContributors() {
         List<AuditEntry> entries = new ArrayList<>();
         contextRunner
@@ -121,5 +133,21 @@ class LuxspecAuditAutoConfigurationTest {
                 .withBean(AuditSink.class, () -> entries::add)
                 .run(context -> assertThat(context.getBean(AuditRegistry.class).find("application.test"))
                         .isNotNull());
+    }
+
+    @Test
+    void doesNotCreateBuiltInContributorsWhenFeatureEventTypesAreAbsent() {
+        contextRunner
+                .withClassLoader(new FilteredClassLoader(
+                        "com.lamprism.luxspec.config.event",
+                        "com.lamprism.luxspec.security.authentication",
+                        "com.lamprism.luxspec.user.lifecycle"
+                ))
+                .withBean(AuditSink.class, () -> entry -> {
+                })
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(AuditEventDefinitionContributor.class);
+                    assertThat(context).hasSingleBean(AuditRegistry.class);
+                });
     }
 }
