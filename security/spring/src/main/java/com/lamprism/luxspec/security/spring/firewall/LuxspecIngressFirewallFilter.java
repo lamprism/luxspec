@@ -38,36 +38,36 @@ import java.util.Objects;
  */
 public class LuxspecIngressFirewallFilter extends OncePerRequestFilter {
     private final FirewallChain<IngressRequest> firewallChain;
-    private final ServletIngressRequestAdapter requestAdapter;
+    private final ServletClientAddressResolver clientAddressResolver;
     private final FirewallDecisionHandler decisionHandler;
 
     /**
-     * Creates an ingress filter with Servlet address extraction and HTTP 403 denials.
+     * Creates an ingress filter with Servlet remote-address resolution and HTTP 403 denials.
      *
      * @param firewallChain the ingress Firewall chain
      */
     public LuxspecIngressFirewallFilter(FirewallChain<IngressRequest> firewallChain) {
         this(
                 firewallChain,
-                new ServletIngressRequestAdapter(),
+                ServletClientAddressResolver.remoteAddress(),
                 new HttpStatusFirewallDecisionHandler()
         );
     }
 
     /**
-     * Creates an ingress filter with explicit Servlet extraction and denial handling.
+     * Creates an ingress filter with explicit client-address resolution and denial handling.
      *
-     * @param firewallChain   the ingress Firewall chain
-     * @param requestAdapter  the Servlet ingress adapter
-     * @param decisionHandler the denied-decision handler
+     * @param firewallChain          the ingress Firewall chain
+     * @param clientAddressResolver the trusted client-address resolver
+     * @param decisionHandler        the denied-decision handler
      */
     public LuxspecIngressFirewallFilter(
             FirewallChain<IngressRequest> firewallChain,
-            ServletIngressRequestAdapter requestAdapter,
+            ServletClientAddressResolver clientAddressResolver,
             FirewallDecisionHandler decisionHandler
     ) {
         this.firewallChain = Objects.requireNonNull(firewallChain, "firewallChain");
-        this.requestAdapter = Objects.requireNonNull(requestAdapter, "requestAdapter");
+        this.clientAddressResolver = Objects.requireNonNull(clientAddressResolver, "clientAddressResolver");
         this.decisionHandler = Objects.requireNonNull(decisionHandler, "decisionHandler");
     }
 
@@ -77,7 +77,9 @@ public class LuxspecIngressFirewallFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        FirewallDecision decision = firewallChain.evaluate(requestAdapter.adapt(request));
+        FirewallDecision decision = firewallChain.evaluate(
+                ServletIngressRequestAdapter.adapt(request, clientAddressResolver)
+        );
         if (!decision.passed()) {
             decisionHandler.handle(request, response, decision);
             return;

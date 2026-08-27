@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.security.firewall;
 
+import com.lamprism.luxspec.event.Event;
 import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 
@@ -27,42 +28,52 @@ import java.util.Objects;
 /**
  * Evaluates immutable ordered firewall rules where every rule must pass.
  *
+ * <p>Denial and rule-failure events are best-effort notifications. A publisher runtime failure
+ * never replaces the evaluated firewall decision.</p>
+ *
  * @param <R> the request-fact type evaluated by this chain
  * @author RollW
  */
 public class FirewallChain<R> {
-    private final List<FirewallRule<R>> rules;
+    private final List<FirewallRule<? super R>> rules;
     private final EventPublisher eventPublisher;
     private final Clock clock;
 
     /**
      * Creates a chain whose rule order is the supplied immutable order.
      *
-     * @param rules firewall rules to evaluate
+     * @param rules firewall rules to evaluate; each rule may accept {@code R} or a supertype of
+     *              {@code R}
      */
-    public FirewallChain(List<? extends FirewallRule<R>> rules) {
+    public FirewallChain(List<? extends FirewallRule<? super R>> rules) {
         this(rules, event -> {
         }, Clock.systemUTC());
     }
 
     /**
-     * Creates a chain with safe failure event publication.
+     * Creates a chain with best-effort failure event publication.
      *
-     * @param rules          firewall rules to evaluate
+     * @param rules          firewall rules to evaluate; each rule may accept {@code R} or a
+     *                       supertype of {@code R}
      * @param eventPublisher the publisher notified for denials and unexpected failures
      */
-    public FirewallChain(List<? extends FirewallRule<R>> rules, EventPublisher eventPublisher) {
+    public FirewallChain(List<? extends FirewallRule<? super R>> rules, EventPublisher eventPublisher) {
         this(rules, eventPublisher, Clock.systemUTC());
     }
 
     /**
      * Creates a chain with denial and failure event publication using an explicit clock.
      *
-     * @param rules          firewall rules to evaluate
+     * @param rules          firewall rules to evaluate; each rule may accept {@code R} or a
+     *                       supertype of {@code R}
      * @param eventPublisher the publisher notified for denials and unexpected failures
      * @param clock          the event timestamp clock
      */
-    public FirewallChain(List<? extends FirewallRule<R>> rules, EventPublisher eventPublisher, Clock clock) {
+    public FirewallChain(
+            List<? extends FirewallRule<? super R>> rules,
+            EventPublisher eventPublisher,
+            Clock clock
+    ) {
         this.rules = List.copyOf(rules);
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -76,7 +87,7 @@ public class FirewallChain<R> {
      */
     public FirewallDecision evaluate(R request) {
         Objects.requireNonNull(request, "request");
-        for (FirewallRule<R> rule : rules) {
+        for (FirewallRule<? super R> rule : rules) {
             FirewallDecision decision = evaluate(rule, request);
             if (!decision.passed()) {
                 return decision;
@@ -85,12 +96,12 @@ public class FirewallChain<R> {
         return FirewallDecision.pass();
     }
 
-    private FirewallDecision evaluate(FirewallRule<R> rule, R request) {
+    private FirewallDecision evaluate(FirewallRule<? super R> rule, R request) {
         FirewallDecision decision;
         try {
             decision = Objects.requireNonNull(rule.evaluate(request), "firewall decision");
         } catch (RuntimeException exception) {
-            eventPublisher.publish(new FirewallRuleFailureEvent(
+            publishBestEffort(new FirewallRuleFailureEvent(
                     rule.getClass().getName(),
                     SecurityErrorCode.FIREWALL_RULE_FAILURE,
                     clock.instant()
@@ -99,7 +110,7 @@ public class FirewallChain<R> {
         }
         if (!decision.passed()) {
             Instant occurredAt = clock.instant();
-            eventPublisher.publish(new FirewallRuleDeniedEvent(
+            publishBestEffort(new FirewallRuleDeniedEvent(
                     rule.getClass().getName(),
                     decision.getReasonCode(),
                     decision.getRetryAfter().orElse(null),
@@ -107,5 +118,13 @@ public class FirewallChain<R> {
             ));
         }
         return decision;
+    }
+
+    private void publishBestEffort(Event event) {
+        try {
+            eventPublisher.publish(event);
+        } catch (RuntimeException ignored) {
+            // Firewall decisions remain authoritative when an observer fails.
+        }
     }
 }

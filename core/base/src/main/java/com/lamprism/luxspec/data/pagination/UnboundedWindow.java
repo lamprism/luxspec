@@ -19,6 +19,9 @@ package com.lamprism.luxspec.data.pagination;
 /**
  * Requests a complete collection where the application role permits it.
  *
+ * <p>Persistence adapters may materialize the complete matching result set. Callers are
+ * responsible for using this window only where the result cardinality is acceptable.</p>
+ *
  * @author RollW
  */
 public final class UnboundedWindow implements QueryWindow {

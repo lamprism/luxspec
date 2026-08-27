@@ -138,7 +138,8 @@ public class SourceConfigWriter implements ConfigWriter {
             throw new ConfigWriteException(
                     nonNullBinding.getKey(),
                     source.getId(),
-                    ConfigPolicyOperation.SET
+                    ConfigPolicyOperation.SET,
+                    exception
             );
         }
         complete(source, nonNullBinding, previous, ConfigSourceChangeType.SET);
@@ -162,7 +163,8 @@ public class SourceConfigWriter implements ConfigWriter {
             throw new ConfigWriteException(
                     nonNullBinding.getKey(),
                     source.getId(),
-                    ConfigPolicyOperation.REMOVE
+                    ConfigPolicyOperation.REMOVE,
+                    exception
             );
         }
         complete(source, nonNullBinding, previous, ConfigSourceChangeType.REMOVE);

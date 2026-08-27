@@ -42,36 +42,36 @@ import java.util.Objects;
  */
 public class LuxspecAuthenticatedFirewallFilter extends OncePerRequestFilter {
     private final FirewallChain<AuthenticatedRequest> firewallChain;
-    private final ServletIngressRequestAdapter requestAdapter;
+    private final ServletClientAddressResolver clientAddressResolver;
     private final FirewallDecisionHandler decisionHandler;
 
     /**
-     * Creates an authenticated filter with Servlet address extraction and HTTP 403 denials.
+     * Creates an authenticated filter with Servlet remote-address resolution and HTTP 403 denials.
      *
      * @param firewallChain the authenticated Firewall chain
      */
     public LuxspecAuthenticatedFirewallFilter(FirewallChain<AuthenticatedRequest> firewallChain) {
         this(
                 firewallChain,
-                new ServletIngressRequestAdapter(),
+                ServletClientAddressResolver.remoteAddress(),
                 new HttpStatusFirewallDecisionHandler()
         );
     }
 
     /**
-     * Creates an authenticated filter with explicit Servlet extraction and denial handling.
+     * Creates an authenticated filter with explicit client-address resolution and denial handling.
      *
-     * @param firewallChain   the authenticated Firewall chain
-     * @param requestAdapter  the Servlet ingress adapter
-     * @param decisionHandler the denied-decision handler
+     * @param firewallChain          the authenticated Firewall chain
+     * @param clientAddressResolver the trusted client-address resolver
+     * @param decisionHandler        the denied-decision handler
      */
     public LuxspecAuthenticatedFirewallFilter(
             FirewallChain<AuthenticatedRequest> firewallChain,
-            ServletIngressRequestAdapter requestAdapter,
+            ServletClientAddressResolver clientAddressResolver,
             FirewallDecisionHandler decisionHandler
     ) {
         this.firewallChain = Objects.requireNonNull(firewallChain, "firewallChain");
-        this.requestAdapter = Objects.requireNonNull(requestAdapter, "requestAdapter");
+        this.clientAddressResolver = Objects.requireNonNull(clientAddressResolver, "clientAddressResolver");
         this.decisionHandler = Objects.requireNonNull(decisionHandler, "decisionHandler");
     }
 
@@ -87,7 +87,7 @@ public class LuxspecAuthenticatedFirewallFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        IngressRequest ingressRequest = requestAdapter.adapt(request);
+        IngressRequest ingressRequest = ServletIngressRequestAdapter.adapt(request, clientAddressResolver);
         Authentication authentication = luxspecAuthentication.getLuxspecAuthentication();
         FirewallDecision decision = firewallChain.evaluate(new AuthenticatedRequest(ingressRequest, authentication));
         if (!decision.passed()) {

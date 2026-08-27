@@ -38,7 +38,8 @@ public interface EventSubscription extends AutoCloseable {
      * Removes the listener registration represented by this subscription.
      *
      * <p>The operation is idempotent. Calling it more than once has no
-     * additional effect.</p>
+     * additional effect. A publication already holding a listener snapshot may still invoke the
+     * listener, while one that starts after this method returns must not.</p>
      */
     void unsubscribe();
 

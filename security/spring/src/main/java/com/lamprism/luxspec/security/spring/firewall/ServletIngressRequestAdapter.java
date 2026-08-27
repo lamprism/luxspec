@@ -20,47 +20,40 @@ import com.lamprism.luxspec.security.firewall.IngressRequest;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Converts Servlet request facts into the provider-independent ingress model.
  *
- * <p>The default address source is {@link HttpServletRequest#getRemoteAddr()}. Applications using
- * a trusted proxy may supply an explicit resolver instead of accepting forwarded headers here.</p>
+ * <p>The request URI is copied without additional path canonicalization. The servlet container,
+ * routing configuration, and application firewall policy must agree on the canonical path seen
+ * by both the firewall and handler mapping.</p>
  *
  * @author RollW
  */
-public class ServletIngressRequestAdapter {
-    private final Function<HttpServletRequest, String> clientAddressResolver;
-
-    /**
-     * Creates an adapter using the Servlet remote address.
-     */
-    public ServletIngressRequestAdapter() {
-        this(HttpServletRequest::getRemoteAddr);
-    }
-
-    /**
-     * Creates an adapter with an explicit client-address resolver.
-     *
-     * @param clientAddressResolver the trusted client-address resolver
-     */
-    public ServletIngressRequestAdapter(Function<HttpServletRequest, String> clientAddressResolver) {
-        this.clientAddressResolver = Objects.requireNonNull(clientAddressResolver, "clientAddressResolver");
+final class ServletIngressRequestAdapter {
+    private ServletIngressRequestAdapter() {
     }
 
     /**
      * Converts one Servlet request into immutable ingress facts.
      *
-     * @param request the current Servlet request
+     * @param request               the current Servlet request
+     * @param clientAddressResolver the trusted client-address resolver
      * @return the provider-independent ingress request
      */
-    public IngressRequest adapt(HttpServletRequest request) {
+    static IngressRequest adapt(
+            HttpServletRequest request,
+            ServletClientAddressResolver clientAddressResolver
+    ) {
         HttpServletRequest nonNullRequest = Objects.requireNonNull(request, "request");
+        ServletClientAddressResolver nonNullResolver = Objects.requireNonNull(
+                clientAddressResolver,
+                "clientAddressResolver"
+        );
         return new IngressRequest(
                 nonNullRequest.getMethod(),
                 nonNullRequest.getRequestURI(),
-                clientAddressResolver.apply(nonNullRequest)
+                nonNullResolver.resolve(nonNullRequest)
         );
     }
 }

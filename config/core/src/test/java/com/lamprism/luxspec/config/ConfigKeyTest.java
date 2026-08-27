@@ -24,6 +24,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigKeyTest {
@@ -53,5 +54,31 @@ class ConfigKeyTest {
         assertFalse(complete.isParameterized());
         assertEquals("service.north.timeout", complete.getValue());
         assertEquals(Map.of("tenant", "north"), expression.match(complete));
+    }
+
+    @Test
+    void usesParameterSchemaInTemplateEquality() {
+        ConfigParameter north = new ConfigParameter("tenant", Set.of("north"));
+        ConfigParameter northCopy = new ConfigParameter("tenant", Set.of("north"));
+        ConfigParameter south = new ConfigParameter("tenant", Set.of("south"));
+        ConfigKey northTemplate = ConfigKey.template(
+                "service.{tenant}.timeout",
+                List.of(north)
+        );
+        ConfigKey northTemplateCopy = ConfigKey.template(
+                "service.{tenant}.timeout",
+                List.of(northCopy)
+        );
+        ConfigKey southTemplate = ConfigKey.template(
+                "service.{tenant}.timeout",
+                List.of(south)
+        );
+
+        assertEquals(north, northCopy);
+        assertEquals(north.hashCode(), northCopy.hashCode());
+        assertNotEquals(north, south);
+        assertEquals(northTemplate, northTemplateCopy);
+        assertEquals(northTemplate.hashCode(), northTemplateCopy.hashCode());
+        assertNotEquals(northTemplate, southTemplate);
     }
 }

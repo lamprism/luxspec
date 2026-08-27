@@ -29,7 +29,7 @@ public interface EventDispatchErrorHandler {
      *
      * @param event    the event being dispatched
      * @param listener the listener that failed
-     * @param failure  the listener failure
+     * @param failure  the runtime listener failure; JVM {@link Error} values escape the dispatcher
      */
     void onFailure(Event event, EventListener<?> listener, Throwable failure);
 }

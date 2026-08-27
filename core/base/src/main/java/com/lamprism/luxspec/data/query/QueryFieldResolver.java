@@ -27,8 +27,10 @@ import java.util.function.Function;
 /**
  * Resolves typed query fields against candidate objects.
  *
- * <p>The resolver also owns the comparison rule required to order resolved field values. Query
- * operator and complexity policy remains owned by {@link QuerySchema}.</p>
+ * <p>The resolver also owns the comparison rule required to order resolved field values. This
+ * rule applies only to {@link OrderBy} in in-memory execution. {@link ComparisonCondition}
+ * retains the value type's natural ordering so provider-neutral conditions can be translated by
+ * other executors. Query operator and complexity policy remains owned by {@link QuerySchema}.</p>
  *
  * <p>This is an advanced execution SPI. Standard in-memory callers should use the high-level
  * executor or resource browser builder, which assembles the default resolver internally.</p>
@@ -82,7 +84,7 @@ public interface QueryFieldResolver<T> {
         }
 
         /**
-         * Adds a query field using natural ordering for ordered queries.
+         * Adds a query field using natural ordering for {@link OrderBy} queries.
          *
          * @param field    the resolved query field
          * @param accessor the value accessor for one candidate
@@ -97,7 +99,10 @@ public interface QueryFieldResolver<T> {
         }
 
         /**
-         * Adds a query field using an explicit ordering rule.
+         * Adds a query field using an explicit {@link OrderBy} rule.
+         *
+         * <p>The comparator does not affect {@link ComparisonCondition}, which always uses the
+         * field value type's natural ordering.</p>
          *
          * @param field      the resolved query field
          * @param accessor   the value accessor for one candidate

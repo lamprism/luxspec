@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class SourceConfigWriterTest {
@@ -201,7 +202,7 @@ class SourceConfigWriterTest {
         );
 
         assertFalse(exception.getMessage().contains("secret-value"));
-        assertNull(exception.getCause());
+        assertSame(source.failure, exception.getCause());
     }
 
     @Test
@@ -365,6 +366,7 @@ class SourceConfigWriterTest {
 
     private static final class FailingSource implements WritableConfigSource {
         private final ConfigSourceId id = ConfigSourceId.of("failing");
+        private final IllegalStateException failure = new IllegalStateException("secret-value");
 
         @Override
         public @NonNull ConfigSourceId getId() {
@@ -383,12 +385,12 @@ class SourceConfigWriterTest {
 
         @Override
         public void set(@NonNull ConfigKey key, @NonNull RawConfigValue rawValue) {
-            throw new IllegalStateException("secret-value");
+            throw failure;
         }
 
         @Override
         public void remove(@NonNull ConfigKey key) {
-            throw new IllegalStateException("secret-value");
+            throw failure;
         }
     }
 }

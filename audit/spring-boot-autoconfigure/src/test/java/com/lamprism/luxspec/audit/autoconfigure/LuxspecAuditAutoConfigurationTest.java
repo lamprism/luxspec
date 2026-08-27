@@ -32,8 +32,8 @@ import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.core.autoconfigure.LuxspecCoreAutoConfiguration;
 import com.lamprism.luxspec.event.EventDispatcher;
-import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.event.EventSubscription;
+import com.lamprism.luxspec.event.SynchronousEventDispatcher;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
 import org.junit.jupiter.api.Test;
@@ -70,7 +70,7 @@ class LuxspecAuditAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(AuditDeliveryPolicy.class);
                     assertThat(context).hasSingleBean(EventDispatcher.class);
                     assertThat(context.getBean(EventDispatcher.class))
-                            .isInstanceOf(EventDispatcherImpl.class);
+                            .isInstanceOf(SynchronousEventDispatcher.class);
                     assertThat(context).hasSingleBean(EventSubscription.class);
                     assertThat(context.getBean(EventSubscription.class).isActive()).isTrue();
 

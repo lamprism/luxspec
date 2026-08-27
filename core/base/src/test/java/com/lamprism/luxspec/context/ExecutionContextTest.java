@@ -43,4 +43,13 @@ class ExecutionContextTest {
         assertThrows(IllegalStateException.class, () -> context.with(key, "request-43"));
         assertThrows(IllegalStateException.class, () -> ExecutionContext.empty().replace(key, "request-43"));
     }
+
+    @Test
+    void treatsKeysAsReferenceIdentities() {
+        ContextKey<String> registeredKey = ContextKey.of("request-id", String.class);
+        ContextKey<String> equivalentDeclaration = ContextKey.of("request-id", String.class);
+        ExecutionContext context = ExecutionContext.empty().with(registeredKey, "request-42");
+
+        assertTrue(context.get(equivalentDeclaration).isEmpty());
+    }
 }

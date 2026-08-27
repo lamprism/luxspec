@@ -53,7 +53,9 @@ public interface ConfigSpec<T> {
      * @param key          the complete key without parameters
      * @param codec        the typed codec
      * @param defaultValue the fallback value, or {@code null} when no fallback exists
-     * @param sensitive    whether values must remain hidden from ordinary diagnostics
+     * @param sensitive    whether values are sensitive disclosure metadata and must remain hidden
+     *                     from ordinary diagnostics; this does not select encrypted storage or
+     *                     enforce source access control
      * @param validator    the typed value rules
      * @param <T>          the typed value
      * @return the configuration definition
@@ -78,7 +80,9 @@ public interface ConfigSpec<T> {
      * @param key          the complete key without parameters
      * @param codec        the typed codec
      * @param defaultValue the fallback value, or {@code null} when no fallback exists
-     * @param sensitive    whether values must remain hidden from ordinary diagnostics
+     * @param sensitive    whether values are sensitive disclosure metadata and must remain hidden
+     *                     from ordinary diagnostics; this does not select encrypted storage or
+     *                     enforce source access control
      * @param <T>          the typed value
      * @return the configuration definition
      */
@@ -98,7 +102,9 @@ public interface ConfigSpec<T> {
      * @param parameters   declarations for parameter segments in the key
      * @param codec        the typed codec
      * @param defaultValue the fallback value, or {@code null} when no fallback exists
-     * @param sensitive    whether values must remain hidden from ordinary diagnostics
+     * @param sensitive    whether values are sensitive disclosure metadata and must remain hidden
+     *                     from ordinary diagnostics; this does not select encrypted storage or
+     *                     enforce source access control
      * @param validator    the typed value rules
      * @param <T>          the typed value
      * @return the configuration definition
@@ -126,7 +132,9 @@ public interface ConfigSpec<T> {
      * @param parameters   declarations for parameter segments in the key
      * @param codec        the typed codec
      * @param defaultValue the fallback value, or {@code null} when no fallback exists
-     * @param sensitive    whether values must remain hidden from ordinary diagnostics
+     * @param sensitive    whether values are sensitive disclosure metadata and must remain hidden
+     *                     from ordinary diagnostics; this does not select encrypted storage or
+     *                     enforce source access control
      * @param <T>          the typed value
      * @return the configuration definition
      */
@@ -146,7 +154,9 @@ public interface ConfigSpec<T> {
      * @param key          the complete key without parameters
      * @param codec        the typed codec
      * @param defaultValue the fallback value, or {@code null} when no fallback exists
-     * @param sensitive    whether values must remain hidden from ordinary diagnostics
+     * @param sensitive    whether values are sensitive disclosure metadata and must remain hidden
+     *                     from ordinary diagnostics; this does not select encrypted storage or
+     *                     enforce source access control
      * @param validator    the typed value rules
      * @param policy       the operation-aware policy
      * @param <T>          the typed value
@@ -178,7 +188,9 @@ public interface ConfigSpec<T> {
      * @param parameters   declarations for parameter segments in the key
      * @param codec        the typed codec
      * @param defaultValue the fallback value, or {@code null} when no fallback exists
-     * @param sensitive    whether values must remain hidden from ordinary diagnostics
+     * @param sensitive    whether values are sensitive disclosure metadata and must remain hidden
+     *                     from ordinary diagnostics; this does not select encrypted storage or
+     *                     enforce source access control
      * @param validator    the typed value rules
      * @param policy       the operation-aware policy
      * @param <T>          the typed value
@@ -234,6 +246,9 @@ public interface ConfigSpec<T> {
 
     /**
      * Reports whether administrative views and events must not reveal its value.
+     *
+     * <p>This flag classifies disclosure and redaction behavior. It does not imply encryption at
+     * rest, secret-store routing, or source-level access control.</p>
      *
      * @return {@code true} when the value is sensitive
      */

@@ -19,6 +19,7 @@ package com.lamprism.luxspec.security.firewall;
 /**
  * Evaluates one framework-independent firewall policy.
  *
+ * @param <R> the request type accepted by the rule
  * @author RollW
  */
 public interface FirewallRule<R> {

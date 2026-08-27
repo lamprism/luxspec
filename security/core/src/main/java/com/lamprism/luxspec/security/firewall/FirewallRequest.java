@@ -14,21 +14,17 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec;
+package com.lamprism.luxspec.security.firewall;
 
 /**
- * A stable provider-independent business error identifier.
+ * Marks request facts that can be consumed by transport-independent firewall rules.
  *
- * <p>Implementations may use different equality semantics. Callers comparing values from
- * different implementations must compare their canonical {@link #getCode()} values.</p>
+ * <p>This contract intentionally contains no transport-specific fields. Each transport can provide
+ * its own request facts without supplying placeholders for another protocol. The generic
+ * {@link FirewallRule} contract does not require this marker, so a rule may also use a dedicated
+ * request type when that is the appropriate boundary.</p>
  *
  * @author RollW
  */
-public interface ErrorCode {
-    /**
-     * Returns the stable canonical business error identity.
-     *
-     * @return the error code
-     */
-    String getCode();
+public interface FirewallRequest {
 }

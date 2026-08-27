@@ -19,6 +19,8 @@ package com.lamprism.luxspec.context;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.MDC;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -28,15 +30,21 @@ import java.util.Optional;
  * <p>MDC is a provider-owned thread-bound projection. This class only activates when a caller
  * explicitly opens it and never makes MDC part of the core context carrier.</p>
  *
+ * <p>A scope must close on its owner thread and in LIFO order.</p>
+ *
  * @author RollW
  */
 public final class Slf4jMdcScope implements AutoCloseable {
     public static final String CORRELATION_ID_KEY = "correlationId";
 
+    private static final ThreadLocal<Deque<Slf4jMdcScope>> SCOPES = ThreadLocal.withInitial(ArrayDeque::new);
+
+    private final Thread owner;
     private final @Nullable String previousCorrelationId;
     private boolean closed;
 
     private Slf4jMdcScope(Optional<ExecutionContext> context) {
+        owner = Thread.currentThread();
         previousCorrelationId = MDC.get(CORRELATION_ID_KEY);
         CorrelationId correlationId = context
                 .flatMap(value -> value.get(ExecutionContextKeys.CORRELATION_ID))
@@ -46,6 +54,7 @@ public final class Slf4jMdcScope implements AutoCloseable {
         } else {
             MDC.put(CORRELATION_ID_KEY, correlationId.value());
         }
+        SCOPES.get().push(this);
     }
 
     /**
@@ -63,10 +72,21 @@ public final class Slf4jMdcScope implements AutoCloseable {
         if (closed) {
             return;
         }
+        if (Thread.currentThread() != owner) {
+            throw new IllegalStateException("MDC scope must close on its owner thread");
+        }
+        Deque<Slf4jMdcScope> scopes = SCOPES.get();
+        if (scopes.peek() != this) {
+            throw new IllegalStateException("MDC scopes must close in LIFO order");
+        }
         if (previousCorrelationId == null) {
             MDC.remove(CORRELATION_ID_KEY);
         } else {
             MDC.put(CORRELATION_ID_KEY, previousCorrelationId);
+        }
+        scopes.pop();
+        if (scopes.isEmpty()) {
+            SCOPES.remove();
         }
         closed = true;
     }

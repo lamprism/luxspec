@@ -19,7 +19,7 @@ package com.lamprism.luxspec.core.autoconfigure;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.event.EventDispatcher;
-import com.lamprism.luxspec.event.EventDispatcherImpl;
+import com.lamprism.luxspec.event.SynchronousEventDispatcher;
 import com.lamprism.luxspec.resource.ResourceIdGenerator;
 import com.lamprism.luxspec.resource.UuidResourceIdGenerator;
 import org.junit.jupiter.api.Test;
@@ -52,7 +52,7 @@ class LuxspecCoreAutoConfigurationTest {
     @Test
     void createsEventDispatcherByDefault() {
         contextRunner.run(context -> assertThat(context.getBean(EventDispatcher.class))
-                .isInstanceOf(EventDispatcherImpl.class));
+                .isInstanceOf(SynchronousEventDispatcher.class));
     }
 
     @Test

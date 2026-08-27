@@ -28,7 +28,10 @@ public final class ErrorCodes {
     }
 
     /**
-     * Creates a canonical application-defined error code.
+     * Creates a canonical application-defined error-code value.
+     *
+     * <p>Values created by this factory use code-based equality with other values created by this
+     * factory. Cross-implementation comparisons must use {@link ErrorCode#getCode()}.</p>
      *
      * @param code the lowercase colon-separated error code
      * @return the validated error code
@@ -72,6 +75,21 @@ public final class ErrorCodes {
 
         @Override
         public String getCode() {
+            return code;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Value value && code.equals(value.code);
+        }
+
+        @Override
+        public int hashCode() {
+            return code.hashCode();
+        }
+
+        @Override
+        public String toString() {
             return code;
         }
     }

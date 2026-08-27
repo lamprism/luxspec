@@ -118,7 +118,7 @@ class InMemoryQueryExecutorTest {
     }
 
     @Test
-    void usesExplicitCustomOrderingWhenConfigured() {
+    void usesExplicitCustomOrderingWithoutChangingComparisonConditions() {
         InMemoryQueryExecutor<Item> executor = InMemoryQueryExecutor.<Item>builder(
                         () -> List.of(
                                 new Item("alpha", 1, "internal"),
@@ -132,8 +132,13 @@ class InMemoryQueryExecutorTest {
                 new QueryCriteria(QueryExpressions.all(), List.of(OrderBy.ascending(NAME))),
                 UnboundedWindow.getInstance()
         );
+        QueryResult<Item> comparisonResult = executor.query(
+                new QueryCriteria(ComparisonCondition.greaterThan(NAME, "alpha"), List.of()),
+                UnboundedWindow.getInstance()
+        );
 
         assertEquals(List.of("alpha", "Beta"), names(result));
+        assertEquals(List.of(), names(comparisonResult));
     }
 
     private static InMemoryQueryExecutor<Item> executor() {

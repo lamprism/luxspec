@@ -23,7 +23,8 @@ import java.util.concurrent.Executor;
  * Installs an explicitly selected context while an executor task runs.
  *
  * <p>The executor does not own a global context. It uses the supplied
- * {@link ExecutionContextStorage} for capture and task installation.</p>
+ * {@link ExecutionContextStorage} for capture and task installation. It does not project values
+ * into a logging context.</p>
  *
  * @author RollW
  */
@@ -66,8 +67,7 @@ public final class ContextPropagatingExecutor implements Executor {
     }
 
     private void run(ExecutionContext context, Runnable command) {
-        try (ExecutionContextStorage.Scope ignored = storage.open(context);
-             Slf4jMdcScope mdcScope = Slf4jMdcScope.open(context)) {
+        try (ExecutionContextStorage.Scope ignored = storage.open(context)) {
             command.run();
         }
     }

@@ -23,14 +23,15 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class EventDispatcherImplTest {
+class SynchronousEventDispatcherTest {
     @Test
     void dispatchesTypedEventsInOrderAndReportsListenerFailures() {
         List<String> calls = new ArrayList<>();
         List<Throwable> failures = new ArrayList<>();
-        EventDispatcher dispatcher = new EventDispatcherImpl(
+        EventDispatcher dispatcher = new SynchronousEventDispatcher(
                 (event, listener, failure) -> failures.add(failure)
         );
 
@@ -48,9 +49,28 @@ class EventDispatcherImplTest {
     }
 
     @Test
+    void letsErrorsEscapeTheListenerFailureBoundary() {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher(
+                (event, listener, failure) -> {
+                    throw new AssertionError("The error handler must not receive JVM errors");
+                }
+        );
+        dispatcher.subscribe(TestEvent.class, 0, event -> {
+            throw new AssertionError("listener error");
+        });
+
+        AssertionError failure = assertThrows(
+                AssertionError.class,
+                () -> dispatcher.publish(new TestEvent("value"))
+        );
+
+        assertEquals("listener error", failure.getMessage());
+    }
+
+    @Test
     void removesListenersWhenSubscriptionsClose() {
         List<String> calls = new ArrayList<>();
-        EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
             throw new AssertionError("Listener failed", failure);
         });
 
@@ -70,8 +90,30 @@ class EventDispatcherImplTest {
     }
 
     @Test
+    void publishesAnImmutableSnapshotWhenListenersChangeRegistrations() {
+        List<String> calls = new ArrayList<>();
+        SynchronousEventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
+            throw new AssertionError("Listener failed", failure);
+        });
+        dispatcher.subscribe(TestEvent.class, 10, event -> calls.add("late"));
+        dispatcher.subscribe(TestEvent.class, 0, event -> {
+            calls.add("existing");
+            dispatcher.subscribe(TestEvent.class, -10, ignored -> calls.add("added"));
+        });
+
+        dispatcher.publish(new TestEvent("first"));
+
+        assertEquals(List.of("existing", "late"), calls);
+        calls.clear();
+
+        dispatcher.publish(new TestEvent("second"));
+
+        assertEquals(List.of("added", "existing", "late"), calls);
+    }
+
+    @Test
     void combinesSubscriptionsIntoOneLifecycleHandle() {
-        EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
             throw new AssertionError("Listener failed", failure);
         });
         EventSubscription first = dispatcher.subscribe(TestEvent.class, 0, event -> {

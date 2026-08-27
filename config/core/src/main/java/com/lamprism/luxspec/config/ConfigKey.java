@@ -32,6 +32,9 @@ import java.util.Set;
  * <p>A complete key contains only concrete path segments. A parameterized key expression may be
  * bound to a complete key or matched against one to recover validated arguments.</p>
  *
+ * <p>Key expressions use structural equality: both the serialized expression and its parameter
+ * declarations must match.</p>
+ *
  * @author RollW
  */
 public final class ConfigKey {
@@ -179,12 +182,14 @@ public final class ConfigKey {
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof ConfigKey key && value.equals(key.value);
+        return other instanceof ConfigKey key
+                && value.equals(key.value)
+                && parameters.equals(key.parameters);
     }
 
     @Override
     public int hashCode() {
-        return value.hashCode();
+        return Objects.hash(value, parameters);
     }
 
     @Override

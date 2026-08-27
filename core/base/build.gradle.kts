@@ -22,7 +22,7 @@ description = "Foundational utilities, data contracts, and validation for Luxspe
 
 dependencies {
     api("org.jspecify:jspecify")
-    api("org.slf4j:slf4j-api")
+    implementation("org.slf4j:slf4j-api")
     implementation("com.github.ben-manes.caffeine:caffeine")
     compileOnly("tools.jackson.dataformat:jackson-dataformat-toml")
     testImplementation("tools.jackson.dataformat:jackson-dataformat-toml")

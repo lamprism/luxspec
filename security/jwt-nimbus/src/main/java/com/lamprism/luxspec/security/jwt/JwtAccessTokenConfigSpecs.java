@@ -83,8 +83,8 @@ public final class JwtAccessTokenConfigSpecs {
                     ConfigCodecs.list(ConfigCodecs.string())
             )
             .localizedDescription(localized(
-                    "Audience values accepted by access token consumers. Defaults to an empty list.",
-                    "访问令牌使用者接受的受众值。默认值为空列表。"
+                    "Audience values accepted by access token consumers. An empty list disables audience validation. Applications sharing one issuer across multiple resource servers should configure explicit audiences.",
+                    "访问令牌使用者接受的受众值。空列表会停用受众校验。多个资源服务器共享同一签发方时应配置明确的受众值。"
             ))
             .defaultValue(List.of())
             .validator(NON_BLANK_AUDIENCES)

@@ -21,6 +21,9 @@ import java.util.Objects;
 /**
  * A typed ordered comparison for a comparable query field.
  *
+ * <p>Comparisons use the value type's natural ordering. They do not use an in-memory
+ * {@link QueryFieldResolver} ordering comparator.</p>
+ *
  * @param <T> the comparable field value type
  * @author RollW
  */

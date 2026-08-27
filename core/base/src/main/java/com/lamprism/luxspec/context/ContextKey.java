@@ -23,6 +23,9 @@ import java.util.Objects;
 /**
  * Identifies one typed immutable context element.
  *
+ * <p>Keys use reference identity. Reusable keys must be declared once, normally as a
+ * {@code static final} field, and shared by every caller that accesses the same value.</p>
+ *
  * @param <T> the element type
  * @author RollW
  */
@@ -37,6 +40,8 @@ public final class ContextKey<T> {
 
     /**
      * Creates a typed immutable context-key identity.
+     *
+     * <p>Each call creates a distinct identity, even when the name and value type match.</p>
      *
      * @param name      the non-blank key name
      * @param valueType the context value type

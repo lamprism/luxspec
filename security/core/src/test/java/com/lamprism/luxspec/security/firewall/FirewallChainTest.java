@@ -28,13 +28,22 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirewallChainTest {
+    private static final class TestRequest implements FirewallRequest {
+    }
+
+    private static final class DedicatedRequest {
+    }
+
+    private static final FirewallRule<FirewallRequest> GENERIC_RULE = request -> FirewallDecision.pass();
+
     @Test
     void publishesOrdinaryRuleDenialsWithSafePolicyMetadata() {
         List<FirewallRuleDeniedEvent> events = new ArrayList<>();
-        FirewallChain<String> chain = new FirewallChain<>(
+        FirewallChain<TestRequest> chain = new FirewallChain<>(
                 List.of(request -> FirewallDecision.deny(
                         SecurityErrorCode.FIREWALL_PATH_DENIED,
                         Duration.ofSeconds(2L)
@@ -43,7 +52,7 @@ class FirewallChainTest {
                 Clock.fixed(Instant.parse("2026-08-09T00:00:00Z"), ZoneOffset.UTC)
         );
 
-        FirewallDecision decision = chain.evaluate("request-facts");
+        FirewallDecision decision = chain.evaluate(new TestRequest());
 
         assertFalse(decision.passed());
         assertEquals(SecurityErrorCode.FIREWALL_PATH_DENIED, decision.getReasonCode());
@@ -51,5 +60,70 @@ class FirewallChainTest {
         assertEquals(SecurityErrorCode.FIREWALL_PATH_DENIED, events.get(0).getReasonCode());
         assertEquals(Duration.ofSeconds(2L), events.get(0).getRetryAfter());
         assertTrue(events.get(0).getRuleType().contains(FirewallChainTest.class.getName()));
+    }
+
+    @Test
+    void retainsDenialWhenEventPublicationFails() {
+        FirewallChain<TestRequest> chain = new FirewallChain<>(
+                List.of(request -> FirewallDecision.deny(SecurityErrorCode.FIREWALL_PATH_DENIED)),
+                event -> {
+                    throw new IllegalStateException("event publication failed");
+                }
+        );
+
+        FirewallDecision decision = chain.evaluate(new TestRequest());
+
+        assertFalse(decision.passed());
+        assertEquals(SecurityErrorCode.FIREWALL_PATH_DENIED, decision.getReasonCode());
+    }
+
+    @Test
+    void deniesWhenRuleAndEventPublicationFail() {
+        FirewallChain<TestRequest> chain = new FirewallChain<>(
+                List.of(request -> {
+                    throw new IllegalStateException("rule failed");
+                }),
+                event -> {
+                    throw new IllegalStateException("event publication failed");
+                }
+        );
+
+        FirewallDecision decision = chain.evaluate(new TestRequest());
+
+        assertFalse(decision.passed());
+        assertEquals(SecurityErrorCode.FIREWALL_RULE_FAILURE, decision.getReasonCode());
+    }
+
+    @Test
+    void letsPublisherErrorsEscape() {
+        FirewallChain<TestRequest> chain = new FirewallChain<>(
+                List.of(request -> FirewallDecision.deny(SecurityErrorCode.FIREWALL_PATH_DENIED)),
+                event -> {
+                    throw new AssertionError("publisher error");
+                }
+        );
+
+        AssertionError failure = assertThrows(
+                AssertionError.class,
+                () -> chain.evaluate(new TestRequest())
+        );
+
+        assertEquals("publisher error", failure.getMessage());
+    }
+
+    @Test
+    void acceptsRulesDeclaredForTheUnifiedRequestContract() {
+        FirewallChain<TestRequest> chain = new FirewallChain<>(List.of(GENERIC_RULE));
+
+        assertTrue(chain.evaluate(new TestRequest()).passed());
+    }
+
+    @Test
+    void supportsRulesWithDedicatedRequestTypes() {
+        FirewallChain<DedicatedRequest> chain = new FirewallChain<>(
+                List.of(request -> FirewallDecision.pass())
+        );
+
+        assertTrue(chain.evaluate(new DedicatedRequest()).passed());
     }
 }

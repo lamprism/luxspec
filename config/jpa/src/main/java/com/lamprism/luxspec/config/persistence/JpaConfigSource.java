@@ -14,6 +14,10 @@ import java.util.Objects;
 /**
  * Stores provider-neutral configuration entries through one JPA repository.
  *
+ * <p>This adapter does not encrypt values or provide a secret-store access policy. Applications
+ * are responsible for deciding whether the configured database and its access controls are
+ * suitable for sensitive values.</p>
+ *
  * @author RollW
  */
 public class JpaConfigSource implements TombstoneConfigSource {

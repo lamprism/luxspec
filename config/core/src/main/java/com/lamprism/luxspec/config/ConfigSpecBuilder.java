@@ -131,7 +131,9 @@ public final class ConfigSpecBuilder<T> {
     /**
      * Marks the definition as sensitive or non-sensitive.
      *
-     * @param sensitive whether the definition contains sensitive data
+     * @param sensitive whether the definition contains sensitive data that must be redacted from
+     *                  ordinary diagnostics; it does not configure encrypted storage or source
+     *                  access control
      * @return this builder
      */
     public ConfigSpecBuilder<T> sensitive(boolean sensitive) {
@@ -140,7 +142,10 @@ public final class ConfigSpecBuilder<T> {
     }
 
     /**
-     * Marks the definition as sensitive.
+     * Marks the definition as sensitive for disclosure and diagnostic redaction.
+     *
+     * <p>This does not select encrypted storage, secret-store routing, or source-level access
+     * control.</p>
      *
      * @return this builder
      */

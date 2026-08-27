@@ -19,11 +19,18 @@ package com.lamprism.luxspec.event;
 /**
  * Publishes events and owns typed listener subscriptions.
  *
+ * <p>Publication operates on one complete listener snapshot. A publish that begins after a
+ * successful subscription or unsubscription observes that completed change. A publish overlapping
+ * the change may observe either snapshot, but never a partially ordered registration set.</p>
+ *
  * @author RollW
  */
 public interface EventDispatcher extends EventPublisher {
     /**
      * Registers an exact-runtime-type listener with deterministic ordering.
+     *
+     * <p>Listeners run by ascending {@code order}, then by registration order when their explicit
+     * order is equal.</p>
      *
      * @param eventType the event type
      * @param order     the explicit listener order

@@ -51,8 +51,8 @@ import com.lamprism.luxspec.context.ExecutionContextKeys;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.event.EventDispatcher;
-import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.event.EventSubscription;
+import com.lamprism.luxspec.event.SynchronousEventDispatcher;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
 import com.lamprism.luxspec.security.SecurityErrorCode;
@@ -131,7 +131,7 @@ class AuditEventDefinitionContributorTest {
     void routesEveryExistingAuditableEventToThePublisher() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
-        EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
 
@@ -257,7 +257,7 @@ class AuditEventDefinitionContributorTest {
     void allowsAFeatureContributorToBeSelectedIndependently() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
-        EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
 
@@ -286,7 +286,7 @@ class AuditEventDefinitionContributorTest {
     void stopsRoutingAfterTheRegistrationIsClosed() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
-        EventDispatcher dispatcher = new EventDispatcherImpl((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
         EventSubscription registry = subscribe(

@@ -29,6 +29,10 @@ import java.util.Set;
 /**
  * Allows or denies requests by exact paths or path prefixes.
  *
+ * <p>Matching uses the path exposed by {@code IngressRequest} without decoding or additional
+ * canonicalization. The request adapter and application routing policy are responsible for
+ * establishing the canonical path used by both the firewall and the handler mapping.</p>
+ *
  * @author RollW
  */
 public class RequestPathFirewallRule implements FirewallRule<IngressRequest> {

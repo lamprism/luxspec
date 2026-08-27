@@ -16,19 +16,18 @@
 
 package com.lamprism.luxspec;
 
-/**
- * A stable provider-independent business error identifier.
- *
- * <p>Implementations may use different equality semantics. Callers comparing values from
- * different implementations must compare their canonical {@link #getCode()} values.</p>
- *
- * @author RollW
- */
-public interface ErrorCode {
-    /**
-     * Returns the stable canonical business error identity.
-     *
-     * @return the error code
-     */
-    String getCode();
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class ErrorCodesTest {
+    @Test
+    void createsEqualValuesForTheSameCode() {
+        ErrorCode first = ErrorCodes.of("application:invalid-state");
+        ErrorCode second = ErrorCodes.of("application:invalid-state");
+
+        assertEquals(first, second);
+        assertEquals(first.hashCode(), second.hashCode());
+        assertEquals("application:invalid-state", first.toString());
+    }
 }

@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContextPropagatingExecutorTest {
     @Test
@@ -59,5 +61,22 @@ class ContextPropagatingExecutorTest {
         delegate.awaitTermination(5L, TimeUnit.SECONDS);
 
         assertEquals("request-42", propagated.get());
+    }
+
+    @Test
+    void restoresStorageWhenTheTaskFails() {
+        ContextKey<String> key = ContextKey.of("request-id", String.class);
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        ContextPropagatingExecutor executor = new ContextPropagatingExecutor(Runnable::run, storage);
+        ExecutionContext context = ExecutionContext.empty().with(key, "request-42");
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> executor.execute(context, () -> {
+                    throw new IllegalStateException("task failed");
+                })
+        );
+
+        assertTrue(storage.current().isEmpty());
     }
 }

@@ -22,6 +22,8 @@ import java.util.Set;
 /**
  * Defines validation rules for one parameterized configuration path segment.
  *
+ * <p>Parameters use structural equality over their name and allowed values.</p>
+ *
  * @author RollW
  */
 public final class ConfigParameter {
@@ -73,6 +75,18 @@ public final class ConfigParameter {
         if (!allowedValues.isEmpty() && !allowedValues.contains(value)) {
             throw new IllegalArgumentException("Parameter value is not allowed: " + name);
         }
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof ConfigParameter parameter
+                && name.equals(parameter.name)
+                && allowedValues.equals(parameter.allowedValues);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, allowedValues);
     }
 
     private static String requireName(String value) {

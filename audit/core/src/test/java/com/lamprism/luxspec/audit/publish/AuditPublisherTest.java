@@ -114,6 +114,48 @@ class AuditPublisherTest {
     }
 
     @Test
+    void letsErrorsEscapeTranslationAndSinkFailureBoundaries() {
+        AuditRegistry failingRegistry = AuditRegistry.builder()
+                .register("order.created", envelope -> {
+                    throw new AssertionError("translation error");
+                })
+                .build();
+        AuditPublisher translationFailure = new DefaultAuditPublisher(
+                failingRegistry,
+                entry -> {
+                }
+        );
+
+        AssertionError translationError = assertThrows(
+                AssertionError.class,
+                () -> translationFailure.publish("order.created", "payload")
+        );
+        assertEquals("translation error", translationError.getMessage());
+
+        AuditRegistry registry = AuditRegistry.builder()
+                .register("order.created", envelope -> AuditEntryContent.of(
+                        OCCURRED_AT,
+                        AuditAction.of("order.create"),
+                        AuditOutcome.SUCCESS,
+                        null,
+                        AuditFieldSet.empty()
+                ))
+                .build();
+        AuditPublisher sinkFailure = new DefaultAuditPublisher(
+                registry,
+                entry -> {
+                    throw new AssertionError("sink error");
+                }
+        );
+
+        AssertionError sinkError = assertThrows(
+                AssertionError.class,
+                () -> sinkFailure.publish("order.created", "payload")
+        );
+        assertEquals("sink error", sinkError.getMessage());
+    }
+
+    @Test
     void requiredAndBestEffortPoliciesHandleSinkFailuresDifferently() {
         AuditRegistry registry = AuditRegistry.builder()
                 .register("order.created", envelope -> AuditEntryContent.of(

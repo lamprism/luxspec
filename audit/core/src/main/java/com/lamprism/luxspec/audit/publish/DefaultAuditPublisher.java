@@ -37,7 +37,8 @@ import java.util.Objects;
  * time, and metadata once. Publishing an existing envelope preserves those
  * values for retries and replays. Translation and sink failures follow the
  * configured delivery policy; no failure is silently discarded by the
- * required default policy.</p>
+ * required default policy. Runtime failures are handled by that policy, while JVM {@link Error}
+ * values escape the publication boundary.</p>
  *
  * @author RollW
  */
@@ -118,7 +119,7 @@ public class DefaultAuditPublisher implements AuditPublisher {
         AuditEntryContent content;
         try {
             content = translator.translate(nonNullEnvelope);
-        } catch (Throwable failure) {
+        } catch (RuntimeException failure) {
             handleFailure(nonNullEnvelope, null, failure);
             return;
         }
@@ -128,7 +129,7 @@ public class DefaultAuditPublisher implements AuditPublisher {
         AuditEntry entry = AuditEntry.from(nonNullEnvelope, content);
         try {
             sink.accept(entry);
-        } catch (Throwable failure) {
+        } catch (RuntimeException failure) {
             handleFailure(nonNullEnvelope, entry, failure);
         }
     }

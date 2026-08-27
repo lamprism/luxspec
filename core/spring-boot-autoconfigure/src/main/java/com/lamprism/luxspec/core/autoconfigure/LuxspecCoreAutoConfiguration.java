@@ -19,8 +19,8 @@ package com.lamprism.luxspec.core.autoconfigure;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.spring.SpringExecutionContextTaskDecorator;
 import com.lamprism.luxspec.event.EventDispatcher;
-import com.lamprism.luxspec.event.EventDispatcherImpl;
 import com.lamprism.luxspec.event.EventPublisher;
+import com.lamprism.luxspec.event.SynchronousEventDispatcher;
 import com.lamprism.luxspec.resource.ResourceIdGenerator;
 import com.lamprism.luxspec.resource.UuidResourceIdGenerator;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -70,7 +70,7 @@ public class LuxspecCoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean({EventDispatcher.class, EventPublisher.class})
     public EventDispatcher luxspecEventDispatcher() {
-        return new EventDispatcherImpl((event, listener, failure) -> {
+        return new SynchronousEventDispatcher((event, listener, failure) -> {
             throw new IllegalStateException(
                     "Event listener failed for: " + event.getClass().getName(),
                     failure

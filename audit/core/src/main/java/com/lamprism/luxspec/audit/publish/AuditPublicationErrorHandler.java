@@ -21,7 +21,7 @@ import com.lamprism.luxspec.audit.AuditEnvelope;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Receives one explicitly tolerated best-effort publication failure.
+ * Receives one explicitly tolerated best-effort runtime publication failure.
  *
  * @author RollW
  */

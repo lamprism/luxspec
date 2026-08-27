@@ -21,11 +21,12 @@ import com.lamprism.luxspec.security.authentication.Authentication;
 import java.util.Objects;
 
 /**
- * Combines immutable ingress facts with one authenticated actor for post-authentication policy.
+ * Combines immutable HTTP ingress facts with one authenticated actor for post-authentication
+ * policy.
  *
  * @author RollW
  */
-public final class AuthenticatedRequest {
+public final class AuthenticatedRequest implements FirewallRequest {
     private final IngressRequest ingressRequest;
     private final Authentication authentication;
 

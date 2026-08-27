@@ -16,31 +16,40 @@
 
 package com.lamprism.luxspec.event;
 
-
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Synchronously dispatches events by their exact runtime type.
  *
+ * <p>Registration changes hold the write lock. Publication uses the read lock only to capture an
+ * immutable listener snapshot, then invokes callbacks after releasing the lock.</p>
+ *
  * @author RollW
  */
-public class EventDispatcherImpl implements EventDispatcher {
-    private final Map<Class<?>, CopyOnWriteArrayList<ListenerRegistration<?>>> registrations = new ConcurrentHashMap<>();
-    private final AtomicLong sequence = new AtomicLong();
+public class SynchronousEventDispatcher implements EventDispatcher {
+    private static final Comparator<ListenerRegistration<?>> REGISTRATION_ORDER =
+            Comparator.comparingInt((ListenerRegistration<?> candidate) -> candidate.getOrder())
+                    .thenComparingLong(ListenerRegistration::getSequence);
+
+    private final ReadWriteLock registrationLock = new ReentrantReadWriteLock();
+    private final Map<Class<?>, List<ListenerRegistration<?>>> registrations = new HashMap<>();
     private final EventDispatchErrorHandler errorHandler;
+    private long nextSequence;
 
     /**
      * Creates a synchronous dispatcher with a listener-failure callback.
      *
      * @param errorHandler the failure callback
      */
-    public EventDispatcherImpl(EventDispatchErrorHandler errorHandler) {
+    public SynchronousEventDispatcher(EventDispatchErrorHandler errorHandler) {
         this.errorHandler = Objects.requireNonNull(errorHandler, "errorHandler");
     }
 
@@ -52,27 +61,35 @@ public class EventDispatcherImpl implements EventDispatcher {
     ) {
         Class<E> nonNullEventType = Objects.requireNonNull(eventType, "eventType");
         EventListener<? super E> nonNullListener = Objects.requireNonNull(listener, "listener");
-        ListenerRegistration<E> registration = new ListenerRegistration<>(
-                order,
-                sequence.getAndIncrement(),
-                nonNullListener
-        );
-        CopyOnWriteArrayList<ListenerRegistration<?>> listeners = registrations.computeIfAbsent(
-                nonNullEventType,
-                ignored -> new CopyOnWriteArrayList<>()
-        );
-        listeners.add(registration);
-        listeners.sort(
-                Comparator.comparingInt((ListenerRegistration<?> candidate) -> candidate.getOrder())
-                        .thenComparingLong(ListenerRegistration::getSequence)
-        );
-        return new Subscription(registration, listeners);
+        registrationLock.writeLock().lock();
+        try {
+            ListenerRegistration<E> registration = new ListenerRegistration<>(
+                    order,
+                    nextSequence++,
+                    nonNullListener
+            );
+            List<ListenerRegistration<?>> listeners = new ArrayList<>(
+                    registrations.getOrDefault(nonNullEventType, List.of())
+            );
+            listeners.add(registration);
+            listeners.sort(REGISTRATION_ORDER);
+            registrations.put(nonNullEventType, List.copyOf(listeners));
+            return new Subscription(nonNullEventType, registration);
+        } finally {
+            registrationLock.writeLock().unlock();
+        }
     }
 
     @Override
     public void publish(Event event) {
         Event nonNullEvent = Objects.requireNonNull(event, "event");
-        CopyOnWriteArrayList<ListenerRegistration<?>> listeners = registrations.get(nonNullEvent.getClass());
+        List<ListenerRegistration<?>> listeners;
+        registrationLock.readLock().lock();
+        try {
+            listeners = registrations.get(nonNullEvent.getClass());
+        } finally {
+            registrationLock.readLock().unlock();
+        }
         if (listeners == null) {
             return;
         }
@@ -81,11 +98,32 @@ public class EventDispatcherImpl implements EventDispatcher {
         }
     }
 
+    private void unsubscribe(Class<?> eventType, ListenerRegistration<?> registration) {
+        registrationLock.writeLock().lock();
+        try {
+            List<ListenerRegistration<?>> listeners = registrations.get(eventType);
+            if (listeners == null) {
+                return;
+            }
+            List<ListenerRegistration<?>> remaining = new ArrayList<>(listeners);
+            if (!remaining.remove(registration)) {
+                return;
+            }
+            if (remaining.isEmpty()) {
+                registrations.remove(eventType);
+                return;
+            }
+            registrations.put(eventType, List.copyOf(remaining));
+        } finally {
+            registrationLock.writeLock().unlock();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private <E extends Event> void dispatch(Event event, ListenerRegistration<E> registration) {
         try {
             registration.getListener().onEvent((E) event);
-        } catch (Throwable failure) {
+        } catch (RuntimeException failure) {
             errorHandler.onFailure(event, registration.getListener(), failure);
         }
     }
@@ -114,14 +152,14 @@ public class EventDispatcherImpl implements EventDispatcher {
         }
     }
 
-    private static class Subscription implements EventSubscription {
+    private final class Subscription implements EventSubscription {
+        private final Class<?> eventType;
         private final ListenerRegistration<?> registration;
-        private final CopyOnWriteArrayList<ListenerRegistration<?>> listeners;
         private final AtomicBoolean active = new AtomicBoolean(true);
 
-        private Subscription(ListenerRegistration<?> registration, CopyOnWriteArrayList<ListenerRegistration<?>> listeners) {
+        private Subscription(Class<?> eventType, ListenerRegistration<?> registration) {
+            this.eventType = eventType;
             this.registration = registration;
-            this.listeners = listeners;
         }
 
         @Override
@@ -134,7 +172,7 @@ public class EventDispatcherImpl implements EventDispatcher {
             if (!active.compareAndSet(true, false)) {
                 return;
             }
-            listeners.remove(registration);
+            SynchronousEventDispatcher.this.unsubscribe(eventType, registration);
         }
     }
 }

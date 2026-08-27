@@ -63,6 +63,25 @@ The intended dependency direction is from application-facing adapters toward pro
 module should not require an application to adopt Spring MVC, Spring Data, or a specific token implementation merely to
 use its domain model.
 
+## Security and Responsibility Boundaries
+
+Luxspec exposes security-related contracts and defaults, but applications remain responsible for selecting policies that
+match their deployment.
+
+- In-memory stores are process-local and non-durable. They are not shared across nodes and do not survive a restart.
+- `ConfigSpec` sensitivity is disclosure and redaction metadata. It does not imply encryption at rest, secret-store
+  routing, or source-level access control. Applications must decide whether a configured source is suitable for
+  sensitive values.
+- An empty JWT audience set disables audience validation. Applications sharing one issuer across multiple resource
+  servers should configure explicit audiences.
+- The Servlet firewall uses `getRemoteAddr()` by default. Applications that trust a proxy own the forwarded-header
+  resolver and its trusted-proxy policy.
+- Firewall path matching does not add path canonicalization. The servlet container, routing configuration, and firewall
+  must agree on the canonical path.
+- Unbounded query windows may materialize the complete matching result set. Callers own the cardinality decision and
+  should use this capability only for data sets whose size is acceptable.
+- Applications choose a suitable `ConfigSource` for signing keys and other sensitive material.
+
 ## Installation
 
 Luxspec artifacts use the Maven group `com.lamprism.luxspec`. Replace `VERSION` with the release you want to consume.

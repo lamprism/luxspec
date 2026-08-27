@@ -19,11 +19,11 @@ package com.lamprism.luxspec.security.firewall;
 import java.util.Objects;
 
 /**
- * Represents framework-independent facts available before authentication.
+ * Represents HTTP request facts available before authentication.
  *
  * @author RollW
  */
-public final class IngressRequest {
+public final class IngressRequest implements FirewallRequest {
     private final String method;
     private final String path;
     private final String clientAddress;
