@@ -106,7 +106,7 @@ class AuditPublisherTest {
                 eventName -> EVENT_ID,
                 () -> METADATA,
                 AuditDeliveryPolicy.BEST_EFFORT,
-                (envelope, entry, failure) -> {
+                (context, failure) -> {
                 }
         );
 
@@ -196,7 +196,7 @@ class AuditPublisherTest {
                 eventName -> EVENT_ID,
                 () -> METADATA,
                 AuditDeliveryPolicy.BEST_EFFORT,
-                (failedEnvelope, entry, ignored) -> failedEnvelopes.add(failedEnvelope)
+                (context, ignored) -> failedEnvelopes.add(context.getEnvelope())
         );
         bestEffort.publish(envelope);
         assertEquals(List.of(envelope), failedEnvelopes);

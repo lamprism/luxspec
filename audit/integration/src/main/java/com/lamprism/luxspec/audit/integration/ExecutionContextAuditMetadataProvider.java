@@ -31,7 +31,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Captures correlation and security identity from an explicitly selected context storage.
+ * Captures correlation and security identity from a configured context storage.
  *
  * <p>The provider does not select a storage strategy. When the storage has no current value, it
  * returns unknown actor metadata and no correlation identifier.</p>
@@ -42,7 +42,7 @@ public final class ExecutionContextAuditMetadataProvider implements AuditMetadat
     private final ExecutionContextStorage storage;
 
     /**
-     * Creates a provider backed by one explicitly selected context storage.
+     * Creates a provider backed by one configured context storage.
      *
      * @param storage the context storage used for metadata capture
      */

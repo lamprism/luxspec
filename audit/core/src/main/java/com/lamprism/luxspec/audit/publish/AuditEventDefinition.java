@@ -16,10 +16,11 @@
 
 package com.lamprism.luxspec.audit.publish;
 
-import com.lamprism.luxspec.audit.AuditNameValidator;
+import com.lamprism.luxspec.audit.AuditNameNormalizer;
 import com.lamprism.luxspec.event.Event;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventSubscription;
+import com.lamprism.luxspec.event.EventType;
 
 import java.util.Objects;
 
@@ -34,16 +35,17 @@ import java.util.Objects;
  * @author RollW
  */
 public final class AuditEventDefinition<E extends Event> {
+    private static final AuditNameNormalizer EVENT_NAME_NORMALIZER = AuditNameNormalizer.instance();
     private final String eventName;
-    private final Class<E> eventType;
+    private final EventType<E> eventType;
     private final AuditEventTranslator<E> translator;
 
     private AuditEventDefinition(
             String eventName,
-            Class<E> eventType,
+            EventType<E> eventType,
             AuditEventTranslator<E> translator
     ) {
-        this.eventName = AuditNameValidator.require(eventName);
+        this.eventName = EVENT_NAME_NORMALIZER.normalize(eventName);
         this.eventType = Objects.requireNonNull(eventType, "eventType");
         this.translator = Objects.requireNonNull(translator, "translator");
     }
@@ -52,14 +54,33 @@ public final class AuditEventDefinition<E extends Event> {
      * Creates an event definition.
      *
      * @param eventName  the stable audit event name
-     * @param eventType  the exact event type
-     * @param translator the translator for the event type
+     * @param eventType  the exact runtime event class
+     * @param translator the configured translator instance for the event type; it is reused for
+     *                   every publication and therefore must be safe for the publisher's calling
+     *                   model
      * @param <E>        the event payload type
      * @return the immutable definition
      */
     public static <E extends Event> AuditEventDefinition<E> of(
             String eventName,
             Class<E> eventType,
+            AuditEventTranslator<E> translator
+    ) {
+        return of(eventName, EventType.of(eventType), translator);
+    }
+
+    /**
+     * Creates an event definition for an explicit runtime event channel.
+     *
+     * @param eventName  the stable audit event name
+     * @param eventType  the runtime event channel, including captured generic arguments when used
+     * @param translator the configured translator instance for the event type
+     * @param <E>        the event payload type
+     * @return the immutable definition
+     */
+    public static <E extends Event> AuditEventDefinition<E> of(
+            String eventName,
+            EventType<E> eventType,
             AuditEventTranslator<E> translator
     ) {
         return new AuditEventDefinition<>(eventName, eventType, translator);
@@ -75,16 +96,16 @@ public final class AuditEventDefinition<E extends Event> {
     }
 
     /**
-     * Returns the exact event payload type handled by this definition.
+     * Returns the runtime event channel handled by this definition.
      *
-     * @return the event payload type
+     * @return the event type token
      */
-    public Class<E> getEventType() {
+    public EventType<E> getEventType() {
         return eventType;
     }
 
     /**
-     * Returns the translator associated with this definition.
+     * Returns the configured translator associated with this definition.
      *
      * @return the event translator
      */

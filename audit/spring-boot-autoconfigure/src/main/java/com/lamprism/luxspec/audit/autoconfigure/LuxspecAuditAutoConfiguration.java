@@ -27,7 +27,7 @@ import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
 import com.lamprism.luxspec.audit.publish.AuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
 import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
-import com.lamprism.luxspec.audit.publish.AuditPublicationErrorHandler;
+import com.lamprism.luxspec.audit.publish.AuditPublicationFailure;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditSink;
@@ -39,6 +39,7 @@ import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.event.EventSubscription;
+import com.lamprism.luxspec.failure.FailureHandler;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -64,7 +65,10 @@ import java.util.Objects;
  * @author RollW
  */
 @AutoConfiguration
-@AutoConfigureAfter(name = "com.lamprism.luxspec.core.autoconfigure.LuxspecCoreAutoConfiguration")
+@AutoConfigureAfter(name = {
+        "com.lamprism.luxspec.core.autoconfigure.LuxspecEventAutoConfiguration",
+        "com.lamprism.luxspec.core.autoconfigure.LuxspecExecutionContextStorageAutoConfiguration"
+})
 public class LuxspecAuditAutoConfiguration {
     /**
      * Creates the opt-in process-local audit sink and reader as one shared store.
@@ -140,7 +144,7 @@ public class LuxspecAuditAutoConfiguration {
      * Creates the context-backed metadata provider only when the application explicitly supplies
      * context storage.
      *
-     * @param storage the application-selected context storage
+     * @param storage the configured context storage
      * @return the context-backed metadata provider
      */
     @Bean
@@ -170,7 +174,7 @@ public class LuxspecAuditAutoConfiguration {
      * @param clocks            optional publication clocks
      * @param idGenerator       the event ID generator
      * @param metadataProviders optional metadata providers
-     * @param errorHandlers     optional best-effort failure handlers
+     * @param failureHandlers   optional best-effort failure handlers
      * @return the assembled audit publisher
      */
     @Bean
@@ -182,7 +186,7 @@ public class LuxspecAuditAutoConfiguration {
             ObjectProvider<Clock> clocks,
             AuditEventIdGenerator idGenerator,
             ObjectProvider<AuditMetadataProvider> metadataProviders,
-            ObjectProvider<AuditPublicationErrorHandler> errorHandlers
+            ObjectProvider<FailureHandler<AuditPublicationFailure>> failureHandlers
     ) {
         Clock clock = clocks.getIfAvailable(Clock::systemUTC);
         AuditMetadataProvider metadataProvider = metadataProviders.getIfAvailable(
@@ -192,7 +196,7 @@ public class LuxspecAuditAutoConfiguration {
                         AuditFieldSet.empty()
                 )
         );
-        AuditPublicationErrorHandler errorHandler = errorHandlers.getIfAvailable();
+        FailureHandler<AuditPublicationFailure> failureHandler = failureHandlers.getIfAvailable();
         return new DefaultAuditPublisher(
                 registry,
                 sink,
@@ -200,7 +204,7 @@ public class LuxspecAuditAutoConfiguration {
                 idGenerator,
                 metadataProvider,
                 AuditDeliveryPolicy.REQUIRED,
-                errorHandler
+                failureHandler
         );
     }
 

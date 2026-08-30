@@ -39,6 +39,15 @@ public final class AuditEntryContent {
     private final @Nullable ResourceReference<?> resource;
     private final AuditFieldSet fieldSet;
 
+    /**
+     * Creates translator-owned semantic content for a final audit entry.
+     *
+     * @param occurredAt the time the audited operation occurred
+     * @param action     the semantic action
+     * @param outcome    the operation outcome
+     * @param resource   the affected resource, or {@code null} when no resource applies
+     * @param fieldSet   additional typed audit fields
+     */
     public AuditEntryContent(
             Instant occurredAt,
             AuditAction action,
@@ -53,6 +62,16 @@ public final class AuditEntryContent {
         this.fieldSet = Objects.requireNonNull(fieldSet, "fieldSet");
     }
 
+    /**
+     * Creates translator-owned semantic content for a final audit entry.
+     *
+     * @param occurredAt the time the audited operation occurred
+     * @param action     the semantic action
+     * @param outcome    the operation outcome
+     * @param resource   the affected resource, or {@code null} when no resource applies
+     * @param fieldSet   additional typed audit fields
+     * @return the translated entry content
+     */
     public static AuditEntryContent of(
             Instant occurredAt,
             AuditAction action,
@@ -63,22 +82,47 @@ public final class AuditEntryContent {
         return new AuditEntryContent(occurredAt, action, outcome, resource, fieldSet);
     }
 
+    /**
+     * Returns the time the audited operation occurred.
+     *
+     * @return the occurrence time
+     */
     public Instant occurredAt() {
         return occurredAt;
     }
 
+    /**
+     * Returns the semantic audit action.
+     *
+     * @return the audit action
+     */
     public AuditAction action() {
         return action;
     }
 
+    /**
+     * Returns the audited operation outcome.
+     *
+     * @return the audit outcome
+     */
     public AuditOutcome outcome() {
         return outcome;
     }
 
+    /**
+     * Returns the optional affected resource.
+     *
+     * @return the resource reference, or {@code null} when no resource applies
+     */
     public @Nullable ResourceReference<?> resource() {
         return resource;
     }
 
+    /**
+     * Returns the additional typed audit fields.
+     *
+     * @return the immutable field set
+     */
     public AuditFieldSet fieldSet() {
         return fieldSet;
     }

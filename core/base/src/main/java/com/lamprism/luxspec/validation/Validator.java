@@ -47,9 +47,7 @@ public interface Validator<T> {
      * @return the accepting validator
      */
     static <T> Validator<T> none() {
-        return value -> {
-            Objects.requireNonNull(value, "value");
-        };
+        return value -> Objects.requireNonNull(value, "value");
     }
 
     /**

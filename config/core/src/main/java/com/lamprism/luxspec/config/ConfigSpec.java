@@ -19,6 +19,7 @@ package com.lamprism.luxspec.config;
 import com.lamprism.luxspec.config.policy.ConfigPolicies;
 import com.lamprism.luxspec.config.policy.ConfigPolicy;
 import com.lamprism.luxspec.config.value.ConfigValueValidationException;
+import com.lamprism.luxspec.validation.Validator;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -65,7 +66,7 @@ public interface ConfigSpec<T> {
             ConfigCodec<T> codec,
             @Nullable T defaultValue,
             boolean sensitive,
-            ConfigValueValidator<T> validator
+            Validator<T> validator
     ) {
         return builder(key, codec)
                 .defaultValue(defaultValue)
@@ -92,7 +93,7 @@ public interface ConfigSpec<T> {
             @Nullable T defaultValue,
             boolean sensitive
     ) {
-        return of(key, codec, defaultValue, sensitive, ConfigValueValidator.none());
+        return of(key, codec, defaultValue, sensitive, Validator.none());
     }
 
     /**
@@ -115,7 +116,7 @@ public interface ConfigSpec<T> {
             ConfigCodec<T> codec,
             @Nullable T defaultValue,
             boolean sensitive,
-            ConfigValueValidator<T> validator
+            Validator<T> validator
     ) {
         return builder(key, codec)
                 .parameters(parameters)
@@ -145,7 +146,7 @@ public interface ConfigSpec<T> {
             @Nullable T defaultValue,
             boolean sensitive
     ) {
-        return of(key, parameters, codec, defaultValue, sensitive, ConfigValueValidator.none());
+        return of(key, parameters, codec, defaultValue, sensitive, Validator.none());
     }
 
     /**
@@ -167,7 +168,7 @@ public interface ConfigSpec<T> {
             ConfigCodec<T> codec,
             @Nullable T defaultValue,
             boolean sensitive,
-            ConfigValueValidator<T> validator,
+            Validator<T> validator,
             ConfigPolicy policy
     ) {
         return of(
@@ -202,7 +203,7 @@ public interface ConfigSpec<T> {
             ConfigCodec<T> codec,
             @Nullable T defaultValue,
             boolean sensitive,
-            ConfigValueValidator<T> validator,
+            Validator<T> validator,
             ConfigPolicy policy
     ) {
         return builder(key, codec)

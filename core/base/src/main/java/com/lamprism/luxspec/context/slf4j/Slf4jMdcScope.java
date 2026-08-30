@@ -14,27 +14,32 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.context;
+package com.lamprism.luxspec.context.slf4j;
 
+import com.lamprism.luxspec.context.CorrelationId;
+import com.lamprism.luxspec.context.ExecutionContext;
+import com.lamprism.luxspec.context.ExecutionContextKeys;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.MDC;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
- * Optionally projects the shared correlation identifier into SLF4J MDC for one lexical scope.
+ * Projects the shared correlation identifier into SLF4J MDC for one lexical scope.
  *
- * <p>MDC is a provider-owned thread-bound projection. This class only activates when a caller
- * explicitly opens it and never makes MDC part of the core context carrier.</p>
+ * <p>MDC is a provider-owned thread-bound projection. This adapter only activates when a caller
+ * explicitly opens it and never makes MDC part of the provider-independent context carrier.</p>
  *
  * <p>A scope must close on its owner thread and in LIFO order.</p>
  *
  * @author RollW
  */
 public final class Slf4jMdcScope implements AutoCloseable {
+    /**
+     * The standard MDC key used for the Luxspec correlation identifier.
+     */
     public static final String CORRELATION_ID_KEY = "correlationId";
 
     private static final ThreadLocal<Deque<Slf4jMdcScope>> SCOPES = ThreadLocal.withInitial(ArrayDeque::new);
@@ -43,12 +48,10 @@ public final class Slf4jMdcScope implements AutoCloseable {
     private final @Nullable String previousCorrelationId;
     private boolean closed;
 
-    private Slf4jMdcScope(Optional<ExecutionContext> context) {
+    private Slf4jMdcScope(ExecutionContext context) {
         owner = Thread.currentThread();
         previousCorrelationId = MDC.get(CORRELATION_ID_KEY);
-        CorrelationId correlationId = context
-                .flatMap(value -> value.get(ExecutionContextKeys.CORRELATION_ID))
-                .orElse(null);
+        CorrelationId correlationId = context.get(ExecutionContextKeys.CORRELATION_ID).orElse(null);
         if (correlationId == null) {
             MDC.remove(CORRELATION_ID_KEY);
         } else {
@@ -64,7 +67,7 @@ public final class Slf4jMdcScope implements AutoCloseable {
      * @return the MDC projection scope
      */
     public static Slf4jMdcScope open(ExecutionContext context) {
-        return new Slf4jMdcScope(Optional.of(Objects.requireNonNull(context, "context")));
+        return new Slf4jMdcScope(Objects.requireNonNull(context, "context"));
     }
 
     @Override

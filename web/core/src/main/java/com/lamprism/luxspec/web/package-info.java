@@ -15,7 +15,7 @@
  */
 
 /**
- * Provider-independent HTTP response and collection representation contracts.
+ * Provider-independent HTTP response, error mapping, and collection representation contracts.
  */
 @NullMarked
 package com.lamprism.luxspec.web;

@@ -18,7 +18,7 @@ package com.lamprism.luxspec.context.spring;
 
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
-import com.lamprism.luxspec.context.Slf4jMdcScope;
+import com.lamprism.luxspec.context.slf4j.Slf4jMdcScope;
 import org.springframework.core.task.TaskDecorator;
 
 import java.util.Objects;
@@ -26,8 +26,8 @@ import java.util.Objects;
 /**
  * Installs a context snapshot through an explicitly selected Spring task boundary.
  *
- * <p>The application supplies the storage implementation. This decorator does not select a
- * storage strategy.</p>
+ * <p>The configured storage may be application-provided or selected by framework
+ * auto-configuration. This decorator does not select a storage strategy.</p>
  *
  * @author RollW
  */
@@ -35,7 +35,7 @@ public final class SpringExecutionContextTaskDecorator implements TaskDecorator 
     private final ExecutionContextStorage storage;
 
     /**
-     * Creates a decorator using one explicitly selected context storage.
+     * Creates a decorator using one configured context storage.
      *
      * @param storage the context storage used for capture and installation
      */

@@ -16,8 +16,11 @@
 
 package com.lamprism.luxspec.core.autoconfigure;
 
+import com.lamprism.luxspec.context.CorrelationId;
+import com.lamprism.luxspec.context.CorrelationIdGenerator;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
+import com.lamprism.luxspec.context.UuidCorrelationIdGenerator;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.SynchronousEventDispatcher;
 import com.lamprism.luxspec.resource.ResourceIdGenerator;
@@ -31,12 +34,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class LuxspecCoreAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(LuxspecCoreAutoConfiguration.class));
+            .withConfiguration(AutoConfigurations.of(
+                    LuxspecExecutionContextStorageAutoConfiguration.class,
+                    LuxspecContextAutoConfiguration.class,
+                    LuxspecEventAutoConfiguration.class,
+                    LuxspecResourceAutoConfiguration.class
+            ));
 
     @Test
     void createsUuidResourceIdGeneratorByDefault() {
         contextRunner.run(context -> assertThat(context.getBean(ResourceIdGenerator.class))
                 .isInstanceOf(UuidResourceIdGenerator.class));
+    }
+
+    @Test
+    void createsUuidCorrelationIdGeneratorByDefault() {
+        contextRunner.run(context -> assertThat(context.getBean(CorrelationIdGenerator.class))
+                .isInstanceOf(UuidCorrelationIdGenerator.class));
+    }
+
+    @Test
+    void backsOffWhenApplicationProvidesCorrelationIdGenerator() {
+        CorrelationIdGenerator applicationGenerator = () -> CorrelationId.of("application-id");
+
+        contextRunner
+                .withBean(CorrelationIdGenerator.class, () -> applicationGenerator)
+                .run(context -> assertThat(context.getBean(CorrelationIdGenerator.class))
+                        .isSameAs(applicationGenerator));
     }
 
     @Test
@@ -56,20 +80,46 @@ class LuxspecCoreAutoConfigurationTest {
     }
 
     @Test
-    void createsContextAdaptersOnlyWhenStorageIsExplicitlySupplied() {
+    void backsOffWhenApplicationProvidesExecutionContextStorage() {
+        ExecutionContextStorage applicationStorage = new ThreadLocalExecutionContextStorage();
+
         contextRunner
-                .withBean(ExecutionContextStorage.class, ThreadLocalExecutionContextStorage::new)
+                .withBean(ExecutionContextStorage.class, () -> applicationStorage)
                 .run(context -> {
                     assertThat(context).hasSingleBean(ExecutionContextStorage.class);
+                    assertThat(context.getBean(ExecutionContextStorage.class))
+                            .isSameAs(applicationStorage);
                     assertThat(context).hasSingleBean(TaskDecorator.class);
                 });
     }
 
     @Test
-    void doesNotSelectAContextStorageByDefault() {
+    void createsDefaultExecutionContextStorageAndTaskDecorator() {
         contextRunner.run(context -> {
-            assertThat(context).doesNotHaveBean(ExecutionContextStorage.class);
-            assertThat(context).doesNotHaveBean(TaskDecorator.class);
+            assertThat(context.getBean(ExecutionContextStorage.class))
+                    .isInstanceOf(ThreadLocalExecutionContextStorage.class);
+            assertThat(context).hasSingleBean(TaskDecorator.class);
         });
+    }
+
+    @Test
+    void allowsExecutionContextStorageAutoConfigurationToBeOmitted() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(LuxspecContextAutoConfiguration.class))
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(ExecutionContextStorage.class);
+                    assertThat(context).doesNotHaveBean(TaskDecorator.class);
+                });
+    }
+
+    @Test
+    void allowsIndependentEventAutoConfiguration() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(LuxspecEventAutoConfiguration.class))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(EventDispatcher.class);
+                    assertThat(context).doesNotHaveBean(ResourceIdGenerator.class);
+                    assertThat(context).doesNotHaveBean(TaskDecorator.class);
+                });
     }
 }

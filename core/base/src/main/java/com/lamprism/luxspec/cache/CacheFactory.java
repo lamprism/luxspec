@@ -17,17 +17,21 @@
 package com.lamprism.luxspec.cache;
 
 /**
- * Creates independent typed cache instances for runtime capabilities.
+ * Creates independently owned typed cache instances through one cache implementation.
+ *
+ * <p>The factory owns reusable implementation resources such as clients, serialization, and remote
+ * access. The creation boundary supplies the stable ownership name and provider-neutral profile for
+ * each cache instance. Logical single-level and multi-level assembly belongs to {@link CachePlan}.</p>
  *
  * @author RollW
  */
 @FunctionalInterface
 public interface CacheFactory {
     /**
-     * Creates one cache instance for an ownership boundary and retention profile.
+     * Creates one cache instance for an ownership boundary and profile.
      *
      * @param name    the stable cache ownership name
-     * @param profile the generic retention profile
+     * @param profile the provider-neutral cache profile
      * @param <K>     the cache key type
      * @param <V>     the cache value type
      * @return a new cache instance

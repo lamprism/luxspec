@@ -17,10 +17,9 @@
 package com.lamprism.luxspec.config.cache;
 
 import com.lamprism.luxspec.cache.Cache;
-import com.lamprism.luxspec.cache.CacheFactory;
 import com.lamprism.luxspec.cache.CacheInvalidator;
 import com.lamprism.luxspec.cache.CacheName;
-import com.lamprism.luxspec.cache.CacheProfile;
+import com.lamprism.luxspec.cache.CachePlan;
 import com.lamprism.luxspec.config.ConfigBinding;
 import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.ConfigValue;
@@ -38,15 +37,13 @@ public class ConfigValueCache implements CacheInvalidator<ConfigKey> {
     private final Cache<ConfigCacheKey, ConfigValue<?>> cache;
 
     /**
-     * Creates a configuration-owned value cache through the supplied factory.
+     * Creates a configuration-owned value cache through the supplied logical cache plan.
      *
-     * @param factory the cache instance factory
-     * @param profile the generic cache retention profile
+     * @param plan the cache assembly plan
      */
-    public ConfigValueCache(CacheFactory factory, CacheProfile profile) {
-        CacheFactory nonNullFactory = Objects.requireNonNull(factory, "factory");
-        CacheProfile nonNullProfile = Objects.requireNonNull(profile, "profile");
-        this.cache = nonNullFactory.create(CACHE_NAME, nonNullProfile);
+    public ConfigValueCache(CachePlan plan) {
+        CachePlan nonNullPlan = Objects.requireNonNull(plan, "plan");
+        this.cache = nonNullPlan.create(CACHE_NAME);
     }
 
     /**

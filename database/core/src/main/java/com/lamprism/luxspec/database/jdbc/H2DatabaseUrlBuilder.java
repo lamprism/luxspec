@@ -14,12 +14,11 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class H2DatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
+public class H2DatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
     private static final String DEFAULT_MEMORY_NAME = "luxspec";
 
-    @Override
-    public DatabaseType getDatabaseType() {
-        return DatabaseType.H2;
+    public H2DatabaseUrlBuilder() {
+        super(DatabaseType.H2, "org.h2.Driver");
     }
 
     @Override
@@ -27,22 +26,17 @@ public class H2DatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
         DatabaseTarget target = settings.getTarget();
         return switch (target.getKind()) {
             case MEMORY -> {
-                requireSslDisabled(settings.getSsl(), DatabaseType.H2);
+                requireSslDisabled(settings.getSsl());
                 yield "jdbc:h2:mem:"
-                        + memoryName(settings, DEFAULT_MEMORY_NAME)
+                        + memoryName(settings)
                         + ";DB_CLOSE_DELAY=-1";
             }
             case FILE -> {
-                requireSslDisabled(settings.getSsl(), DatabaseType.H2);
-                yield "jdbc:h2:file:" + h2FilePath(target);
+                requireSslDisabled(settings.getSsl());
+                yield "jdbc:h2:file:" + filePath(target);
             }
             case NETWORK -> networkUrl(settings, target);
         };
-    }
-
-    @Override
-    protected String getDriverClassName() {
-        return "org.h2.Driver";
     }
 
     @Override
@@ -50,7 +44,7 @@ public class H2DatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
             DatabaseConfig settings,
             List<AutoCloseable> resources
     ) {
-        Map<String, String> properties = baseProperties(settings, CharacterSetFlavor.H2);
+        Map<String, String> properties = driverProperties(settings);
         rejectManagedSslOptions(properties, Set.of("SSL"));
         return properties;
     }
@@ -71,6 +65,18 @@ public class H2DatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
             );
         }
         return networkUrl("ssl", settings, target);
+    }
+
+    private String memoryName(DatabaseConfig settings) {
+        String databaseName = settings.getDatabaseName();
+        return databaseName == null ? DEFAULT_MEMORY_NAME : databaseName;
+    }
+
+    private String filePath(DatabaseTarget target) {
+        String value = requireFile(target);
+        return value.endsWith(".db")
+                ? value.substring(0, value.length() - ".db".length())
+                : value;
     }
 
     private String networkUrl(

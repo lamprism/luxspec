@@ -212,7 +212,7 @@ class LuxspecDatabaseAutoConfigurationTest {
                 Map<ConfigKey, ConfigEntry> entries,
                 int order
         ) {
-            super(id, ConfigSourceScope.BOOTSTRAP, entries);
+            super(id, ConfigSourceScope.BOOTSTRAP, entries, Map.of());
             this.order = order;
         }
 

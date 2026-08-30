@@ -30,17 +30,47 @@ public interface EventDispatcher extends EventPublisher {
      * Registers an exact-runtime-type listener with deterministic ordering.
      *
      * <p>Listeners run by ascending {@code order}, then by registration order when their explicit
-     * order is equal.</p>
+     * order is equal. This convenience method creates a raw-class {@link EventType}. Use the token
+     * overload when erased generic arguments require distinct runtime channels.</p>
      *
-     * @param eventType the event type
+     * @param eventClass the event class
+     * @param order     the explicit listener order
+     * @param listener  the listener to register
+     * @param <E>       the event type
+     * @return a subscription that unregisters the listener when closed
+     */
+    default <E extends Event> EventSubscription subscribe(
+            Class<E> eventClass,
+            int order,
+            EventListener<? super E> listener
+    ) {
+        return subscribe(EventType.of(eventClass), order, listener);
+    }
+
+    /**
+     * Registers a listener for one explicit runtime event channel.
+     *
+     * <p>Parameterized tokens captured by {@link EventType} remain distinct even when their raw
+     * Java class is the same.</p>
+     *
+     * @param eventType the runtime event channel
      * @param order     the explicit listener order
      * @param listener  the listener to register
      * @param <E>       the event type
      * @return a subscription that unregisters the listener when closed
      */
     <E extends Event> EventSubscription subscribe(
-            Class<E> eventType,
+            EventType<E> eventType,
             int order,
             EventListener<? super E> listener
     );
+
+    /**
+     * Publishes an event through an explicit runtime channel.
+     *
+     * @param eventType the runtime event channel
+     * @param event     the event payload
+     * @param <E>       the event type
+     */
+    <E extends Event> void publish(EventType<E> eventType, E event);
 }

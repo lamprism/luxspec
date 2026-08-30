@@ -161,7 +161,7 @@ public class LuxspecSecurityAutoConfiguration {
          *
          * @param httpSecurity          the servlet security builder
          * @param authenticationManager the configured Spring authentication manager
-         * @param storage               the optional explicitly selected context storage
+         * @param storage               the optional configured context storage
          * @return the stateless protected filter chain
          */
         @ConditionalOnBean(AccessTokenAuthenticator.class)

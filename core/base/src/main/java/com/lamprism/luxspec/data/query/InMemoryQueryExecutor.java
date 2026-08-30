@@ -42,6 +42,22 @@ import java.util.function.Supplier;
  * counting, and windowing. This avoids expensive visibility checks for candidates that cannot
  * appear in the result. The candidate supplier is called once per operation.</p>
  *
+ * <p>The executor does not validate which fields, operators, ordering, or complexity a role
+ * permits. The owning reader must validate criteria with its {@link QuerySchema} and
+ * {@link QueryComplexityLimits} before calling this executor. Every matching candidate is
+ * materialized in memory before ordering and windowing, including an unbounded result, so this
+ * implementation is intended for bounded application-owned collections rather than persistent or
+ * arbitrarily large data sets.</p>
+ *
+ * <p>Register every field that accepted criteria may reference:</p>
+ *
+ * <pre>{@code
+ * InMemoryQueryExecutor<Item> executor = InMemoryQueryExecutor.<Item>builder(items::snapshot)
+ *         .field(ItemFields.NAME, Item::name)
+ *         .field(ItemFields.PRIORITY, Item::priority)
+ *         .build();
+ * }</pre>
+ *
  * @param <T> the queried candidate type
  * @author RollW
  */

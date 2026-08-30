@@ -16,23 +16,22 @@
 
 package com.lamprism.luxspec.observability.metric;
 
-import java.util.Objects;
+import com.lamprism.luxspec.validation.Normalizer;
+import com.lamprism.luxspec.validation.ValidationRules;
 
-/**
- * Common metric activation policies.
- *
- * @author RollW
- */
-public final class MetricActivations {
-    private MetricActivations() {
+final class MetricTextNormalizer implements Normalizer<String> {
+    static final MetricTextNormalizer INSTANCE = new MetricTextNormalizer();
+    private static final Normalizer<String> DELEGATE = Normalizer.of(String::trim)
+            .validatedBy(
+                    ValidationRules.nonBlank("Metric text")
+                            .and(ValidationRules.noControlCharacters("Metric text"))
+            );
+
+    private MetricTextNormalizer() {
     }
 
-    public static MetricActivation all() {
-        return spec -> true;
-    }
-
-    public static MetricActivation byName(MetricName name) {
-        MetricName nonNullName = Objects.requireNonNull(name, "name");
-        return spec -> spec.getName().equals(nonNullName);
+    @Override
+    public String normalize(String value) {
+        return DELEGATE.normalize(value);
     }
 }

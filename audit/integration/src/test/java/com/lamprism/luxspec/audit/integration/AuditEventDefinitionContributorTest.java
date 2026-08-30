@@ -131,7 +131,7 @@ class AuditEventDefinitionContributorTest {
     void routesEveryExistingAuditableEventToThePublisher() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
-        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
 
@@ -257,7 +257,7 @@ class AuditEventDefinitionContributorTest {
     void allowsAFeatureContributorToBeSelectedIndependently() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
-        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
 
@@ -286,7 +286,7 @@ class AuditEventDefinitionContributorTest {
     void stopsRoutingAfterTheRegistrationIsClosed() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
-        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
             throw new AssertionError("Audit listener failed", failure);
         });
         EventSubscription registry = subscribe(

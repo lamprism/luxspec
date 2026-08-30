@@ -4,8 +4,10 @@ import com.lamprism.luxspec.config.ConfigCodec;
 import com.lamprism.luxspec.config.ConfigDescription;
 import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.ConfigSpec;
-import com.lamprism.luxspec.config.ConfigValueValidator;
 import com.lamprism.luxspec.config.policy.ConfigPolicy;
+import com.lamprism.luxspec.config.value.ConfigValueValidationException;
+import com.lamprism.luxspec.validation.ValidationException;
+import com.lamprism.luxspec.validation.Validator;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
@@ -17,7 +19,7 @@ public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
     private final @Nullable T defaultValue;
     private final boolean sensitive;
     private final ConfigPolicy policy;
-    private final ConfigValueValidator<T> validator;
+    private final Validator<T> validator;
 
     public DefaultConfigSpec(
             ConfigKey key,
@@ -25,7 +27,7 @@ public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
             ConfigDescription description,
             @Nullable T defaultValue,
             boolean sensitive,
-            ConfigValueValidator<T> validator,
+            Validator<T> validator,
             ConfigPolicy policy
     ) {
         this.key = Objects.requireNonNull(key, "key");
@@ -72,6 +74,12 @@ public final class DefaultConfigSpec<T> implements ConfigSpec<T> {
 
     @Override
     public void validate(T value) {
-        validator.validate(Objects.requireNonNull(value, "value"));
+        try {
+            validator.validate(Objects.requireNonNull(value, "value"));
+        } catch (ConfigValueValidationException exception) {
+            throw exception;
+        } catch (ValidationException exception) {
+            throw new ConfigValueValidationException("Configuration value failed validation");
+        }
     }
 }

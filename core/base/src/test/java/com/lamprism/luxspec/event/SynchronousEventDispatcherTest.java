@@ -32,7 +32,7 @@ class SynchronousEventDispatcherTest {
         List<String> calls = new ArrayList<>();
         List<Throwable> failures = new ArrayList<>();
         EventDispatcher dispatcher = new SynchronousEventDispatcher(
-                (event, listener, failure) -> failures.add(failure)
+                (context, failure) -> failures.add(failure)
         );
 
         dispatcher.subscribe(TestEvent.class, 10, event -> calls.add("late:" + event.value()));
@@ -51,7 +51,7 @@ class SynchronousEventDispatcherTest {
     @Test
     void letsErrorsEscapeTheListenerFailureBoundary() {
         EventDispatcher dispatcher = new SynchronousEventDispatcher(
-                (event, listener, failure) -> {
+                (context, failure) -> {
                     throw new AssertionError("The error handler must not receive JVM errors");
                 }
         );
@@ -70,7 +70,7 @@ class SynchronousEventDispatcherTest {
     @Test
     void removesListenersWhenSubscriptionsClose() {
         List<String> calls = new ArrayList<>();
-        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
             throw new AssertionError("Listener failed", failure);
         });
 
@@ -92,7 +92,7 @@ class SynchronousEventDispatcherTest {
     @Test
     void publishesAnImmutableSnapshotWhenListenersChangeRegistrations() {
         List<String> calls = new ArrayList<>();
-        SynchronousEventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
+        SynchronousEventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
             throw new AssertionError("Listener failed", failure);
         });
         dispatcher.subscribe(TestEvent.class, 10, event -> calls.add("late"));
@@ -113,7 +113,7 @@ class SynchronousEventDispatcherTest {
 
     @Test
     void combinesSubscriptionsIntoOneLifecycleHandle() {
-        EventDispatcher dispatcher = new SynchronousEventDispatcher((event, listener, failure) -> {
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
             throw new AssertionError("Listener failed", failure);
         });
         EventSubscription first = dispatcher.subscribe(TestEvent.class, 0, event -> {
@@ -131,6 +131,45 @@ class SynchronousEventDispatcherTest {
         combined.unsubscribe();
     }
 
+    @Test
+    void dispatchesTheSameRawEventClassThroughDistinctGenericChannels() {
+        List<String> calls = new ArrayList<>();
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
+            throw new AssertionError("Listener failed", failure);
+        });
+        EventType<PayloadEvent<String>> stringEvents = new EventType<>() {
+        };
+        EventType<PayloadEvent<Integer>> integerEvents = new EventType<>() {
+        };
+        EventType<PayloadEvent<String>> equivalentStringEvents = new EventType<>() {
+        };
+        dispatcher.subscribe(stringEvents, 0, event -> calls.add("string:" + event.value()));
+        dispatcher.subscribe(integerEvents, 0, event -> calls.add("integer:" + event.value()));
+
+        dispatcher.publish(equivalentStringEvents, new PayloadEvent<>("value"));
+        dispatcher.publish(integerEvents, new PayloadEvent<>(42));
+
+        assertEquals(List.of("string:value", "integer:42"), calls);
+    }
+
+    @Test
+    void rawPublicationDoesNotGuessAnErasedGenericChannel() {
+        List<String> calls = new ArrayList<>();
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
+            throw new AssertionError("Listener failed", failure);
+        });
+        EventType<PayloadEvent<String>> stringEvents = new EventType<>() {
+        };
+        dispatcher.subscribe(stringEvents, 0, event -> calls.add(event.value()));
+
+        dispatcher.publish(new PayloadEvent<>("value"));
+
+        assertTrue(calls.isEmpty());
+    }
+
     private record TestEvent(String value) implements Event {
+    }
+
+    private record PayloadEvent<T>(T value) implements Event {
     }
 }

@@ -14,6 +14,7 @@ import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
 import com.lamprism.luxspec.config.source.ConfigSourceScope;
+import com.lamprism.luxspec.validation.Validator;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
@@ -127,7 +128,7 @@ class LayeredConfigReaderTest {
                 ConfigCodecs.integer(),
                 10,
                 false,
-                ConfigValueValidator.of(value -> value > 0, "Value must be positive")
+                Validator.of(value -> value > 0, "Value must be positive")
         );
         MemorySource higher = new MemorySource("higher", ConfigEntry.present("0"));
         MemorySource lower = new MemorySource("lower", ConfigEntry.present("30"));
@@ -169,7 +170,7 @@ class LayeredConfigReaderTest {
                 ConfigCodecs.integer(),
                 10,
                 false,
-                ConfigValueValidator.<Integer>none(),
+                Validator.<Integer>none(),
                 ConfigPolicies.sourceSelection(
                         Map.of("tier", "database"),
                         ConfigSourceSelector.exact(ConfigSourceId.of("global"))
@@ -191,7 +192,7 @@ class LayeredConfigReaderTest {
                 ConfigCodecs.integer(),
                 10,
                 false,
-                ConfigValueValidator.<Integer>none(),
+                Validator.<Integer>none(),
                 ConfigPolicies.sourceSelection(
                         Map.of("tier", "database"),
                         ConfigSourceSelector.any()
@@ -262,7 +263,7 @@ class LayeredConfigReaderTest {
                 ConfigCodecs.integer(),
                 10,
                 false,
-                ConfigValueValidator.<Integer>none(),
+                Validator.<Integer>none(),
                 ConfigPolicies.sourceSelection(
                         Map.of("tier", "database"),
                         ConfigSourceSelector.exact(ConfigSourceId.of("global"))

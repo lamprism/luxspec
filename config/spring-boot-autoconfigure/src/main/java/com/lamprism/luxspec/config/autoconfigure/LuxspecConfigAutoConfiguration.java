@@ -1,8 +1,7 @@
 package com.lamprism.luxspec.config.autoconfigure;
 
-import com.lamprism.luxspec.cache.CacheFactory;
 import com.lamprism.luxspec.cache.CacheInvalidator;
-import com.lamprism.luxspec.cache.CacheProfile;
+import com.lamprism.luxspec.cache.CachePlan;
 import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.ConfigProvider;
 import com.lamprism.luxspec.config.ConfigReader;
@@ -54,24 +53,16 @@ public class LuxspecConfigAutoConfiguration {
     }
 
     /**
-     * Creates the configuration-owned value cache through the application cache factory.
+     * Creates the configuration-owned value cache through the application cache plan.
      *
-     * @param factory  the application-provided cache factory
-     * @param profiles the optional generic cache profile
+     * @param plan the application-provided logical cache plan
      * @return the configuration value cache
      */
     @Bean
-    @ConditionalOnBean(CacheFactory.class)
+    @ConditionalOnBean(CachePlan.class)
     @ConditionalOnMissingBean(ConfigValueCache.class)
-    public ConfigValueCache configValueCache(
-            CacheFactory factory,
-            ObjectProvider<CacheProfile> profiles
-    ) {
-        CacheProfile profile = profiles.getIfAvailable();
-        if (profile == null) {
-            profile = CacheProfile.defaults();
-        }
-        return new ConfigValueCache(factory, profile);
+    public ConfigValueCache configValueCache(CachePlan plan) {
+        return new ConfigValueCache(plan);
     }
 
     /**

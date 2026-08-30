@@ -9,7 +9,8 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public final class KeyStoreArtifact extends SslMaterialArtifact {
+public final class KeyStoreArtifact implements SslMaterialArtifact {
+    private final ManagedSslMaterialArtifact materialArtifact;
     private final String keyStoreType;
     private final String password;
 
@@ -27,9 +28,14 @@ public final class KeyStoreArtifact extends SslMaterialArtifact {
             String password,
             List<? extends AutoCloseable> resources
     ) {
-        super(path, resources);
+        this.materialArtifact = new ManagedSslMaterialArtifact(path, resources);
         this.keyStoreType = requireText(keyStoreType, "keyStoreType");
         this.password = requireText(password, "password");
+    }
+
+    @Override
+    public Path getPath() {
+        return materialArtifact.getPath();
     }
 
     /**
@@ -48,6 +54,11 @@ public final class KeyStoreArtifact extends SslMaterialArtifact {
      */
     public String getPassword() {
         return password;
+    }
+
+    @Override
+    public void close() throws Exception {
+        materialArtifact.close();
     }
 
     private static String requireText(String value, String name) {

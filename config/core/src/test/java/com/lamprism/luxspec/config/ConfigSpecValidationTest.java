@@ -1,6 +1,7 @@
 package com.lamprism.luxspec.config;
 
 import com.lamprism.luxspec.config.value.ConfigValueValidationException;
+import com.lamprism.luxspec.validation.Validator;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -8,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ConfigSpecValidationTest {
     @Test
     void rejectsAnInvalidDefaultWhenTheDefinitionIsCreated() {
-        ConfigValueValidator<Integer> positive = ConfigValueValidator.of(
+        Validator<Integer> positive = Validator.of(
                 value -> value > 0,
                 "Value must be positive"
         );

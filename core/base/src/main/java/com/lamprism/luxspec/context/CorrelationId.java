@@ -16,10 +16,8 @@
 
 package com.lamprism.luxspec.context;
 
+import com.lamprism.luxspec.validation.Normalizer;
 import com.lamprism.luxspec.validation.ValidationRules;
-import com.lamprism.luxspec.validation.Validator;
-
-import java.util.Objects;
 
 /**
  * A safe cross-module association value for one request or execution.
@@ -32,10 +30,12 @@ import java.util.Objects;
  * @author RollW
  */
 public final class CorrelationId {
-    private static final Validator<String> VALUE_VALIDATOR = ValidationRules
-            .nonBlank("Correlation ID")
-            .and(ValidationRules.noWhitespace("Correlation ID"))
-            .and(ValidationRules.noControlCharacters("Correlation ID"));
+    private static final Normalizer<String> VALUE_NORMALIZER = Normalizer.of(String::trim)
+            .validatedBy(
+                    ValidationRules.nonBlank("Correlation ID")
+                            .and(ValidationRules.noWhitespace("Correlation ID"))
+                            .and(ValidationRules.noControlCharacters("Correlation ID"))
+            );
 
     private final String value;
 
@@ -44,9 +44,7 @@ public final class CorrelationId {
     }
 
     public static CorrelationId of(String value) {
-        String normalized = Objects.requireNonNull(value, "value").trim();
-        VALUE_VALIDATOR.validate(normalized);
-        return new CorrelationId(normalized);
+        return new CorrelationId(VALUE_NORMALIZER.normalize(value));
     }
 
     public String value() {

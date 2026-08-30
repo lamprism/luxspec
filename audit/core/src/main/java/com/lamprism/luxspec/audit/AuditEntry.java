@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * Immutable provider-independent accountability entry.
  *
- * <p>The event name is normalized by {@link AuditNameValidator#require(String)}. The
+ * <p>The event name is normalized by {@link AuditNameNormalizer}. The
  * entry preserves the envelope ID, publication time, and metadata while the
  * translator supplies the occurrence time, action, outcome, resource, and
  * fields.
@@ -33,6 +33,7 @@ import java.util.Objects;
  * @author RollW
  */
 public final class AuditEntry {
+    private static final AuditNameNormalizer EVENT_NAME_NORMALIZER = AuditNameNormalizer.instance();
     private final AuditEventId id;
     private final String eventName;
     private final Instant occurredAt;
@@ -43,6 +44,22 @@ public final class AuditEntry {
     private final @Nullable ResourceReference<?> resource;
     private final AuditFieldSet fields;
 
+    /**
+     * Creates one complete immutable audit entry.
+     *
+     * <p>Publishers and translators should normally use {@link #from(AuditEnvelope,
+     * AuditEntryContent)} so ownership of publication metadata remains explicit.</p>
+     *
+     * @param id          the stable source event identity
+     * @param eventName   the stable audit event name
+     * @param occurredAt  the time the audited operation occurred
+     * @param publishedAt the time the event entered audit publication
+     * @param metadata    the captured publication metadata
+     * @param action      the semantic audit action
+     * @param outcome     the operation outcome
+     * @param resource    the affected resource, or {@code null} when no resource applies
+     * @param fields      additional typed audit fields
+     */
     public AuditEntry(
             AuditEventId id,
             String eventName,
@@ -55,7 +72,7 @@ public final class AuditEntry {
             AuditFieldSet fields
     ) {
         this.id = Objects.requireNonNull(id, "id");
-        this.eventName = AuditNameValidator.require(eventName);
+        this.eventName = EVENT_NAME_NORMALIZER.normalize(eventName);
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
         this.publishedAt = Objects.requireNonNull(publishedAt, "publishedAt");
         this.metadata = Objects.requireNonNull(metadata, "metadata");
@@ -89,38 +106,83 @@ public final class AuditEntry {
         );
     }
 
+    /**
+     * Returns the stable source event identity.
+     *
+     * @return the audit event ID
+     */
     public AuditEventId id() {
         return id;
     }
 
+    /**
+     * Returns the stable audit event name.
+     *
+     * @return the audit event name
+     */
     public String eventName() {
         return eventName;
     }
 
+    /**
+     * Returns the time the audited operation occurred.
+     *
+     * @return the occurrence time
+     */
     public Instant occurredAt() {
         return occurredAt;
     }
 
+    /**
+     * Returns the time the event entered audit publication.
+     *
+     * @return the publication time
+     */
     public Instant publishedAt() {
         return publishedAt;
     }
 
+    /**
+     * Returns the captured publication metadata.
+     *
+     * @return the audit metadata
+     */
     public AuditMetadata metadata() {
         return metadata;
     }
 
+    /**
+     * Returns the semantic audit action.
+     *
+     * @return the audit action
+     */
     public AuditAction action() {
         return action;
     }
 
+    /**
+     * Returns the audited operation outcome.
+     *
+     * @return the audit outcome
+     */
     public AuditOutcome outcome() {
         return outcome;
     }
 
+    /**
+     * Returns the optional affected resource.
+     *
+     * @return the resource reference, or {@code null} when no resource applies
+     */
     public @Nullable ResourceReference<?> resource() {
         return resource;
     }
 
+    /**
+     * Returns the additional typed audit fields.
+     *
+     * @return the immutable field set
+     */
     public AuditFieldSet fields() {
         return fields;
     }

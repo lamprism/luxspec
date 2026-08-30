@@ -23,7 +23,8 @@ import com.lamprism.luxspec.audit.AuditEnvelope;
 import com.lamprism.luxspec.audit.AuditEventId;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditMetadata;
-import com.lamprism.luxspec.audit.AuditNameValidator;
+import com.lamprism.luxspec.audit.AuditNameNormalizer;
+import com.lamprism.luxspec.failure.FailureHandler;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Clock;
@@ -43,13 +44,14 @@ import java.util.Objects;
  * @author RollW
  */
 public class DefaultAuditPublisher implements AuditPublisher {
+    private static final AuditNameNormalizer EVENT_NAME_NORMALIZER = AuditNameNormalizer.instance();
     private final AuditRegistry registry;
     private final AuditSink sink;
     private final Clock clock;
     private final AuditEventIdGenerator idGenerator;
     private final AuditMetadataProvider metadataProvider;
     private final AuditDeliveryPolicy deliveryPolicy;
-    private final @Nullable AuditPublicationErrorHandler errorHandler;
+    private final @Nullable FailureHandler<AuditPublicationFailure> failureHandler;
 
     /**
      * Creates a publisher with UTC time, UUID event IDs, unknown actor
@@ -79,7 +81,7 @@ public class DefaultAuditPublisher implements AuditPublisher {
      * @param idGenerator      the local event ID generator
      * @param metadataProvider the publication metadata provider
      * @param deliveryPolicy   the translation and sink failure policy
-     * @param errorHandler     the best-effort failure handler
+     * @param failureHandler   the best-effort failure handler
      */
     public DefaultAuditPublisher(
             AuditRegistry registry,
@@ -88,7 +90,7 @@ public class DefaultAuditPublisher implements AuditPublisher {
             AuditEventIdGenerator idGenerator,
             AuditMetadataProvider metadataProvider,
             AuditDeliveryPolicy deliveryPolicy,
-            @Nullable AuditPublicationErrorHandler errorHandler
+            @Nullable FailureHandler<AuditPublicationFailure> failureHandler
     ) {
         this.registry = Objects.requireNonNull(registry, "registry");
         this.sink = Objects.requireNonNull(sink, "sink");
@@ -96,15 +98,15 @@ public class DefaultAuditPublisher implements AuditPublisher {
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
         this.metadataProvider = Objects.requireNonNull(metadataProvider, "metadataProvider");
         this.deliveryPolicy = Objects.requireNonNull(deliveryPolicy, "deliveryPolicy");
-        if (deliveryPolicy == AuditDeliveryPolicy.BEST_EFFORT && errorHandler == null) {
-            throw new IllegalArgumentException("BEST_EFFORT delivery requires an error handler");
+        if (deliveryPolicy == AuditDeliveryPolicy.BEST_EFFORT && failureHandler == null) {
+            throw new IllegalArgumentException("BEST_EFFORT delivery requires a failure handler");
         }
-        this.errorHandler = errorHandler;
+        this.failureHandler = failureHandler;
     }
 
     @Override
     public <E> void publish(String eventName, E event) {
-        String normalizedName = AuditNameValidator.require(eventName);
+        String normalizedName = EVENT_NAME_NORMALIZER.normalize(eventName);
         E nonNullEvent = Objects.requireNonNull(event, "event");
         AuditEventId id = Objects.requireNonNull(idGenerator.nextId(normalizedName), "generated audit event ID");
         Instant publishedAt = Objects.requireNonNull(clock.instant(), "clock instant");
@@ -143,14 +145,18 @@ public class DefaultAuditPublisher implements AuditPublisher {
         return (AuditEventTranslator<E>) translator;
     }
 
-    private void handleFailure(AuditEnvelope<?> envelope, @Nullable AuditEntry entry, Throwable failure) {
+    private void handleFailure(
+            AuditEnvelope<?> envelope,
+            @Nullable AuditEntry entry,
+            RuntimeException failure
+    ) {
         if (deliveryPolicy == AuditDeliveryPolicy.REQUIRED) {
             throw new AuditPublicationException(envelope, failure);
         }
-        AuditPublicationErrorHandler nonNullErrorHandler = Objects.requireNonNull(
-                errorHandler,
-                "errorHandler"
+        FailureHandler<AuditPublicationFailure> nonNullFailureHandler = Objects.requireNonNull(
+                failureHandler,
+                "failureHandler"
         );
-        nonNullErrorHandler.onFailure(envelope, entry, failure);
+        nonNullFailureHandler.onFailure(new AuditPublicationFailure(envelope, entry), failure);
     }
 }

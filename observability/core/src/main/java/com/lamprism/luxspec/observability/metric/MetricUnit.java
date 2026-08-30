@@ -26,6 +26,8 @@ package com.lamprism.luxspec.observability.metric;
  * @author RollW
  */
 public final class MetricUnit {
+    private static final MetricTextNormalizer VALUE_NORMALIZER = MetricTextNormalizer.INSTANCE;
+
     private final String value;
 
     private MetricUnit(String value) {
@@ -33,7 +35,7 @@ public final class MetricUnit {
     }
 
     public static MetricUnit of(String value) {
-        return new MetricUnit(NameValidation.require(value, "Metric unit"));
+        return new MetricUnit(VALUE_NORMALIZER.normalize(value));
     }
 
     public String value() {

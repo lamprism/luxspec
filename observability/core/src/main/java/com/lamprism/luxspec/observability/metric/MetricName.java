@@ -16,10 +16,6 @@
 
 package com.lamprism.luxspec.observability.metric;
 
-import com.lamprism.luxspec.validation.ValidationRules;
-
-import java.util.Objects;
-
 /**
  * An immutable semantic metric name.
  *
@@ -30,6 +26,8 @@ import java.util.Objects;
  * @author RollW
  */
 public final class MetricName {
+    private static final MetricTextNormalizer VALUE_NORMALIZER = MetricTextNormalizer.INSTANCE;
+
     private final String value;
 
     private MetricName(String value) {
@@ -43,7 +41,7 @@ public final class MetricName {
      * @return the metric name
      */
     public static MetricName of(String value) {
-        return new MetricName(NameValidation.require(value, "Metric name"));
+        return new MetricName(VALUE_NORMALIZER.normalize(value));
     }
 
     /**
@@ -80,18 +78,5 @@ public final class MetricName {
     @Override
     public String toString() {
         return value;
-    }
-}
-
-final class NameValidation {
-    private NameValidation() {
-    }
-
-    static String require(String value, String label) {
-        String normalized = Objects.requireNonNull(value, "value").trim();
-        ValidationRules.nonBlank(label)
-                .and(ValidationRules.noControlCharacters(label))
-                .validate(normalized);
-        return normalized;
     }
 }

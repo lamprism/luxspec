@@ -3,6 +3,8 @@ package com.lamprism.luxspec.database.jdbc;
 import com.lamprism.luxspec.database.DatabaseConfig;
 import com.lamprism.luxspec.database.DatabaseTarget;
 import com.lamprism.luxspec.database.DatabaseType;
+import com.lamprism.luxspec.database.SslMode;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -14,7 +16,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class MariaDbDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
+public class MariaDbDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
     private final SslMaterializer sslMaterializer;
 
     public MariaDbDatabaseUrlBuilder() {
@@ -22,12 +24,8 @@ public class MariaDbDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     public MariaDbDatabaseUrlBuilder(SslMaterializer sslMaterializer) {
+        super(DatabaseType.MARIADB, "org.mariadb.jdbc.Driver");
         this.sslMaterializer = Objects.requireNonNull(sslMaterializer, "sslMaterializer");
-    }
-
-    @Override
-    public DatabaseType getDatabaseType() {
-        return DatabaseType.MARIADB;
     }
 
     @Override
@@ -41,16 +39,12 @@ public class MariaDbDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     @Override
-    protected String getDriverClassName() {
-        return "org.mariadb.jdbc.Driver";
-    }
-
-    @Override
     protected Map<String, String> buildDriverProperties(
             DatabaseConfig settings,
             List<AutoCloseable> resources
     ) {
-        Map<String, String> properties = baseProperties(settings, CharacterSetFlavor.MARIADB);
+        Map<String, String> properties = driverProperties(settings);
+        applyCharacterSet(properties, settings.getCharset());
         rejectManagedSslOptions(properties, Set.of(
                 "sslMode",
                 "serverSslCert",
@@ -65,7 +59,7 @@ public class MariaDbDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
                     "MariaDB client SSL material requires a driver-specific key store adapter"
             );
         }
-        properties.put("sslMode", mariaDbSslMode(settings.getSsl().getMode()));
+        properties.put("sslMode", sslMode(settings.getSsl().getMode()));
         putMaterial(
                 sslMaterializer,
                 properties,
@@ -78,5 +72,30 @@ public class MariaDbDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
             properties.put("fallbackToSystemTrustStore", "false");
         }
         return properties;
+    }
+
+    private void applyCharacterSet(
+            Map<String, String> properties,
+            @Nullable String characterSet
+    ) {
+        if (characterSet == null) {
+            return;
+        }
+        rejectManagedOptions(
+                properties,
+                Set.of("characterEncoding", "useUnicode"),
+                "character set"
+        );
+        properties.put("characterEncoding", characterSet);
+        properties.put("useUnicode", "true");
+    }
+
+    private String sslMode(SslMode mode) {
+        return switch (mode) {
+            case DISABLED -> "disable";
+            case REQUIRED -> "trust";
+            case VERIFY_CA -> "verify-ca";
+            case VERIFY_IDENTITY -> "verify-full";
+        };
     }
 }

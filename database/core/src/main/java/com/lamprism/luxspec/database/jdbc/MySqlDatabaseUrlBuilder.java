@@ -18,7 +18,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
+public class MySqlDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
     private final SslMaterializer sslMaterializer;
 
     public MySqlDatabaseUrlBuilder() {
@@ -26,12 +26,8 @@ public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     public MySqlDatabaseUrlBuilder(SslMaterializer sslMaterializer) {
+        super(DatabaseType.MYSQL, "com.mysql.cj.jdbc.Driver");
         this.sslMaterializer = Objects.requireNonNull(sslMaterializer, "sslMaterializer");
-    }
-
-    @Override
-    public DatabaseType getDatabaseType() {
-        return DatabaseType.MYSQL;
     }
 
     @Override
@@ -45,16 +41,12 @@ public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     @Override
-    protected String getDriverClassName() {
-        return "com.mysql.cj.jdbc.Driver";
-    }
-
-    @Override
     protected Map<String, String> buildDriverProperties(
             DatabaseConfig settings,
             List<AutoCloseable> resources
     ) {
-        Map<String, String> properties = baseProperties(settings, CharacterSetFlavor.MYSQL);
+        Map<String, String> properties = driverProperties(settings);
+        applyCharacterSet(properties, settings.getCharset());
         rejectManagedSslOptions(properties, Set.of(
                 "sslMode",
                 "trustCertificateKeyStoreUrl",
@@ -68,7 +60,7 @@ public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
         ));
         SslConfig ssl = settings.getSsl();
         requireCaForVerification(ssl);
-        properties.put("sslMode", mysqlSslMode(ssl.getMode()));
+        properties.put("sslMode", sslMode(ssl.getMode()));
         putTrustStore(properties, resources, ssl.getServerCaCertificate());
         putClientKeyStore(
                 properties,
@@ -152,5 +144,30 @@ public class MySqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
                     "MySQL SSL verification requires a server CA certificate"
             );
         }
+    }
+
+    private void applyCharacterSet(
+            Map<String, String> properties,
+            @Nullable String characterSet
+    ) {
+        if (characterSet == null) {
+            return;
+        }
+        rejectManagedOptions(
+                properties,
+                Set.of("characterEncoding", "useUnicode"),
+                "character set"
+        );
+        properties.put("characterEncoding", characterSet);
+        properties.put("useUnicode", "true");
+    }
+
+    private String sslMode(SslMode mode) {
+        return switch (mode) {
+            case DISABLED -> "DISABLED";
+            case REQUIRED -> "REQUIRED";
+            case VERIFY_CA -> "VERIFY_CA";
+            case VERIFY_IDENTITY -> "VERIFY_IDENTITY";
+        };
     }
 }

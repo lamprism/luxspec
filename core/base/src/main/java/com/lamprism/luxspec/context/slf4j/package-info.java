@@ -14,22 +14,10 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.event;
-
-
 /**
- * Handles listener failures after the originating operation has completed.
- *
- * @author RollW
+ * SLF4J adapters for provider-independent execution context values.
  */
-@FunctionalInterface
-public interface EventDispatchErrorHandler {
-    /**
-     * Handles a listener failure after the originating event operation has completed.
-     *
-     * @param event    the event being dispatched
-     * @param listener the listener that failed
-     * @param failure  the runtime listener failure; JVM {@link Error} values escape the dispatcher
-     */
-    void onFailure(Event event, EventListener<?> listener, Throwable failure);
-}
+@NullMarked
+package com.lamprism.luxspec.context.slf4j;
+
+import org.jspecify.annotations.NullMarked;

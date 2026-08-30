@@ -16,7 +16,7 @@
 
 package com.lamprism.luxspec.audit.publish;
 
-import com.lamprism.luxspec.audit.AuditNameValidator;
+import com.lamprism.luxspec.audit.AuditNameNormalizer;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Map;
@@ -26,16 +26,17 @@ import java.util.Map;
  *
  * @author RollW
  */
-public class ImmutableAuditRegistry implements AuditRegistry {
+final class ImmutableAuditRegistry implements AuditRegistry {
+    private static final AuditNameNormalizer EVENT_NAME_NORMALIZER = AuditNameNormalizer.instance();
     private final Map<String, AuditEventTranslator<?>> translators;
 
-    public ImmutableAuditRegistry(Map<String, AuditEventTranslator<?>> translators) {
+    ImmutableAuditRegistry(Map<String, AuditEventTranslator<?>> translators) {
         this.translators = Map.copyOf(translators);
     }
 
     @Override
     @Nullable
     public AuditEventTranslator<?> find(String eventName) {
-        return translators.get(AuditNameValidator.require(eventName));
+        return translators.get(EVENT_NAME_NORMALIZER.normalize(eventName));
     }
 }

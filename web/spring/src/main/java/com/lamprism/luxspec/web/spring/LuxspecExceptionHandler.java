@@ -18,7 +18,9 @@ package com.lamprism.luxspec.web.spring;
 
 import com.lamprism.luxspec.LuxspecException;
 import com.lamprism.luxspec.message.MessageResolver;
+import com.lamprism.luxspec.web.ErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.HttpResponse;
+import com.lamprism.luxspec.web.HttpStatusCode;
 import com.lamprism.luxspec.web.ResponseStatus;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,10 @@ import java.util.Objects;
 
 /**
  * Converts error-code-carrying exceptions into ordinary Luxspec JSON error envelopes.
+ *
+ * <p>This advice maps a domain failure into an HTTP result. It is intentionally not a
+ * {@link com.lamprism.luxspec.failure.FailureHandler}: that callback observes a failure and has no
+ * result, while this boundary must return a protocol response without exposing internal details.</p>
  *
  * @author RollW
  */
@@ -76,7 +82,8 @@ public class LuxspecExceptionHandler {
                 nonNullException.getErrorCode(),
                 resolveMessage(nonNullException, nonNullLocale)
         );
-        return ResponseEntity.status(statusResolver.resolve(nonNullException.getErrorCode()))
+        HttpStatusCode httpStatusCode = statusResolver.resolve(nonNullException.getErrorCode());
+        return ResponseEntity.status(httpStatusCode.value())
                 .body(HttpResponse.failure(status, null, null));
     }
 

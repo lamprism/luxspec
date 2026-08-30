@@ -19,11 +19,13 @@ package com.lamprism.luxspec.web.spring;
 import com.lamprism.luxspec.CommonErrorCode;
 import com.lamprism.luxspec.LuxspecException;
 import com.lamprism.luxspec.message.MessageResolver;
+import com.lamprism.luxspec.web.DefaultErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.HttpResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,7 +35,7 @@ class LuxspecExceptionHandlerTest {
     @Test
     void mapsExceptionsToSafeEnvelopesWithoutExposingInternalMessages() {
         LuxspecExceptionHandler handler = new LuxspecExceptionHandler(
-                new DefaultErrorHttpStatusResolver()
+                new DefaultErrorHttpStatusResolver(List.of())
         );
         LuxspecException exception = new LuxspecException(
                 CommonErrorCode.INVALID_ARGUMENT,
@@ -59,7 +61,7 @@ class LuxspecExceptionHandlerTest {
             return "The request is invalid.";
         };
         LuxspecExceptionHandler handler = new LuxspecExceptionHandler(
-                new DefaultErrorHttpStatusResolver(),
+                new DefaultErrorHttpStatusResolver(List.of()),
                 messageResolver
         );
 

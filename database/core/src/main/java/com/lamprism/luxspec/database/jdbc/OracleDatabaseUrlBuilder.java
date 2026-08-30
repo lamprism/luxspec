@@ -4,6 +4,7 @@ import com.lamprism.luxspec.database.DatabaseConfig;
 import com.lamprism.luxspec.database.DatabaseTarget;
 import com.lamprism.luxspec.database.DatabaseType;
 import com.lamprism.luxspec.database.SslMode;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -14,10 +15,9 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class OracleDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
-    @Override
-    public DatabaseType getDatabaseType() {
-        return DatabaseType.ORACLE;
+public class OracleDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
+    public OracleDatabaseUrlBuilder() {
+        super(DatabaseType.ORACLE, "oracle.jdbc.OracleDriver");
     }
 
     @Override
@@ -35,16 +35,12 @@ public class OracleDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     @Override
-    protected String getDriverClassName() {
-        return "oracle.jdbc.OracleDriver";
-    }
-
-    @Override
     protected Map<String, String> buildDriverProperties(
             DatabaseConfig settings,
             List<AutoCloseable> resources
     ) {
-        Map<String, String> properties = baseProperties(settings, CharacterSetFlavor.ORACLE);
+        Map<String, String> properties = driverProperties(settings);
+        applyCharacterSet(properties, settings.getCharset());
         rejectManagedSslOptions(
                 properties,
                 Set.of("oracle.net.ssl_server_dn_match")
@@ -67,5 +63,26 @@ public class OracleDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
             );
         }
         return properties;
+    }
+
+    private void applyCharacterSet(
+            Map<String, String> properties,
+            @Nullable String characterSet
+    ) {
+        if (characterSet == null) {
+            return;
+        }
+        Set<String> managedNames = Set.of(
+                "oracle.jdbc.defaultNChar",
+                "oracle.jdbc.UseNLSProcessing"
+        );
+        rejectManagedOptions(properties, managedNames, "character set");
+        boolean unicode = characterSet.equalsIgnoreCase("utf8")
+                || characterSet.equalsIgnoreCase("utf-8")
+                || characterSet.equalsIgnoreCase("utf8mb4");
+        properties.put("oracle.jdbc.defaultNChar", Boolean.toString(unicode));
+        if (unicode) {
+            properties.put("oracle.jdbc.UseNLSProcessing", "false");
+        }
     }
 }

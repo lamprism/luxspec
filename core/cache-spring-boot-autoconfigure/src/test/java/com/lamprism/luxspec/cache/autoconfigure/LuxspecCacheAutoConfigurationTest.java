@@ -18,7 +18,10 @@ package com.lamprism.luxspec.cache.autoconfigure;
 
 import com.lamprism.luxspec.cache.Cache;
 import com.lamprism.luxspec.cache.CacheFactory;
+import com.lamprism.luxspec.cache.CacheName;
+import com.lamprism.luxspec.cache.CachePlan;
 import com.lamprism.luxspec.cache.CacheProfile;
+import com.lamprism.luxspec.cache.CacheStatisticsSource;
 import com.lamprism.luxspec.cache.CaffeineCacheFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -33,7 +36,7 @@ class LuxspecCacheAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(LuxspecCacheAutoConfiguration.class));
 
     @Test
-    void createsDefaultCacheFactoryAndProfileFromBoundProperties() {
+    void createsDefaultCachePlanFromTheFactoryAndBoundProfile() {
         contextRunner
                 .withPropertyValues(
                         "luxspec.cache.maximum-size=32",
@@ -42,6 +45,7 @@ class LuxspecCacheAutoConfigurationTest {
                 )
                 .run(context -> {
                     assertThat(context).hasSingleBean(CacheFactory.class);
+                    assertThat(context).hasSingleBean(CachePlan.class);
                     assertThat(context).hasSingleBean(CacheProfile.class);
                     assertThat(context).doesNotHaveBean(Cache.class);
                     LuxspecCacheProperties properties = context.getBean(LuxspecCacheProperties.class);
@@ -52,6 +56,9 @@ class LuxspecCacheAutoConfigurationTest {
                     assertThat(profile.getMaximumSize()).isEqualTo(32);
                     assertThat(profile.getExpireAfterWrite()).isEqualTo(Duration.ofSeconds(10));
                     assertThat(profile.isRecordStats()).isTrue();
+                    Cache<?, ?> cache = context.getBean(CachePlan.class)
+                            .create(CacheName.of("test"));
+                    assertThat(cache).isInstanceOf(CacheStatisticsSource.class);
                 });
     }
 
@@ -79,4 +86,20 @@ class LuxspecCacheAutoConfigurationTest {
                     assertThat(context.getBeansOfType(CacheProfile.class)).hasSize(2);
                 });
     }
+
+    @Test
+    void keepsTheDefaultPlanAsFallbackWhenApplicationProvidesOne() {
+        CachePlan applicationPlan = CachePlan.single(
+                new CaffeineCacheFactory(),
+                CacheProfile.defaults()
+        );
+
+        contextRunner
+                .withBean(CachePlan.class, () -> applicationPlan)
+                .run(context -> {
+                    assertThat(context.getBean(CachePlan.class)).isSameAs(applicationPlan);
+                    assertThat(context.getBeansOfType(CachePlan.class)).hasSize(2);
+                });
+    }
+
 }

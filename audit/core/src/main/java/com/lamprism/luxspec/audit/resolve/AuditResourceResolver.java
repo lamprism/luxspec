@@ -31,6 +31,15 @@ import org.jspecify.annotations.Nullable;
  */
 @FunctionalInterface
 public interface AuditResourceResolver<E> {
+    /**
+     * Resolves the resource reference represented by an event envelope.
+     *
+     * <p>Implementations should derive identity from stable event data and must
+     * not load a mutable domain object merely to return its reference.</p>
+     *
+     * @param envelope the immutable publication envelope
+     * @return the stable resource reference, or {@code null} when the event has no resource
+     */
     @Nullable
     ResourceReference<?> resolve(AuditEnvelope<E> envelope);
 }

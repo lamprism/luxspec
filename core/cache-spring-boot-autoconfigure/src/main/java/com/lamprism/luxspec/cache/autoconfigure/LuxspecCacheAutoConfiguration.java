@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.cache.autoconfigure;
 
 import com.lamprism.luxspec.cache.CacheFactory;
+import com.lamprism.luxspec.cache.CachePlan;
 import com.lamprism.luxspec.cache.CacheProfile;
 import com.lamprism.luxspec.cache.CaffeineCacheFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -35,7 +36,7 @@ import org.springframework.context.annotation.Fallback;
 @EnableConfigurationProperties(LuxspecCacheProperties.class)
 public class LuxspecCacheAutoConfiguration {
     /**
-     * Creates the fallback cache factory used when no application factory is selected.
+     * Creates the fallback Caffeine cache factory.
      *
      * @return the Caffeine-backed cache factory
      */
@@ -55,5 +56,18 @@ public class LuxspecCacheAutoConfiguration {
     @Fallback
     public CacheProfile luxspecCacheProfile(LuxspecCacheProperties properties) {
         return properties.toCacheProfile();
+    }
+
+    /**
+     * Creates the fallback single-level cache plan.
+     *
+     * @param factory the selected cache implementation factory
+     * @param profile the selected cache profile
+     * @return the logical cache plan
+     */
+    @Bean
+    @Fallback
+    public CachePlan luxspecCachePlan(CacheFactory factory, CacheProfile profile) {
+        return CachePlan.single(factory, profile);
     }
 }

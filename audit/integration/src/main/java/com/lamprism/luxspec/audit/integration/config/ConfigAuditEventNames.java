@@ -19,10 +19,19 @@ package com.lamprism.luxspec.audit.integration.config;
 /**
  * Stable audit event names for configuration events.
  *
+ * <p>Names are explicit protocol identifiers rather than values generated from
+ * Java class names. Refactoring an event class must not rename persisted audit
+ * records. Built-in names use lowercase dot-separated domain and event
+ * segments.</p>
+ *
  * @author RollW
  */
 public final class ConfigAuditEventNames {
+    /**
+     * A raw configuration source entry changed.
+     */
     public static final String SOURCE_CHANGED = "config.source.changed";
+    /** The effective resolved configuration value or origin changed. */
     public static final String EFFECTIVE_CHANGED = "config.effective.changed";
 
     private ConfigAuditEventNames() {

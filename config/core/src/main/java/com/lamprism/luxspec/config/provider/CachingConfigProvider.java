@@ -5,7 +5,6 @@ import com.lamprism.luxspec.config.ConfigProvider;
 import com.lamprism.luxspec.config.ConfigValue;
 import com.lamprism.luxspec.config.cache.ConfigCacheRule;
 import com.lamprism.luxspec.config.cache.ConfigValueCache;
-import com.lamprism.luxspec.config.cache.FreshConfigReader;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
 import com.lamprism.luxspec.config.source.ConfigSourceScope;
 
@@ -18,7 +17,7 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public class CachingConfigProvider implements ConfigProvider, FreshConfigReader {
+public class CachingConfigProvider implements ConfigProvider {
     private final ConfigProvider delegate;
     private final ConfigValueCache cache;
     private final ConfigCacheRule cacheRule;
@@ -68,39 +67,48 @@ public class CachingConfigProvider implements ConfigProvider, FreshConfigReader 
     }
 
     @Override
-    public <T> ConfigValue<T> getFresh(ConfigBinding<T> binding) {
-        return delegate.get(Objects.requireNonNull(binding, "binding"));
-    }
-
-    @Override
     public <T> void set(ConfigBinding<T> binding, T value) {
         ConfigBinding<T> nonNullBinding = Objects.requireNonNull(binding, "binding");
-        invalidate(nonNullBinding);
-        delegate.set(nonNullBinding, value);
+        mutate(nonNullBinding, () -> delegate.set(nonNullBinding, value));
     }
 
     @Override
     public <T> void set(ConfigSourceId sourceId, ConfigBinding<T> binding, T value) {
         ConfigBinding<T> nonNullBinding = Objects.requireNonNull(binding, "binding");
-        invalidate(nonNullBinding);
-        delegate.set(sourceId, nonNullBinding, value);
+        mutate(nonNullBinding, () -> delegate.set(sourceId, nonNullBinding, value));
     }
 
     @Override
     public void remove(ConfigBinding<?> binding) {
         ConfigBinding<?> nonNullBinding = Objects.requireNonNull(binding, "binding");
-        invalidate(nonNullBinding);
-        delegate.remove(nonNullBinding);
+        mutate(nonNullBinding, () -> delegate.remove(nonNullBinding));
     }
 
     @Override
     public void remove(ConfigSourceId sourceId, ConfigBinding<?> binding) {
         ConfigBinding<?> nonNullBinding = Objects.requireNonNull(binding, "binding");
-        invalidate(nonNullBinding);
-        delegate.remove(sourceId, nonNullBinding);
+        mutate(nonNullBinding, () -> delegate.remove(sourceId, nonNullBinding));
     }
 
-    private void invalidate(ConfigBinding<?> binding) {
-        cache.invalidate(binding.getKey());
+    private void mutate(ConfigBinding<?> binding, Runnable mutation) {
+        ConfigBinding<?> nonNullBinding = Objects.requireNonNull(binding, "binding");
+        Runnable nonNullMutation = Objects.requireNonNull(mutation, "mutation");
+        cache.invalidate(nonNullBinding.getKey());
+        RuntimeException mutationFailure = null;
+        try {
+            nonNullMutation.run();
+        } catch (RuntimeException failure) {
+            mutationFailure = failure;
+            throw failure;
+        } finally {
+            try {
+                cache.invalidate(nonNullBinding.getKey());
+            } catch (RuntimeException invalidationFailure) {
+                if (mutationFailure == null) {
+                    throw invalidationFailure;
+                }
+                mutationFailure.addSuppressed(invalidationFailure);
+            }
+        }
     }
 }

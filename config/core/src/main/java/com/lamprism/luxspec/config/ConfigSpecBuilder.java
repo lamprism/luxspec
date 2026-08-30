@@ -20,6 +20,7 @@ import com.lamprism.luxspec.config.definition.DefaultConfigSpec;
 import com.lamprism.luxspec.config.policy.ConfigPolicies;
 import com.lamprism.luxspec.config.policy.ConfigPolicy;
 import com.lamprism.luxspec.message.LocalizedText;
+import com.lamprism.luxspec.validation.Validator;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ public final class ConfigSpecBuilder<T> {
     private List<ConfigParameter> parameters = List.of();
     private @Nullable T defaultValue;
     private boolean sensitive;
-    private ConfigValueValidator<T> validator = ConfigValueValidator.none();
+    private Validator<T> validator = Validator.none();
     private @Nullable ConfigPolicy policy;
 
     private ConfigSpecBuilder(String key, ConfigCodec<T> codec) {
@@ -159,7 +160,7 @@ public final class ConfigSpecBuilder<T> {
      * @param validator the value validator
      * @return this builder
      */
-    public ConfigSpecBuilder<T> validator(ConfigValueValidator<T> validator) {
+    public ConfigSpecBuilder<T> validator(Validator<T> validator) {
         this.validator = Objects.requireNonNull(validator, "validator");
         return this;
     }

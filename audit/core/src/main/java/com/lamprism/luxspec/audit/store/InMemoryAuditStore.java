@@ -25,7 +25,6 @@ import com.lamprism.luxspec.audit.query.AuditReader;
 import com.lamprism.luxspec.data.pagination.QueryResult;
 import com.lamprism.luxspec.data.pagination.QueryWindow;
 import com.lamprism.luxspec.data.query.InMemoryQueryExecutor;
-import com.lamprism.luxspec.data.query.QueryComplexityLimits;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 
 import java.util.ArrayList;
@@ -69,7 +68,7 @@ public class InMemoryAuditStore implements AuditSink, AuditReader {
                     }
                     return entry.resource().resourceType().getName();
                 })
-                .field(AuditQueryFields.RESOURCE, entry -> entry.resource())
+                .field(AuditQueryFields.RESOURCE, AuditEntry::resource)
                 .build();
     }
 
@@ -90,10 +89,7 @@ public class InMemoryAuditStore implements AuditSink, AuditReader {
     @Override
     public QueryResult<AuditEntry> browse(QueryCriteria criteria, QueryWindow window) {
         QueryCriteria nonNullCriteria = Objects.requireNonNull(criteria, "criteria");
-        AuditQuerySchema.defaults().schema().validate(
-                nonNullCriteria,
-                QueryComplexityLimits.defaults()
-        );
+        AuditQuerySchema.defaults().validate(nonNullCriteria);
         return queryExecutor.query(nonNullCriteria, Objects.requireNonNull(window, "window"));
     }
 

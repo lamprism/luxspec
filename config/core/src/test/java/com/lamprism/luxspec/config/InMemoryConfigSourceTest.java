@@ -18,7 +18,7 @@ class InMemoryConfigSourceTest {
 
     @Test
     void storesAndRemovesRawEntries() {
-        InMemoryConfigSource source = new InMemoryConfigSource(
+        InMemoryConfigSource source = InMemoryConfigSource.empty(
                 ConfigSourceId.of("memory"),
                 ConfigSourceScope.RUNTIME
         );

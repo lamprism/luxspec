@@ -10,9 +10,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.function.Function;
 
 /**
  * Reads configuration values from a snapshot of JVM system properties.
+ *
+ * <p>By default, a complete configuration key maps to the identical property name. A mapping
+ * function may instead own the complete external name.</p>
  *
  * @author RollW
  */
@@ -20,26 +24,43 @@ public class SystemPropertyConfigSource implements ConfigSource {
     private static final ConfigSourceId DEFAULT_ID = ConfigSourceId.of("system-properties");
     private final ConfigSourceId id;
     private final Map<String, String> values;
+    private final Function<? super ConfigKey, String> nameMapper;
 
     /**
      * Creates a source from the current JVM system properties.
      */
     public SystemPropertyConfigSource() {
-        this(DEFAULT_ID, snapshot());
+        this(DEFAULT_ID, snapshot(), ConfigKey::getValue);
     }
 
     /**
-     * Creates a source from the supplied system-property snapshot.
+     * Creates a source from a property snapshot using the default ID and identity mapping.
      *
-     * @param id     the source instance identifier
      * @param values system property values
+     * @return the system-property source
+     */
+    public static SystemPropertyConfigSource from(Map<String, String> values) {
+        return new SystemPropertyConfigSource(DEFAULT_ID, values, ConfigKey::getValue);
+    }
+
+    /**
+     * Creates a source with a complete configuration-key to property-name mapping.
+     *
+     * <p>The mapper is called for every lookup and must return the complete, non-blank external
+     * name.</p>
+     *
+     * @param id         the source instance identifier
+     * @param values     system property values
+     * @param nameMapper the complete external-name mapping
      */
     public SystemPropertyConfigSource(
             ConfigSourceId id,
-            Map<String, String> values
+            Map<String, String> values,
+            Function<? super ConfigKey, String> nameMapper
     ) {
         this.id = Objects.requireNonNull(id, "id");
         this.values = Map.copyOf(Objects.requireNonNull(values, "values"));
+        this.nameMapper = Objects.requireNonNull(nameMapper, "nameMapper");
     }
 
     @Override
@@ -54,7 +75,7 @@ public class SystemPropertyConfigSource implements ConfigSource {
 
     @Override
     public ConfigEntry get(ConfigKey key) {
-        String value = values.get(Objects.requireNonNull(key, "key").getValue());
+        String value = values.get(ProcessConfigNames.map(nameMapper, key));
         return value == null ? ConfigEntry.absent() : ConfigEntry.present(value);
     }
 

@@ -6,7 +6,6 @@ import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.ConfigReader;
 import com.lamprism.luxspec.config.ConfigValue;
 import com.lamprism.luxspec.config.ConfigWriter;
-import com.lamprism.luxspec.config.cache.FreshConfigReader;
 import com.lamprism.luxspec.config.event.ConfigChangedEvent;
 import com.lamprism.luxspec.config.event.ConfigSourceChangeType;
 import com.lamprism.luxspec.config.event.ConfigSourceChangedEvent;
@@ -91,7 +90,8 @@ public class SourceConfigWriter implements ConfigWriter {
      * @param defaultSourceId  the source used by operations without an explicit source ID
      * @param eventPublisher   the publisher for source mutation events
      * @param effectiveReader  the reader used to compare effective state changes
-     * @param cacheInvalidator the cache invalidator called after source mutations
+     * @param cacheInvalidator the cache invalidator called before effective-state observation and
+     *                         after source mutations
      */
     public SourceConfigWriter(
             Iterable<? extends ConfigSource> sources,
@@ -130,18 +130,14 @@ public class SourceConfigWriter implements ConfigWriter {
         requirePolicy(source, nonNullBinding, ConfigPolicyOperation.SET);
         T nonNullValue = Objects.requireNonNull(value, "value");
         RawConfigValue rawValue = encode(nonNullBinding, nonNullValue);
-        ConfigValue<?> previous = readEffective(nonNullBinding);
+        ConfigValue<?> previous = readEffectiveBeforeMutation(nonNullBinding);
         WritableConfigSource writableSource = writable(source);
-        try {
-            writableSource.set(nonNullBinding.getKey(), rawValue);
-        } catch (RuntimeException exception) {
-            throw new ConfigWriteException(
-                    nonNullBinding.getKey(),
-                    source.getId(),
-                    ConfigPolicyOperation.SET,
-                    exception
-            );
-        }
+        mutateSource(
+                source,
+                nonNullBinding,
+                ConfigPolicyOperation.SET,
+                () -> writableSource.set(nonNullBinding.getKey(), rawValue)
+        );
         complete(source, nonNullBinding, previous, ConfigSourceChangeType.SET);
     }
 
@@ -155,18 +151,14 @@ public class SourceConfigWriter implements ConfigWriter {
         ConfigBinding<?> nonNullBinding = Objects.requireNonNull(binding, "binding");
         ConfigSource source = source(sourceId);
         requirePolicy(source, nonNullBinding, ConfigPolicyOperation.REMOVE);
-        ConfigValue<?> previous = readEffective(nonNullBinding);
+        ConfigValue<?> previous = readEffectiveBeforeMutation(nonNullBinding);
         WritableConfigSource writableSource = writable(source);
-        try {
-            writableSource.remove(nonNullBinding.getKey());
-        } catch (RuntimeException exception) {
-            throw new ConfigWriteException(
-                    nonNullBinding.getKey(),
-                    source.getId(),
-                    ConfigPolicyOperation.REMOVE,
-                    exception
-            );
-        }
+        mutateSource(
+                source,
+                nonNullBinding,
+                ConfigPolicyOperation.REMOVE,
+                () -> writableSource.remove(nonNullBinding.getKey())
+        );
         complete(source, nonNullBinding, previous, ConfigSourceChangeType.REMOVE);
     }
 
@@ -221,14 +213,45 @@ public class SourceConfigWriter implements ConfigWriter {
         }
     }
 
+    private <T> @Nullable ConfigValue<T> readEffectiveBeforeMutation(ConfigBinding<T> binding) {
+        cacheInvalidator.invalidate(binding.getKey());
+        return readEffective(binding);
+    }
+
     private <T> @Nullable ConfigValue<T> readEffective(ConfigBinding<T> binding) {
         if (effectiveReader == null) {
             return null;
         }
-        if (effectiveReader instanceof FreshConfigReader freshReader) {
-            return freshReader.getFresh(binding);
-        }
         return effectiveReader.get(binding);
+    }
+
+    private void mutateSource(
+            ConfigSource source,
+            ConfigBinding<?> binding,
+            ConfigPolicyOperation operation,
+            Runnable mutation
+    ) {
+        RuntimeException writeFailure = null;
+        try {
+            Objects.requireNonNull(mutation, "mutation").run();
+        } catch (RuntimeException failure) {
+            writeFailure = new ConfigWriteException(
+                    binding.getKey(),
+                    source.getId(),
+                    operation,
+                    failure
+            );
+            throw writeFailure;
+        } finally {
+            try {
+                cacheInvalidator.invalidate(binding.getKey());
+            } catch (RuntimeException invalidationFailure) {
+                if (writeFailure == null) {
+                    throw invalidationFailure;
+                }
+                writeFailure.addSuppressed(invalidationFailure);
+            }
+        }
     }
 
     private void complete(
@@ -237,7 +260,6 @@ public class SourceConfigWriter implements ConfigWriter {
             @Nullable ConfigValue<?> previous,
             ConfigSourceChangeType changeType
     ) {
-        cacheInvalidator.invalidate(binding.getKey());
         eventPublisher.publish(new ConfigSourceChangedEvent(source.getId(), binding.getKey(), changeType));
         if (previous == null || effectiveReader == null) {
             return;

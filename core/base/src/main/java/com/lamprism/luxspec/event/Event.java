@@ -21,7 +21,9 @@ package com.lamprism.luxspec.event;
  * <p>
  * The contract intentionally contains no lifecycle metadata. Event types define
  * the domain information that their listeners need, while publishers and
- * dispatchers use this type as the common event boundary.
+ * dispatchers use this marker as the common event boundary. Event-specific
+ * identity, time, source, or routing data belongs to the event type that gives
+ * that data a stable meaning.
  *
  * @author RollW
  */

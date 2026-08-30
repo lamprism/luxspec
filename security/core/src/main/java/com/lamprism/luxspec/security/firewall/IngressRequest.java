@@ -46,6 +46,7 @@ public final class IngressRequest implements FirewallRequest {
      *
      * @return the request method
      */
+    @Override
     public String getMethod() {
         return method;
     }
@@ -55,6 +56,7 @@ public final class IngressRequest implements FirewallRequest {
      *
      * @return the request path
      */
+    @Override
     public String getPath() {
         return path;
     }
@@ -64,6 +66,7 @@ public final class IngressRequest implements FirewallRequest {
      *
      * @return the client address
      */
+    @Override
     public String getClientAddress() {
         return clientAddress;
     }

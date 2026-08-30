@@ -17,14 +17,34 @@
 package com.lamprism.luxspec.security.firewall;
 
 /**
- * Marks request facts that can be consumed by transport-independent firewall rules.
+ * Exposes immutable request facts consumed by common firewall rules.
  *
- * <p>This contract intentionally contains no transport-specific fields. Each transport can provide
- * its own request facts without supplying placeholders for another protocol. The generic
- * {@link FirewallRule} contract does not require this marker, so a rule may also use a dedicated
- * request type when that is the appropriate boundary.</p>
+ * <p>The boundary adapter is responsible for supplying the operation method, canonical resource
+ * path, and normalized client address used by both routing and firewall policy. HTTP adapters map
+ * these facts from an HTTP request, while another transport may map equivalent operation facts
+ * without exposing its provider request object.</p>
  *
  * @author RollW
  */
 public interface FirewallRequest {
+    /**
+     * Returns the request operation method.
+     *
+     * @return the operation method
+     */
+    String getMethod();
+
+    /**
+     * Returns the canonical resource path used by routing and firewall policy.
+     *
+     * @return the canonical resource path
+     */
+    String getPath();
+
+    /**
+     * Returns the normalized client address supplied by the trusted boundary adapter.
+     *
+     * @return the normalized client address
+     */
+    String getClientAddress();
 }

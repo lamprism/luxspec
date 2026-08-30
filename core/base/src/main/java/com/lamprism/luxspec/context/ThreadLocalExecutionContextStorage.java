@@ -24,8 +24,8 @@ import java.util.Optional;
 /**
  * Optional thread-local execution-context storage.
  *
- * <p>This implementation is never selected by the core API implicitly. Applications must create
- * and inject it when a thread-bound context is appropriate.</p>
+ * <p>This implementation is never selected by the core API implicitly. A framework adapter may
+ * provide it as an overridable default when its execution model is thread-bound.</p>
  *
  * @author RollW
  */
@@ -38,7 +38,7 @@ public final class ThreadLocalExecutionContextStorage implements ExecutionContex
     }
 
     @Override
-    public Scope open(ExecutionContext context) {
+    public ExecutionContextStorage.Scope open(ExecutionContext context) {
         ExecutionContext nonNullContext = Objects.requireNonNull(context, "context");
         Deque<ExecutionContext> stack = stacks.get();
         stack.push(nonNullContext);

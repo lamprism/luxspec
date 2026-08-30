@@ -5,8 +5,10 @@ import com.lamprism.luxspec.database.DatabaseTarget;
 import com.lamprism.luxspec.database.DatabaseType;
 import com.lamprism.luxspec.database.SslConfig;
 import com.lamprism.luxspec.database.SslMode;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -16,7 +18,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class PostgresqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
+public class PostgresqlDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
     private final SslMaterializer sslMaterializer;
 
     public PostgresqlDatabaseUrlBuilder() {
@@ -24,12 +26,8 @@ public class PostgresqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     public PostgresqlDatabaseUrlBuilder(SslMaterializer sslMaterializer) {
+        super(DatabaseType.POSTGRESQL, "org.postgresql.Driver");
         this.sslMaterializer = Objects.requireNonNull(sslMaterializer, "sslMaterializer");
-    }
-
-    @Override
-    public DatabaseType getDatabaseType() {
-        return DatabaseType.POSTGRESQL;
     }
 
     @Override
@@ -43,16 +41,12 @@ public class PostgresqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     @Override
-    protected String getDriverClassName() {
-        return "org.postgresql.Driver";
-    }
-
-    @Override
     protected Map<String, String> buildDriverProperties(
             DatabaseConfig settings,
             List<AutoCloseable> resources
     ) {
-        Map<String, String> properties = baseProperties(settings, CharacterSetFlavor.POSTGRESQL);
+        Map<String, String> properties = driverProperties(settings);
+        applyCharacterSet(properties, settings.getCharset());
         rejectManagedSslOptions(properties, Set.of(
                 "sslmode",
                 "sslrootcert",
@@ -61,7 +55,7 @@ public class PostgresqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
         ));
         SslConfig ssl = settings.getSsl();
         requireCaForVerification(ssl);
-        properties.put("sslmode", postgresSslMode(ssl.getMode()));
+        properties.put("sslmode", sslMode(ssl.getMode()));
         putMaterial(
                 sslMaterializer,
                 properties,
@@ -96,5 +90,31 @@ public class PostgresqlDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
                     "PostgreSQL SSL verification requires a server CA certificate"
             );
         }
+    }
+
+    private void applyCharacterSet(
+            Map<String, String> properties,
+            @Nullable String characterSet
+    ) {
+        if (characterSet == null) {
+            return;
+        }
+        rejectManagedOptions(properties, Set.of("characterEncoding"), "character set");
+        boolean utf8 = characterSet.equalsIgnoreCase("utf8")
+                || characterSet.equalsIgnoreCase("utf-8")
+                || characterSet.equalsIgnoreCase("utf8mb4");
+        properties.put(
+                "characterEncoding",
+                utf8 ? "UTF8" : characterSet.toUpperCase(Locale.ROOT)
+        );
+    }
+
+    private String sslMode(SslMode mode) {
+        return switch (mode) {
+            case DISABLED -> "disable";
+            case REQUIRED -> "require";
+            case VERIFY_CA -> "verify-ca";
+            case VERIFY_IDENTITY -> "verify-full";
+        };
     }
 }

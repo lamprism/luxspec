@@ -77,10 +77,7 @@ public class LuxspecProcessConfigAutoConfiguration {
         String[] sourceArguments = applicationArguments == null
                 ? new String[0]
                 : applicationArguments.getSourceArgs();
-        return new CommandLineConfigSource(
-                ConfigSourceId.of("command-line"),
-                sourceArguments
-        );
+        return CommandLineConfigSource.from(sourceArguments);
     }
 
     /**

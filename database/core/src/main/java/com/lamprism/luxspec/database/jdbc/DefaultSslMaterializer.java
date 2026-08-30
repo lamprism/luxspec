@@ -44,7 +44,7 @@ public class DefaultSslMaterializer implements SslMaterializer {
         String prefix = temporaryPrefix(name);
         SslMaterial nonNullMaterial = Objects.requireNonNull(material, "material");
         if (nonNullMaterial.getSource() == SslMaterial.Source.FILE) {
-            return new SslMaterialArtifact(
+            return new ManagedSslMaterialArtifact(
                     Objects.requireNonNull(nonNullMaterial.getPath(), "material path")
                             .toAbsolutePath()
                             .normalize(),
@@ -62,7 +62,7 @@ public class DefaultSslMaterializer implements SslMaterializer {
             throw new IllegalArgumentException("Unable to materialize database SSL material", exception);
         }
         Path materialPath = path;
-        return new SslMaterialArtifact(materialPath, List.of(
+        return new ManagedSslMaterialArtifact(materialPath, List.of(
                 () -> Files.deleteIfExists(materialPath)
         ));
     }

@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.audit;
 
+import com.lamprism.luxspec.validation.Normalizer;
 import com.lamprism.luxspec.validation.ValidationRules;
 import com.lamprism.luxspec.validation.Validator;
 import org.jspecify.annotations.Nullable;
@@ -40,15 +41,24 @@ public final class AuditActor {
      * that does not fit those constants.</p>
      */
     public static final class Kind {
-        private static final Validator<String> VALUE_VALIDATOR = ValidationRules
-                .nonBlank("Audit actor kind")
-                .and(ValidationRules.noWhitespace("Audit actor kind"))
-                .and(ValidationRules.noControlCharacters("Audit actor kind"));
+        private static final Normalizer<String> VALUE_NORMALIZER = Normalizer.of(String::trim)
+                .validatedBy(
+                        ValidationRules.nonBlank("Audit actor kind")
+                                .and(ValidationRules.noWhitespace("Audit actor kind"))
+                                .and(ValidationRules.noControlCharacters("Audit actor kind"))
+                );
 
+        /**
+         * A human user acting through an application boundary.
+         */
         public static final Kind USER = of("USER");
+        /** A service or workload identity acting without a human session. */
         public static final Kind SERVICE = of("SERVICE");
+        /** The application or platform performing an internal operation. */
         public static final Kind SYSTEM = of("SYSTEM");
+        /** An unauthenticated actor whose absence of identity is known. */
         public static final Kind ANONYMOUS = of("ANONYMOUS");
+        /** An actor whose classification could not be established. */
         public static final Kind UNKNOWN = of("UNKNOWN");
 
         private final String value;
@@ -57,12 +67,21 @@ public final class AuditActor {
             this.value = value;
         }
 
+        /**
+         * Creates an application-defined actor classification.
+         *
+         * @param value the non-blank classification without whitespace or control characters
+         * @return the actor classification
+         */
         public static Kind of(String value) {
-            String normalized = Objects.requireNonNull(value, "value").trim();
-            VALUE_VALIDATOR.validate(normalized);
-            return new Kind(normalized);
+            return new Kind(VALUE_NORMALIZER.normalize(value));
         }
 
+        /**
+         * Returns the stable classification value.
+         *
+         * @return the classification value
+         */
         public String value() {
             return value;
         }
@@ -86,6 +105,7 @@ public final class AuditActor {
         }
     }
 
+    /** The canonical actor used when neither classification nor identity is available. */
     public static final AuditActor UNKNOWN = new AuditActor(Kind.UNKNOWN, null);
 
     private static final Validator<String> ID_VALIDATOR = ValidationRules.nonBlank("Audit actor ID");
@@ -101,18 +121,40 @@ public final class AuditActor {
         this.id = id;
     }
 
+    /**
+     * Creates an actor from a classification and optional provider-neutral identifier.
+     *
+     * @param kind the actor classification
+     * @param id   the actor identifier, or {@code null} when no identifier is available
+     * @return the audit actor
+     */
     public static AuditActor of(Kind kind, @Nullable String id) {
         return new AuditActor(kind, id);
     }
 
+    /**
+     * Returns the canonical unknown actor.
+     *
+     * @return the unknown actor
+     */
     public static AuditActor unknown() {
         return UNKNOWN;
     }
 
+    /**
+     * Returns the actor classification.
+     *
+     * @return the actor classification
+     */
     public Kind kind() {
         return kind;
     }
 
+    /**
+     * Returns the optional actor identifier.
+     *
+     * @return the identifier, or {@code null} when unavailable
+     */
     public @Nullable String id() {
         return id;
     }

@@ -16,10 +16,8 @@
 
 package com.lamprism.luxspec.audit;
 
+import com.lamprism.luxspec.validation.Normalizer;
 import com.lamprism.luxspec.validation.ValidationRules;
-import com.lamprism.luxspec.validation.Validator;
-
-import java.util.Objects;
 
 /**
  * Extensible semantic audit action.
@@ -35,10 +33,12 @@ import java.util.Objects;
  * @author RollW
  */
 public final class AuditAction {
-    private static final Validator<String> VALUE_VALIDATOR = ValidationRules
-            .nonBlank("Audit action")
-            .and(ValidationRules.noWhitespace("Audit action"))
-            .and(ValidationRules.noControlCharacters("Audit action"));
+    private static final Normalizer<String> VALUE_NORMALIZER = Normalizer.of(String::trim)
+            .validatedBy(
+                    ValidationRules.nonBlank("Audit action")
+                            .and(ValidationRules.noWhitespace("Audit action"))
+                            .and(ValidationRules.noControlCharacters("Audit action"))
+            );
 
     private final String value;
 
@@ -47,9 +47,7 @@ public final class AuditAction {
     }
 
     public static AuditAction of(String value) {
-        String normalized = Objects.requireNonNull(value, "value").trim();
-        VALUE_VALIDATOR.validate(normalized);
-        return new AuditAction(normalized);
+        return new AuditAction(VALUE_NORMALIZER.normalize(value));
     }
 
     public String getValue() {

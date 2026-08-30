@@ -16,7 +16,7 @@
 
 package com.lamprism.luxspec.audit.publish;
 
-import com.lamprism.luxspec.audit.AuditNameValidator;
+import com.lamprism.luxspec.audit.AuditNameNormalizer;
 import org.jspecify.annotations.Nullable;
 
 import java.util.LinkedHashMap;
@@ -53,15 +53,20 @@ public interface AuditRegistry {
 
     /**
      * Assembles one immutable registry.
+     *
+     * <p>The builder is an application assembly tool and is not safe for
+     * concurrent runtime mutation. A built registry has no add, remove, or
+     * replacement operations.</p>
      */
     final class Builder {
+        private static final AuditNameNormalizer EVENT_NAME_NORMALIZER = AuditNameNormalizer.instance();
         private final Map<String, AuditEventTranslator<?>> translators = new LinkedHashMap<>();
 
         private Builder() {
         }
 
         /**
-         * Registers one translator.
+         * Registers one translator during application assembly.
          *
          * @param eventName  the event name
          * @param translator the event translator
@@ -69,7 +74,7 @@ public interface AuditRegistry {
          * @return this builder
          */
         public <E> Builder register(String eventName, AuditEventTranslator<E> translator) {
-            String normalized = AuditNameValidator.require(eventName);
+            String normalized = EVENT_NAME_NORMALIZER.normalize(eventName);
             AuditEventTranslator<E> nonNullTranslator = Objects.requireNonNull(translator, "translator");
             if (translators.putIfAbsent(normalized, nonNullTranslator) != null) {
                 throw new IllegalArgumentException("Audit translator is registered more than once: " + normalized);

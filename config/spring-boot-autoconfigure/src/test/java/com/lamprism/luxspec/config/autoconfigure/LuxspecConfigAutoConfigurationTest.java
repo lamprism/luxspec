@@ -3,6 +3,7 @@ package com.lamprism.luxspec.config.autoconfigure;
 import com.lamprism.luxspec.cache.Cache;
 import com.lamprism.luxspec.cache.CacheFactory;
 import com.lamprism.luxspec.cache.CacheName;
+import com.lamprism.luxspec.cache.CachePlan;
 import com.lamprism.luxspec.cache.CacheProfile;
 import com.lamprism.luxspec.config.ConfigBinding;
 import com.lamprism.luxspec.config.ConfigCodecs;
@@ -42,6 +43,17 @@ class LuxspecConfigAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(LuxspecConfigAutoConfiguration.class));
 
     @Test
+    void createsReaderFromTheCompleteAutoConfigurationSet() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        LuxspecProcessConfigAutoConfiguration.class,
+                        LuxspecConfigAutoConfiguration.class
+                ))
+                .run(context -> assertThat(context.getBean(ConfigReader.class))
+                        .isInstanceOf(LayeredConfigReader.class));
+    }
+
+    @Test
     void backsOffWithoutAnApplicationSource() {
         contextRunner.run(context -> {
             assertThat(context).doesNotHaveBean(ConfigReader.class);
@@ -72,13 +84,13 @@ class LuxspecConfigAutoConfigurationTest {
     }
 
     @Test
-    void createsAConfigurationValueCacheThroughAnApplicationFactory() {
+    void createsAConfigurationValueCacheThroughAnApplicationPlan() {
         TestCacheFactory factory = new TestCacheFactory();
-        CacheProfile profile = CacheProfile.builder().maximumSize(16).build();
+        CacheProfile profile = CacheProfile.defaults();
+        CachePlan plan = CachePlan.single(factory, profile);
         contextRunner
                 .withBean(ConfigSource.class, LuxspecConfigAutoConfigurationTest::testSource)
-                .withBean(CacheFactory.class, () -> factory)
-                .withBean(CacheProfile.class, () -> profile)
+                .withBean(CachePlan.class, () -> plan)
                 .run(context -> {
                     assertThat(context).hasSingleBean(ConfigValueCache.class);
                     assertThat(context.getBean(ConfigProvider.class)).isInstanceOf(CachingConfigProvider.class);
@@ -189,7 +201,7 @@ class LuxspecConfigAutoConfigurationTest {
         }
 
         @Override
-        public void invalidate(K key) {
+        public void invalidate(@NonNull K key) {
             values.remove(key);
         }
 
@@ -209,7 +221,10 @@ class LuxspecConfigAutoConfigurationTest {
         private final List<CacheProfile> profiles = new ArrayList<>();
 
         @Override
-        public <K, V> Cache<K, V> create(@NonNull CacheName name, @NonNull CacheProfile profile) {
+        public <K, V> Cache<K, V> create(
+                @NonNull CacheName name,
+                @NonNull CacheProfile profile
+        ) {
             names.add(name);
             profiles.add(profile);
             return new TestCache<>();

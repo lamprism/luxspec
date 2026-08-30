@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.event;
 
+import com.lamprism.luxspec.failure.FailureHandler;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,26 +42,26 @@ public class SynchronousEventDispatcher implements EventDispatcher {
                     .thenComparingLong(ListenerRegistration::getSequence);
 
     private final ReadWriteLock registrationLock = new ReentrantReadWriteLock();
-    private final Map<Class<?>, List<ListenerRegistration<?>>> registrations = new HashMap<>();
-    private final EventDispatchErrorHandler errorHandler;
+    private final Map<EventType<?>, List<ListenerRegistration<?>>> registrations = new HashMap<>();
+    private final FailureHandler<EventDispatchFailure> failureHandler;
     private long nextSequence;
 
     /**
      * Creates a synchronous dispatcher with a listener-failure callback.
      *
-     * @param errorHandler the failure callback
+     * @param failureHandler the failure callback
      */
-    public SynchronousEventDispatcher(EventDispatchErrorHandler errorHandler) {
-        this.errorHandler = Objects.requireNonNull(errorHandler, "errorHandler");
+    public SynchronousEventDispatcher(FailureHandler<EventDispatchFailure> failureHandler) {
+        this.failureHandler = Objects.requireNonNull(failureHandler, "failureHandler");
     }
 
     @Override
     public <E extends Event> EventSubscription subscribe(
-            Class<E> eventType,
+            EventType<E> eventType,
             int order,
             EventListener<? super E> listener
     ) {
-        Class<E> nonNullEventType = Objects.requireNonNull(eventType, "eventType");
+        EventType<E> nonNullEventType = Objects.requireNonNull(eventType, "eventType");
         EventListener<? super E> nonNullListener = Objects.requireNonNull(listener, "listener");
         registrationLock.writeLock().lock();
         try {
@@ -83,10 +85,29 @@ public class SynchronousEventDispatcher implements EventDispatcher {
     @Override
     public void publish(Event event) {
         Event nonNullEvent = Objects.requireNonNull(event, "event");
+        publishRaw(nonNullEvent);
+    }
+
+    @Override
+    public <E extends Event> void publish(EventType<E> eventType, E event) {
+        EventType<E> nonNullEventType = Objects.requireNonNull(eventType, "eventType");
+        E nonNullEvent = Objects.requireNonNull(event, "event");
+        if (!nonNullEventType.accepts(nonNullEvent)) {
+            throw new IllegalArgumentException("Event does not match the event type token");
+        }
+        publishChannel(nonNullEventType, nonNullEvent);
+    }
+
+    private void publishRaw(Event event) {
+        Class<? extends Event> eventClass = event.getClass().asSubclass(Event.class);
+        publishChannel(EventType.of(eventClass), event);
+    }
+
+    private void publishChannel(EventType<?> eventType, Event event) {
         List<ListenerRegistration<?>> listeners;
         registrationLock.readLock().lock();
         try {
-            listeners = registrations.get(nonNullEvent.getClass());
+            listeners = registrations.get(eventType);
         } finally {
             registrationLock.readLock().unlock();
         }
@@ -94,11 +115,11 @@ public class SynchronousEventDispatcher implements EventDispatcher {
             return;
         }
         for (ListenerRegistration<?> registration : listeners) {
-            dispatch(nonNullEvent, registration);
+            dispatch(event, registration);
         }
     }
 
-    private void unsubscribe(Class<?> eventType, ListenerRegistration<?> registration) {
+    private void unsubscribe(EventType<?> eventType, ListenerRegistration<?> registration) {
         registrationLock.writeLock().lock();
         try {
             List<ListenerRegistration<?>> listeners = registrations.get(eventType);
@@ -124,7 +145,10 @@ public class SynchronousEventDispatcher implements EventDispatcher {
         try {
             registration.getListener().onEvent((E) event);
         } catch (RuntimeException failure) {
-            errorHandler.onFailure(event, registration.getListener(), failure);
+            failureHandler.onFailure(
+                    new EventDispatchFailure(event, registration.getListener()),
+                    failure
+            );
         }
     }
 
@@ -153,11 +177,11 @@ public class SynchronousEventDispatcher implements EventDispatcher {
     }
 
     private final class Subscription implements EventSubscription {
-        private final Class<?> eventType;
+        private final EventType<?> eventType;
         private final ListenerRegistration<?> registration;
         private final AtomicBoolean active = new AtomicBoolean(true);
 
-        private Subscription(Class<?> eventType, ListenerRegistration<?> registration) {
+        private Subscription(EventType<?> eventType, ListenerRegistration<?> registration) {
             this.eventType = eventType;
             this.registration = registration;
         }

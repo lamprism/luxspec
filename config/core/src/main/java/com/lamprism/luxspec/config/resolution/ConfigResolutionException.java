@@ -9,19 +9,13 @@ import com.lamprism.luxspec.config.ConfigErrorCode;
  * @author RollW
  */
 public final class ConfigResolutionException extends LuxspecException {
+    /**
+     * Creates a value-free configuration resolution failure.
+     *
+     * <p>The exception deliberately omits an underlying codec or validator cause because those
+     * failures may contain raw or decoded sensitive configuration values.</p>
+     */
     public ConfigResolutionException() {
-        this("Configuration value is invalid");
-    }
-
-    public ConfigResolutionException(Throwable cause) {
-        this("Configuration value is invalid", cause);
-    }
-
-    public ConfigResolutionException(String message) {
-        super(ConfigErrorCode.INVALID_VALUE, message);
-    }
-
-    public ConfigResolutionException(String message, Throwable cause) {
-        super(ConfigErrorCode.INVALID_VALUE, message, cause);
+        super(ConfigErrorCode.INVALID_VALUE, "Configuration value is invalid");
     }
 }

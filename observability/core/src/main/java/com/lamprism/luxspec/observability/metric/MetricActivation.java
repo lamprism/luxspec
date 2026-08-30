@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.metric;
 
+import java.util.Objects;
+
 /**
  * Selects metric declarations for one Registry lifetime.
  *
@@ -23,5 +25,31 @@ package com.lamprism.luxspec.observability.metric;
  */
 @FunctionalInterface
 public interface MetricActivation {
+    /**
+     * Selects every declared metric.
+     *
+     * @return the all-metrics activation
+     */
+    static MetricActivation all() {
+        return spec -> true;
+    }
+
+    /**
+     * Selects declarations with one exact metric name.
+     *
+     * @param name the selected metric name
+     * @return the name-based activation
+     */
+    static MetricActivation byName(MetricName name) {
+        MetricName nonNullName = Objects.requireNonNull(name, "name");
+        return spec -> spec.getName().equals(nonNullName);
+    }
+
+    /**
+     * Reports whether one metric declaration is enabled for the registry.
+     *
+     * @param spec the metric declaration
+     * @return {@code true} when the declaration should be registered
+     */
     boolean isEnabled(MetricSpec<?> spec);
 }

@@ -19,7 +19,11 @@ package com.lamprism.luxspec.cache;
 import java.util.Objects;
 
 /**
- * Identifies one cache ownership boundary.
+ * Identifies one cache ownership boundary independently of a cache provider.
+ *
+ * <p>The stable name may be used during cache assembly and as a bounded monitoring dimension. It
+ * is an opaque, non-blank application identifier. Provider adapters are responsible for
+ * translating it to provider-specific namespaces or keys.</p>
  *
  * @author RollW
  */
@@ -31,14 +35,16 @@ public final class CacheName {
     }
 
     /**
-     * Creates a validated cache name.
+     * Creates a cache name from a non-blank identifier.
      *
      * @param value the stable cache name
      * @return the cache name
      */
     public static CacheName of(String value) {
         String nonNullValue = Objects.requireNonNull(value, "value");
-        validate(nonNullValue);
+        if (nonNullValue.isBlank()) {
+            throw new IllegalArgumentException("Cache name must not be blank");
+        }
         return new CacheName(nonNullValue);
     }
 
@@ -64,37 +70,5 @@ public final class CacheName {
     @Override
     public String toString() {
         return value;
-    }
-
-    private static void validate(String value) {
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException("Cache name must not be empty");
-        }
-        boolean segmentStart = true;
-        for (int index = 0; index < value.length(); index++) {
-            char character = value.charAt(index);
-            if (character == '.') {
-                if (segmentStart) {
-                    throw new IllegalArgumentException("Cache name contains an empty segment");
-                }
-                segmentStart = true;
-                continue;
-            }
-            if (!isAllowed(character)) {
-                throw new IllegalArgumentException("Cache name contains an unsupported character");
-            }
-            segmentStart = false;
-        }
-        if (segmentStart) {
-            throw new IllegalArgumentException("Cache name must not end with a separator");
-        }
-    }
-
-    private static boolean isAllowed(char character) {
-        return character >= 'a' && character <= 'z'
-                || character >= 'A' && character <= 'Z'
-                || character >= '0' && character <= '9'
-                || character == '-'
-                || character == '_';
     }
 }

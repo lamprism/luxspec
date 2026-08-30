@@ -146,8 +146,8 @@ ExecutionContext context = ExecutionContext.empty().with(requestId, "request-42"
 String value = context.get(requestId).orElseThrow();
 ```
 
-An application that needs current-context lookup may explicitly select a storage implementation. The core API does not
-select one by default:
+Without a framework adapter, an application that needs current-context lookup explicitly selects a storage
+implementation. The core API does not select one by default:
 
 ```java
 import com.lamprism.luxspec.context.ExecutionContextStorage;
@@ -155,6 +155,10 @@ import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 
 ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
 ```
+
+The Core auto-configuration supplies `ThreadLocalExecutionContextStorage` as an overridable default. Excluding the
+focused Core execution-context-storage auto-configuration disables that storage without disabling correlation ID
+generation, Web correlation headers, or Web error handling.
 
 Configuration definitions are similarly independent from their storage provider:
 

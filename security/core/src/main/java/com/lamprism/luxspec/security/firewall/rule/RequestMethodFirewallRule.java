@@ -18,8 +18,8 @@ package com.lamprism.luxspec.security.firewall.rule;
 
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
+import com.lamprism.luxspec.security.firewall.FirewallRequest;
 import com.lamprism.luxspec.security.firewall.FirewallRule;
-import com.lamprism.luxspec.security.firewall.IngressRequest;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -32,7 +32,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class RequestMethodFirewallRule implements FirewallRule<IngressRequest> {
+public class RequestMethodFirewallRule implements FirewallRule<FirewallRequest> {
     private final Set<String> methods;
     private final boolean allowMatch;
 
@@ -74,7 +74,7 @@ public class RequestMethodFirewallRule implements FirewallRule<IngressRequest> {
     }
 
     @Override
-    public FirewallDecision evaluate(IngressRequest request) {
+    public FirewallDecision evaluate(FirewallRequest request) {
         String method = Objects.requireNonNull(request, "request").getMethod().toUpperCase(Locale.ROOT);
         return FirewallRuleSupport.decide(
                 methods.contains(method),

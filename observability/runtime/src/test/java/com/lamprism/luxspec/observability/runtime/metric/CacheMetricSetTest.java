@@ -28,20 +28,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CacheMetricSetTest {
     @Test
     void requiresExplicitCacheStatistics() {
-        Cache<String, String> cache = new CaffeineCacheFactory().create(
-                CacheName.of("plain"),
-                CacheProfile.defaults()
-        );
+        Cache<String, String> cache = new CaffeineCacheFactory()
+                .create(CacheName.of("plain"), CacheProfile.defaults());
 
         assertThrows(IllegalArgumentException.class, () -> new CacheMetricSet(CacheName.of("plain"), cache));
     }
 
     @Test
     void registersMetricsForAnExplicitStatisticsEnabledCache() {
-        Cache<String, String> cache = new CaffeineCacheFactory().create(
-                CacheName.of("observed"),
-                CacheProfile.builder().recordStats(true).build()
-        );
+        CacheProfile profile = CacheProfile.builder().recordStats(true).build();
+        Cache<String, String> cache = new CaffeineCacheFactory()
+                .create(CacheName.of("observed"), profile);
         cache.get("entry", key -> "value");
 
         try (var registry = MetricRegistryBuilder.builder()

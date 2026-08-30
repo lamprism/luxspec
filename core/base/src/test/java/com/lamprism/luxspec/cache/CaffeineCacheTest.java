@@ -32,10 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CaffeineCacheTest {
     @Test
     void coalescesConcurrentLoadsForOneKey() throws Exception {
-        Cache<String, Integer> cache = new CaffeineCacheFactory().create(
-                CacheName.of("test"),
-                CacheProfile.builder().maximumSize(16).expireAfterWrite(Duration.ofMinutes(1)).build()
-        );
+        CacheProfile profile = CacheProfile.builder()
+                .maximumSize(16)
+                .expireAfterWrite(Duration.ofMinutes(1))
+                .build();
+        Cache<String, Integer> cache = new CaffeineCacheFactory()
+                .create(CacheName.of("test"), profile);
         AtomicInteger loads = new AtomicInteger();
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -68,10 +70,8 @@ class CaffeineCacheTest {
 
     @Test
     void invalidationPreventsAnInFlightLoadFromRemainingCached() throws Exception {
-        Cache<String, String> cache = new CaffeineCacheFactory().create(
-                CacheName.of("test"),
-                CacheProfile.defaults()
-        );
+        Cache<String, String> cache = new CaffeineCacheFactory()
+                .create(CacheName.of("test"), CacheProfile.defaults());
         AtomicInteger loads = new AtomicInteger();
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -100,10 +100,8 @@ class CaffeineCacheTest {
 
     @Test
     void explicitPutPreventsAnInFlightLoadFromOverwritingTheValue() throws Exception {
-        Cache<String, String> cache = new CaffeineCacheFactory().create(
-                CacheName.of("test"),
-                CacheProfile.defaults()
-        );
+        Cache<String, String> cache = new CaffeineCacheFactory()
+                .create(CacheName.of("test"), CacheProfile.defaults());
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AtomicReference<String> result = new AtomicReference<>();
@@ -125,17 +123,14 @@ class CaffeineCacheTest {
 
     @Test
     void collectsStatisticsOnlyWhenExplicitlyEnabled() {
-        Cache<String, String> uninstrumented = new CaffeineCacheFactory().create(
-                CacheName.of("plain"),
-                CacheProfile.defaults()
-        );
+        Cache<String, String> uninstrumented = new CaffeineCacheFactory()
+                .create(CacheName.of("plain"), CacheProfile.defaults());
         uninstrumented.get("key", key -> "value");
         assertFalse(uninstrumented instanceof CacheStatisticsSource);
 
-        Cache<String, String> instrumented = new CaffeineCacheFactory().create(
-                CacheName.of("observed"),
-                CacheProfile.builder().recordStats(true).build()
-        );
+        CacheProfile profile = CacheProfile.builder().recordStats(true).build();
+        Cache<String, String> instrumented = new CaffeineCacheFactory()
+                .create(CacheName.of("observed"), profile);
         instrumented.get("key", key -> "value");
         instrumented.getIfPresent("missing");
         assertTrue(instrumented instanceof CacheStatisticsSource);
@@ -143,6 +138,19 @@ class CaffeineCacheTest {
         assertEquals(1L, stats.getLoadSuccessCount());
         assertEquals(2L, stats.getMissCount());
         assertTrue(stats.getLoadDurationNanos() >= 0L);
+    }
+
+    @Test
+    void appliesProfilesPerCreatedCache() {
+        CacheName name = CacheName.of("shared-name");
+        CacheProfile observedProfile = CacheProfile.builder().recordStats(true).build();
+        CaffeineCacheFactory factory = new CaffeineCacheFactory();
+
+        Cache<String, String> plain = factory.create(name, CacheProfile.defaults());
+        Cache<String, String> observed = factory.create(name, observedProfile);
+
+        assertFalse(plain instanceof CacheStatisticsSource);
+        assertTrue(observed instanceof CacheStatisticsSource);
     }
 
     private static Integer load(

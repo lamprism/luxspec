@@ -2,6 +2,7 @@ package com.lamprism.luxspec.config;
 
 import com.lamprism.luxspec.config.value.ConfigValidators;
 import com.lamprism.luxspec.config.value.ConfigValueValidationException;
+import com.lamprism.luxspec.validation.Validator;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -14,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ConfigValidatorsTest {
     @Test
     void validatesNonBlankText() {
-        ConfigValueValidator<String> validator = ConfigValidators.nonBlankText();
+        Validator<String> validator = ConfigValidators.nonBlankText();
 
         assertDoesNotThrow(() -> validator.validate("value"));
         assertThrows(ConfigValueValidationException.class, () -> validator.validate("  "));
@@ -22,7 +23,7 @@ class ConfigValidatorsTest {
 
     @Test
     void validatesComparableRanges() {
-        ConfigValueValidator<Integer> validator = ConfigValidators.betweenInclusive(1, 10);
+        Validator<Integer> validator = ConfigValidators.betweenInclusive(1, 10);
 
         assertDoesNotThrow(() -> validator.validate(1));
         assertDoesNotThrow(() -> validator.validate(10));
@@ -31,8 +32,8 @@ class ConfigValidatorsTest {
 
     @Test
     void validatesNumericBoundariesAndFiniteValues() {
-        ConfigValueValidator<BigDecimal> positive = ConfigValidators.positiveNumber();
-        ConfigValueValidator<Double> finite = ConfigValidators.finiteNumber();
+        Validator<BigDecimal> positive = ConfigValidators.positiveNumber();
+        Validator<Double> finite = ConfigValidators.finiteNumber();
 
         assertDoesNotThrow(() -> positive.validate(new BigDecimal("0.001")));
         assertThrows(ConfigValueValidationException.class, () -> positive.validate(BigDecimal.ZERO));
@@ -42,8 +43,8 @@ class ConfigValidatorsTest {
 
     @Test
     void validatesMembershipAndListElements() {
-        ConfigValueValidator<String> membership = ConfigValidators.oneOf(Set.of("a", "b"));
-        ConfigValueValidator<List<String>> elements = ConfigValidators.elements(
+        Validator<String> membership = ConfigValidators.oneOf(Set.of("a", "b"));
+        Validator<List<String>> elements = ConfigValidators.elements(
                 ConfigValidators.nonBlankText()
         );
 

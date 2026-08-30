@@ -19,9 +19,9 @@ package com.lamprism.luxspec.security.crypto.config;
 import com.lamprism.luxspec.config.ConfigCodecs;
 import com.lamprism.luxspec.config.ConfigParameter;
 import com.lamprism.luxspec.config.ConfigSpec;
-import com.lamprism.luxspec.config.ConfigValueValidator;
 import com.lamprism.luxspec.config.value.ConfigValidators;
 import com.lamprism.luxspec.message.LocalizedText;
+import com.lamprism.luxspec.validation.Validator;
 
 import java.util.List;
 import java.util.Locale;
@@ -40,8 +40,8 @@ public final class ConfigKeySetSpecs {
             new ConfigParameter("key-set", Set.of()),
             new ConfigParameter("key-id", Set.of())
     );
-    private static final ConfigValueValidator<String> NON_BLANK_TEXT = ConfigValidators.nonBlankText();
-    private static final ConfigValueValidator<List<String>> KEY_IDS_VALIDATOR = ConfigValueValidator.<List<String>>of(
+    private static final Validator<String> NON_BLANK_TEXT = ConfigValidators.nonBlankText();
+    private static final Validator<List<String>> KEY_IDS_VALIDATOR = Validator.<List<String>>of(
             values -> !values.isEmpty(),
             "Key IDs must contain at least one value"
     ).and(ConfigValidators.<String>elements(NON_BLANK_TEXT));

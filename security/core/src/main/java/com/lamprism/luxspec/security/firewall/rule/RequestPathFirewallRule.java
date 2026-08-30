@@ -18,8 +18,8 @@ package com.lamprism.luxspec.security.firewall.rule;
 
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
+import com.lamprism.luxspec.security.firewall.FirewallRequest;
 import com.lamprism.luxspec.security.firewall.FirewallRule;
-import com.lamprism.luxspec.security.firewall.IngressRequest;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -29,13 +29,13 @@ import java.util.Set;
 /**
  * Allows or denies requests by exact paths or path prefixes.
  *
- * <p>Matching uses the path exposed by {@code IngressRequest} without decoding or additional
+ * <p>Matching uses the path exposed by {@link FirewallRequest} without decoding or additional
  * canonicalization. The request adapter and application routing policy are responsible for
  * establishing the canonical path used by both the firewall and the handler mapping.</p>
  *
  * @author RollW
  */
-public class RequestPathFirewallRule implements FirewallRule<IngressRequest> {
+public class RequestPathFirewallRule implements FirewallRule<FirewallRequest> {
     private enum MatchType {
         EXACT,
         PREFIX
@@ -100,7 +100,7 @@ public class RequestPathFirewallRule implements FirewallRule<IngressRequest> {
     }
 
     @Override
-    public FirewallDecision evaluate(IngressRequest request) {
+    public FirewallDecision evaluate(FirewallRequest request) {
         String requestPath = Objects.requireNonNull(request, "request").getPath();
         boolean matched = paths.stream().anyMatch(path -> matches(path, requestPath));
         return FirewallRuleSupport.decide(

@@ -3,6 +3,7 @@ package com.lamprism.luxspec.config;
 import com.lamprism.luxspec.cache.Cache;
 import com.lamprism.luxspec.cache.CacheFactory;
 import com.lamprism.luxspec.cache.CacheName;
+import com.lamprism.luxspec.cache.CachePlan;
 import com.lamprism.luxspec.cache.CacheProfile;
 import com.lamprism.luxspec.cache.CaffeineCacheFactory;
 import com.lamprism.luxspec.config.cache.ConfigCacheKey;
@@ -10,6 +11,7 @@ import com.lamprism.luxspec.config.cache.ConfigValueCache;
 import com.lamprism.luxspec.config.provider.CachingConfigProvider;
 import com.lamprism.luxspec.config.runtime.SourceConfigWriter;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
+import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -41,10 +44,11 @@ class CachingConfigProviderTest {
             }
         };
         ConfigProvider delegate = ConfigProvider.of(delegateReader, new SourceConfigWriter(List.of()));
-        ConfigValueCache cache = new ConfigValueCache(
+        CacheProfile profile = CacheProfile.builder().maximumSize(16).build();
+        ConfigValueCache cache = new ConfigValueCache(CachePlan.single(
                 new CaffeineCacheFactory(),
-                CacheProfile.builder().maximumSize(16).build()
-        );
+                profile
+        ));
         CachingConfigProvider provider = new CachingConfigProvider(delegate, cache);
         ConfigSpec<Integer> spec = ConfigSpec.of(
                 "sample.limit",
@@ -60,44 +64,12 @@ class CachingConfigProviderTest {
     }
 
     @Test
-    void freshReadBypassesTheInjectedCache() {
-        AtomicInteger reads = new AtomicInteger();
-        ConfigReader delegateReader = new ConfigReader() {
-            @Override
-            public <T> ConfigValue<T> get(@NonNull ConfigBinding<T> binding) {
-                Integer value = reads.incrementAndGet();
-                @SuppressWarnings("unchecked")
-                ConfigValue<T> result = (ConfigValue<T>) ConfigValue.source(
-                        value,
-                        ConfigSourceId.of("counting")
-                );
-                return result;
-            }
-        };
-        ConfigProvider delegate = ConfigProvider.of(delegateReader, new SourceConfigWriter(List.of()));
-        CachingConfigProvider provider = new CachingConfigProvider(
-                delegate,
-                new ConfigValueCache(new CaffeineCacheFactory(), CacheProfile.defaults())
-        );
-        ConfigSpec<Integer> spec = ConfigSpec.of(
-                "sample.limit",
-                ConfigCodecs.integer(),
-                null,
-                false
-        );
-
-        assertEquals(1, provider.get(spec).getValue());
-        assertEquals(2, provider.getFresh(spec.bind()).getValue());
-        assertEquals(1, provider.get(spec).getValue());
-    }
-
-    @Test
     void storesDefinitionsIndividuallyAndInvalidatesByCompleteKey() {
         RecordingCacheFactory factory = new RecordingCacheFactory();
-        ConfigValueCache cache = new ConfigValueCache(
+        ConfigValueCache cache = new ConfigValueCache(CachePlan.single(
                 factory,
-                CacheProfile.builder().maximumSize(1).build()
-        );
+                CacheProfile.defaults()
+        ));
         ConfigSpec<Integer> firstSpec = ConfigSpec.of(
                 "sample.limit",
                 ConfigCodecs.integer(),
@@ -140,13 +112,77 @@ class CachingConfigProviderTest {
         ConfigProvider delegate = ConfigProvider.of(delegateReader, new SourceConfigWriter(List.of()));
         CachingConfigProvider provider = new CachingConfigProvider(
                 delegate,
-                new ConfigValueCache(new CaffeineCacheFactory(), CacheProfile.defaults())
+                new ConfigValueCache(CachePlan.single(
+                        new CaffeineCacheFactory(),
+                        CacheProfile.defaults()
+                ))
         );
         ConfigSpec<Integer> spec = ConfigSpec.builder("security.limit", ConfigCodecs.integer())
                 .sensitive()
                 .build();
 
         assertEquals(1, provider.get(spec).getValue());
+        assertEquals(2, provider.get(spec).getValue());
+    }
+
+    @Test
+    void invalidatesAValueRepopulatedWhileAMutationIsInProgress() {
+        AtomicInteger current = new AtomicInteger(1);
+        AtomicReference<CachingConfigProvider> providerReference = new AtomicReference<>();
+        ConfigProvider delegate = new ConfigProvider() {
+            @Override
+            public ConfigSourceScope getSourceScope() {
+                return ConfigSourceScope.RUNTIME;
+            }
+
+            @Override
+            public <T> ConfigValue<T> get(@NonNull ConfigBinding<T> binding) {
+                @SuppressWarnings("unchecked")
+                ConfigValue<T> value = (ConfigValue<T>) ConfigValue.source(
+                        current.get(),
+                        ConfigSourceId.of("mutable")
+                );
+                return value;
+            }
+
+            @Override
+            public <T> void set(@NonNull ConfigBinding<T> binding, @NonNull T value) {
+                providerReference.get().get(binding);
+                current.set((Integer) value);
+            }
+
+            @Override
+            public <T> void set(
+                    @NonNull ConfigSourceId sourceId,
+                    @NonNull ConfigBinding<T> binding,
+                    @NonNull T value
+            ) {
+                set(binding, value);
+            }
+
+            @Override
+            public void remove(@NonNull ConfigBinding<?> binding) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void remove(@NonNull ConfigSourceId sourceId, @NonNull ConfigBinding<?> binding) {
+                remove(binding);
+            }
+        };
+        CachingConfigProvider provider = new CachingConfigProvider(
+                delegate,
+                new ConfigValueCache(CachePlan.single(
+                        new CaffeineCacheFactory(),
+                        CacheProfile.defaults()
+                ))
+        );
+        providerReference.set(provider);
+        ConfigSpec<Integer> spec = ConfigSpec.of("sample.limit", ConfigCodecs.integer(), null, false);
+
+        assertEquals(1, provider.get(spec).getValue());
+        provider.set(spec, 2);
+
         assertEquals(2, provider.get(spec).getValue());
     }
 
@@ -191,7 +227,7 @@ class CachingConfigProviderTest {
         }
 
         @Override
-        public void invalidate(K key) {
+        public void invalidate(@NonNull K key) {
             values.remove(key);
         }
 

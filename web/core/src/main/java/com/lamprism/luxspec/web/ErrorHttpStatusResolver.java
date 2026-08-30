@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.web.spring;
+package com.lamprism.luxspec.web;
 
 import com.lamprism.luxspec.ErrorCode;
-import org.springframework.http.HttpStatusCode;
 
 /**
- * Maps a provider-independent business error code to an HTTP response status.
+ * Maps a provider-independent business error to an HTTP response status.
+ *
+ * <p>Applications may contribute individual {@link ErrorHttpStatusMapping} instances to the
+ * default resolver, or replace this strategy when their HTTP contract requires completely
+ * different status semantics.</p>
+ *
+ * <p>Implementations may be invoked concurrently and must be thread-safe.</p>
  *
  * @author RollW
  */
+@FunctionalInterface
 public interface ErrorHttpStatusResolver {
     /**
      * Resolves the HTTP status for one stable business error.

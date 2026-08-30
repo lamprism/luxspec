@@ -17,6 +17,12 @@
 package com.lamprism.luxspec.security.firewall;
 
 import com.lamprism.luxspec.security.SecurityErrorCode;
+import com.lamprism.luxspec.security.authentication.Authentication;
+import com.lamprism.luxspec.security.authentication.UserSubject;
+import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
+import com.lamprism.luxspec.security.firewall.rule.ClientAddressFirewallRule;
+import com.lamprism.luxspec.security.firewall.rule.RequestMethodFirewallRule;
+import com.lamprism.luxspec.security.firewall.rule.RequestPathFirewallRule;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -33,9 +39,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirewallChainTest {
     private static final class TestRequest implements FirewallRequest {
-    }
+        @Override
+        public String getMethod() {
+            return "GET";
+        }
 
-    private static final class DedicatedRequest {
+        @Override
+        public String getPath() {
+            return "/test";
+        }
+
+        @Override
+        public String getClientAddress() {
+            return "127.0.0.1";
+        }
     }
 
     private static final FirewallRule<FirewallRequest> GENERIC_RULE = request -> FirewallDecision.pass();
@@ -119,11 +136,20 @@ class FirewallChainTest {
     }
 
     @Test
-    void supportsRulesWithDedicatedRequestTypes() {
-        FirewallChain<DedicatedRequest> chain = new FirewallChain<>(
-                List.of(request -> FirewallDecision.pass())
+    void appliesCommonRequestRulesToAuthenticatedRequests() {
+        FirewallChain<AuthenticatedRequest> chain = new FirewallChain<>(
+                List.of(
+                        RequestMethodFirewallRule.allowOnly(List.of("GET")),
+                        RequestPathFirewallRule.allowExact(List.of("/test")),
+                        ClientAddressFirewallRule.allowOnly(List.of("127.0.0.1"))
+                )
+        );
+        IngressRequest ingress = new IngressRequest("GET", "/test", "127.0.0.1");
+        Authentication authentication = new Authentication(
+                new UserSubject(1L),
+                AuthorizationGrantSet.of(List.of())
         );
 
-        assertTrue(chain.evaluate(new DedicatedRequest()).passed());
+        assertTrue(chain.evaluate(new AuthenticatedRequest(ingress, authentication)).passed());
     }
 }

@@ -34,7 +34,7 @@ import java.util.Objects;
  * @param <R> the request-fact type evaluated by this chain
  * @author RollW
  */
-public class FirewallChain<R> {
+public class FirewallChain<R extends FirewallRequest> {
     private final List<FirewallRule<? super R>> rules;
     private final EventPublisher eventPublisher;
     private final Clock clock;

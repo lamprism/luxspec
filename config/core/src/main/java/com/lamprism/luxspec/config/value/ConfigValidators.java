@@ -1,13 +1,14 @@
 package com.lamprism.luxspec.config.value;
 
 import com.lamprism.luxspec.config.ConfigValue;
-import com.lamprism.luxspec.config.ConfigValueValidator;
+import com.lamprism.luxspec.validation.Validator;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Provides focused validators for common configuration value constraints.
@@ -26,8 +27,8 @@ public final class ConfigValidators {
      *
      * @return the non-blank text validator
      */
-    public static ConfigValueValidator<String> nonBlankText() {
-        return ConfigValueValidator.of(
+    public static Validator<String> nonBlankText() {
+        return validator(
                 value -> !value.isBlank(),
                 "Text value must not be blank"
         );
@@ -41,7 +42,7 @@ public final class ConfigValidators {
      * @param <T>     the comparable value type
      * @return the range validator
      */
-    public static <T extends Comparable<? super T>> ConfigValueValidator<T> betweenInclusive(
+    public static <T extends Comparable<? super T>> Validator<T> betweenInclusive(
             T minimum,
             T maximum
     ) {
@@ -50,7 +51,7 @@ public final class ConfigValidators {
         if (nonNullMinimum.compareTo(nonNullMaximum) > 0) {
             throw new IllegalArgumentException("minimum must not be greater than maximum");
         }
-        return ConfigValueValidator.of(
+        return validator(
                 value -> value.compareTo(nonNullMinimum) >= 0
                         && value.compareTo(nonNullMaximum) <= 0,
                 "Value is outside the configured range"
@@ -63,8 +64,8 @@ public final class ConfigValidators {
      * @param <T> the numeric value type
      * @return the positive-number validator
      */
-    public static <T extends Number> ConfigValueValidator<T> positiveNumber() {
-        return ConfigValueValidator.of(
+    public static <T extends Number> Validator<T> positiveNumber() {
+        return validator(
                 value -> compareWithZero(value) > 0,
                 "Numeric value must be positive"
         );
@@ -76,8 +77,8 @@ public final class ConfigValidators {
      * @param <T> the numeric value type
      * @return the non-negative-number validator
      */
-    public static <T extends Number> ConfigValueValidator<T> nonNegativeNumber() {
-        return ConfigValueValidator.of(
+    public static <T extends Number> Validator<T> nonNegativeNumber() {
+        return validator(
                 value -> compareWithZero(value) >= 0,
                 "Numeric value must not be negative"
         );
@@ -89,8 +90,8 @@ public final class ConfigValidators {
      * @param <T> the numeric value type
      * @return the finite-number validator
      */
-    public static <T extends Number> ConfigValueValidator<T> finiteNumber() {
-        return ConfigValueValidator.of(
+    public static <T extends Number> Validator<T> finiteNumber() {
+        return validator(
                 ConfigValidators::isFinite,
                 "Numeric value must be finite"
         );
@@ -103,12 +104,12 @@ public final class ConfigValidators {
      * @param <T>           the value type
      * @return the membership validator
      */
-    public static <T> ConfigValueValidator<T> oneOf(Set<? extends T> allowedValues) {
+    public static <T> Validator<T> oneOf(Set<? extends T> allowedValues) {
         Set<? extends T> values = Set.copyOf(Objects.requireNonNull(allowedValues, "allowedValues"));
         if (values.isEmpty()) {
             throw new IllegalArgumentException("allowedValues must not be empty");
         }
-        return ConfigValueValidator.of(
+        return validator(
                 values::contains,
                 "Value is not an allowed member"
         );
@@ -121,10 +122,10 @@ public final class ConfigValidators {
      * @param <T>              the element type
      * @return the list element validator
      */
-    public static <T> ConfigValueValidator<List<T>> elements(
-            ConfigValueValidator<? super T> elementValidator
+    public static <T> Validator<List<T>> elements(
+            Validator<? super T> elementValidator
     ) {
-        ConfigValueValidator<? super T> nonNullValidator = Objects.requireNonNull(
+        Validator<? super T> nonNullValidator = Objects.requireNonNull(
                 elementValidator,
                 "elementValidator"
         );
@@ -132,6 +133,20 @@ public final class ConfigValidators {
             List<T> nonNullValues = Objects.requireNonNull(values, "value");
             for (T value : nonNullValues) {
                 nonNullValidator.validate(value);
+            }
+        };
+    }
+
+    private static <T> Validator<T> validator(Predicate<? super T> predicate, String detail) {
+        Predicate<? super T> nonNullPredicate = Objects.requireNonNull(predicate, "predicate");
+        String nonBlankDetail = Objects.requireNonNull(detail, "detail");
+        if (nonBlankDetail.isBlank()) {
+            throw new IllegalArgumentException("detail must not be blank");
+        }
+        return value -> {
+            T nonNullValue = Objects.requireNonNull(value, "value");
+            if (!nonNullPredicate.test(nonNullValue)) {
+                throw new ConfigValueValidationException(nonBlankDetail);
             }
         };
     }

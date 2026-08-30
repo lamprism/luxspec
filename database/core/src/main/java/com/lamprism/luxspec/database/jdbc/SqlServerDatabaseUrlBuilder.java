@@ -4,6 +4,7 @@ import com.lamprism.luxspec.database.DatabaseConfig;
 import com.lamprism.luxspec.database.DatabaseTarget;
 import com.lamprism.luxspec.database.DatabaseType;
 import com.lamprism.luxspec.database.SslMode;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -15,10 +16,9 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class SqlServerDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
-    @Override
-    public DatabaseType getDatabaseType() {
-        return DatabaseType.SQL_SERVER;
+public class SqlServerDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
+    public SqlServerDatabaseUrlBuilder() {
+        super(DatabaseType.SQL_SERVER, "com.microsoft.sqlserver.jdbc.SQLServerDriver");
     }
 
     @Override
@@ -32,17 +32,13 @@ public class SqlServerDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     @Override
-    protected String getDriverClassName() {
-        return "com.microsoft.sqlserver.jdbc.SQLServerDriver";
-    }
-
-    @Override
     protected Map<String, String> buildDriverProperties(
             DatabaseConfig settings,
             List<AutoCloseable> resources
     ) {
         DatabaseTarget target = requireNetworkTarget(settings);
-        Map<String, String> properties = baseProperties(settings, CharacterSetFlavor.SQL_SERVER);
+        Map<String, String> properties = driverProperties(settings);
+        applyCharacterSet(properties, settings.getCharset());
         rejectManagedSslOptions(properties, Set.of(
                 "encrypt",
                 "trustServerCertificate",
@@ -71,5 +67,19 @@ public class SqlServerDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
             );
         }
         return properties;
+    }
+
+    private void applyCharacterSet(
+            Map<String, String> properties,
+            @Nullable String characterSet
+    ) {
+        if (characterSet == null) {
+            return;
+        }
+        rejectManagedOptions(properties, Set.of("characterEncoding"), "character set");
+        boolean utf8 = characterSet.equalsIgnoreCase("utf8")
+                || characterSet.equalsIgnoreCase("utf-8")
+                || characterSet.equalsIgnoreCase("utf8mb4");
+        properties.put("characterEncoding", utf8 ? "UTF-8" : characterSet);
     }
 }

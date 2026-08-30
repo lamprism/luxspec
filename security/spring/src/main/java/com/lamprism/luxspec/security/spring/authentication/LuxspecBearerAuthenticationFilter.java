@@ -18,7 +18,7 @@ package com.lamprism.luxspec.security.spring.authentication;
 
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
-import com.lamprism.luxspec.context.Slf4jMdcScope;
+import com.lamprism.luxspec.context.slf4j.Slf4jMdcScope;
 import com.lamprism.luxspec.security.authentication.AccessTokenCredentials;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.Authenticator;

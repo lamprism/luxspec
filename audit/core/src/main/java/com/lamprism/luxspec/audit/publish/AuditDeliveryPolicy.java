@@ -21,12 +21,16 @@ package com.lamprism.luxspec.audit.publish;
  *
  * <p>{@link #REQUIRED} propagates translation and sink failures as
  * {@link AuditPublicationException}. {@link #BEST_EFFORT} requires an explicit
- * {@link AuditPublicationErrorHandler} and reports the failure through that
- * handler instead.
+ * {@link com.lamprism.luxspec.failure.FailureHandler FailureHandler} for
+ * {@link AuditPublicationFailure} and reports the failure through that handler instead.
  *
  * @author RollW
  */
 public enum AuditDeliveryPolicy {
+    /**
+     * Propagates translation or sink failures to the publisher caller.
+     */
     REQUIRED,
+    /** Reports runtime failures to the configured failure handler and returns normally. */
     BEST_EFFORT
 }

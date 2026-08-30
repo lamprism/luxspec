@@ -18,8 +18,8 @@ package com.lamprism.luxspec.security.jwt;
 
 import com.lamprism.luxspec.config.ConfigCodecs;
 import com.lamprism.luxspec.config.ConfigSpec;
-import com.lamprism.luxspec.config.ConfigValueValidator;
 import com.lamprism.luxspec.message.LocalizedText;
+import com.lamprism.luxspec.validation.Validator;
 
 import java.time.Duration;
 import java.util.List;
@@ -31,19 +31,19 @@ import java.util.Locale;
  * @author RollW
  */
 public final class JwtAccessTokenConfigSpecs {
-    private static final ConfigValueValidator<Duration> POSITIVE_DURATION = ConfigValueValidator.of(
+    private static final Validator<Duration> POSITIVE_DURATION = Validator.of(
             value -> !value.isZero() && !value.isNegative(),
             "Duration must be positive"
     );
-    private static final ConfigValueValidator<Duration> NON_NEGATIVE_DURATION = ConfigValueValidator.of(
+    private static final Validator<Duration> NON_NEGATIVE_DURATION = Validator.of(
             value -> !value.isNegative(),
             "Duration must not be negative"
     );
-    private static final ConfigValueValidator<String> NON_BLANK_TEXT = ConfigValueValidator.of(
+    private static final Validator<String> NON_BLANK_TEXT = Validator.of(
             value -> !value.isBlank(),
             "Text value must not be blank"
     );
-    private static final ConfigValueValidator<List<String>> NON_BLANK_AUDIENCES = ConfigValueValidator.of(
+    private static final Validator<List<String>> NON_BLANK_AUDIENCES = Validator.of(
             values -> values.stream().noneMatch(String::isBlank),
             "Audience values must not be blank"
     );

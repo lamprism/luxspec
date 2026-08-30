@@ -22,7 +22,7 @@ package com.lamprism.luxspec.security.firewall;
  * @param <R> the request type accepted by the rule
  * @author RollW
  */
-public interface FirewallRule<R> {
+public interface FirewallRule<R extends FirewallRequest> {
     /**
      * Evaluates one request at the rule chain's declared stage.
      *

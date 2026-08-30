@@ -19,14 +19,27 @@ package com.lamprism.luxspec.audit.integration.user;
 /**
  * Stable audit event names for user lifecycle events.
  *
+ * <p>Names are explicit protocol identifiers rather than values generated from
+ * Java class names. Refactoring an event class must not rename persisted audit
+ * records. Built-in names use lowercase dot-separated domain and event
+ * segments.</p>
+ *
  * @author RollW
  */
 public final class UserAuditEventNames {
+    /**
+     * A user account was registered.
+     */
     public static final String REGISTERED = "user.registered";
+    /** A user's display or account name changed. */
     public static final String RENAMED = "user.renamed";
+    /** A user's email address changed. */
     public static final String EMAIL_CHANGED = "user.email.changed";
+    /** A user's assigned roles changed. */
     public static final String ROLES_CHANGED = "user.roles.changed";
+    /** A user's lifecycle status changed. */
     public static final String STATUS_CHANGED = "user.status.changed";
+    /** A user's password changed without exposing password material. */
     public static final String PASSWORD_CHANGED = "user.password.changed";
 
     private UserAuditEventNames() {

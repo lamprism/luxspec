@@ -27,24 +27,10 @@ public class InMemoryConfigSource implements TombstoneConfigSource {
      *
      * @param id    the stable source instance identifier
      * @param scope the lifecycle scope in which the source is available
+     * @return the empty memory source
      */
-    public InMemoryConfigSource(ConfigSourceId id, ConfigSourceScope scope) {
-        this(id, scope, Map.of(), Map.of());
-    }
-
-    /**
-     * Creates a memory source with initial raw entries.
-     *
-     * @param id             the stable source instance identifier
-     * @param scope          the lifecycle scope in which the source is available
-     * @param initialEntries the entries copied into the source before it is published
-     */
-    public InMemoryConfigSource(
-            ConfigSourceId id,
-            ConfigSourceScope scope,
-            Map<ConfigKey, ConfigEntry> initialEntries
-    ) {
-        this(id, scope, initialEntries, Map.of());
+    public static InMemoryConfigSource empty(ConfigSourceId id, ConfigSourceScope scope) {
+        return new InMemoryConfigSource(id, scope, Map.of(), Map.of());
     }
 
     /**

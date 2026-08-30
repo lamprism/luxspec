@@ -2,7 +2,7 @@ package com.lamprism.luxspec.web;
 
 import com.lamprism.luxspec.config.ConfigCodecs;
 import com.lamprism.luxspec.config.ConfigSpec;
-import com.lamprism.luxspec.config.ConfigValueValidator;
+import com.lamprism.luxspec.validation.Validator;
 
 /**
  * Typed configuration definitions owned by the Web capability.
@@ -18,7 +18,7 @@ public final class WebConfigSpec {
             ConfigCodecs.string(),
             "X-Request-ID",
             false,
-            ConfigValueValidator.of(
+            Validator.of(
                     value -> !value.isBlank(),
                     "Correlation ID header must not be blank"
             )

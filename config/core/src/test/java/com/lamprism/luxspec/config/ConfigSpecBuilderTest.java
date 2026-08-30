@@ -1,6 +1,7 @@
 package com.lamprism.luxspec.config;
 
 import com.lamprism.luxspec.message.LocalizedText;
+import com.lamprism.luxspec.validation.Validator;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,7 +18,7 @@ class ConfigSpecBuilderTest {
                 .parameter(new ConfigParameter("name", Set.of("acme")))
                 .textDescription("Maximum tenant request limit")
                 .defaultValue(10)
-                .validator(ConfigValueValidator.of(value -> value > 0, "Value must be positive"))
+                .validator(Validator.of(value -> value > 0, "Value must be positive"))
                 .build();
 
         ConfigBinding<Integer> binding = spec.bind(java.util.Map.of("name", "acme"));

@@ -26,6 +26,8 @@ import com.lamprism.luxspec.resource.ResourceType;
  * @author RollW
  */
 public class ResourcePortedAuditEventIdGenerator implements AuditEventIdGenerator {
+    private static final ResourceType<String> AUDIT_EVENT = ResourceType.of("AUDIT_EVENT", String.class);
+
     private final ResourceIdGenerator<String> resourceIdGenerator;
 
     public ResourcePortedAuditEventIdGenerator(ResourceIdGenerator<String> resourceIdGenerator) {
@@ -34,7 +36,8 @@ public class ResourcePortedAuditEventIdGenerator implements AuditEventIdGenerato
 
     @Override
     public AuditEventId nextId(String eventName) {
-        String eventId = resourceIdGenerator.nextId(ResourceType.of("AUDIT_EVENT", String.class));
+
+        String eventId = resourceIdGenerator.nextId(AUDIT_EVENT);
         return AuditEventId.of(eventId);
     }
 }

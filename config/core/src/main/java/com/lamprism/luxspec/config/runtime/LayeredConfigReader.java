@@ -136,8 +136,9 @@ public class LayeredConfigReader implements ConfigReader {
             );
             binding.getSpec().validate(value);
             return ConfigValue.source(value, source.getId());
-        } catch (RuntimeException exception) {
-            throw new ConfigResolutionException(exception);
+        } catch (RuntimeException ignored) {
+            // Codec and validator failures may contain a raw or decoded configuration value.
+            throw new ConfigResolutionException();
         }
     }
 

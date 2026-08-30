@@ -19,7 +19,6 @@ package com.lamprism.luxspec.observability.runtime.metric;
 import com.lamprism.luxspec.observability.ObservabilityClock;
 import com.lamprism.luxspec.observability.SystemObservabilityClock;
 import com.lamprism.luxspec.observability.metric.MetricActivation;
-import com.lamprism.luxspec.observability.metric.MetricActivations;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
 
@@ -34,7 +33,7 @@ import java.util.Objects;
  */
 public final class MetricRegistryBuilder {
     private ObservabilityClock clock = new SystemObservabilityClock();
-    private MetricActivation activation = MetricActivations.all();
+    private MetricActivation activation = MetricActivation.all();
     private final List<ObservabilitySet> sets = new ArrayList<>();
 
     private MetricRegistryBuilder() {

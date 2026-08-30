@@ -58,4 +58,19 @@ public final class AuthenticatedRequest implements FirewallRequest {
     public Authentication getAuthentication() {
         return authentication;
     }
+
+    @Override
+    public String getMethod() {
+        return ingressRequest.getMethod();
+    }
+
+    @Override
+    public String getPath() {
+        return ingressRequest.getPath();
+    }
+
+    @Override
+    public String getClientAddress() {
+        return ingressRequest.getClientAddress();
+    }
 }

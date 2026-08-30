@@ -33,4 +33,6 @@ dependencies {
     api(project(":user:user-spring-boot-autoconfigure"))
     api("org.springframework.boot:spring-boot-starter-security")
     api("org.springframework.boot:spring-boot-starter-web")
+    testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("org.assertj:assertj-core")
 }

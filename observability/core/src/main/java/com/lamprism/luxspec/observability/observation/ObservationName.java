@@ -16,10 +16,8 @@
 
 package com.lamprism.luxspec.observability.observation;
 
+import com.lamprism.luxspec.validation.Normalizer;
 import com.lamprism.luxspec.validation.ValidationRules;
-import com.lamprism.luxspec.validation.Validator;
-
-import java.util.Objects;
 
 /**
  * An immutable semantic observation operation name.
@@ -31,9 +29,11 @@ import java.util.Objects;
  * @author RollW
  */
 public final class ObservationName {
-    private static final Validator<String> VALUE_VALIDATOR = ValidationRules
-            .nonBlank("Observation name")
-            .and(ValidationRules.noControlCharacters("Observation name"));
+    private static final Normalizer<String> VALUE_NORMALIZER = Normalizer.of(String::trim)
+            .validatedBy(
+                    ValidationRules.nonBlank("Observation name")
+                            .and(ValidationRules.noControlCharacters("Observation name"))
+            );
 
     private final String value;
 
@@ -42,9 +42,7 @@ public final class ObservationName {
     }
 
     public static ObservationName of(String value) {
-        String normalized = Objects.requireNonNull(value, "value").trim();
-        VALUE_VALIDATOR.validate(normalized);
-        return new ObservationName(normalized);
+        return new ObservationName(VALUE_NORMALIZER.normalize(value));
     }
 
     public String value() {

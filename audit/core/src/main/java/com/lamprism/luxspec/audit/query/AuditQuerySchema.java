@@ -41,6 +41,14 @@ public final class AuditQuerySchema {
         this.schema = schema;
     }
 
+    /**
+     * Creates the schema for the standard fields exposed by {@link AuditQueryFields}.
+     *
+     * <p>Providers may use the returned wrapper directly or start from its
+     * underlying schema when assembling additional application-owned fields.</p>
+     *
+     * @return the standard audit query schema
+     */
     public static AuditQuerySchema defaults() {
         QuerySchema.Builder builder = QuerySchema.builder();
         builder.add(AuditQueryFields.ID, Set.of(QueryOperator.EQUAL, QueryOperator.IN), true);
@@ -66,10 +74,20 @@ public final class AuditQuerySchema {
         return new AuditQuerySchema(builder.build());
     }
 
+    /**
+     * Validates criteria with the default shared complexity limits.
+     *
+     * @param criteria the audit query criteria
+     */
     public void validate(QueryCriteria criteria) {
         schema.validate(criteria, QueryComplexityLimits.defaults());
     }
 
+    /**
+     * Returns the provider-independent schema definition.
+     *
+     * @return the query schema
+     */
     public QuerySchema schema() {
         return schema;
     }

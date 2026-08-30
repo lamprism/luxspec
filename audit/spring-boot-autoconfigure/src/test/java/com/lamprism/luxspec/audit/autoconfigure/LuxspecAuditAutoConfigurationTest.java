@@ -24,22 +24,27 @@ import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
 import com.lamprism.luxspec.audit.publish.AuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.publish.AuditEventIdGenerator;
 import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
+import com.lamprism.luxspec.audit.publish.AuditPublicationFailure;
 import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditSink;
 import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
-import com.lamprism.luxspec.core.autoconfigure.LuxspecCoreAutoConfiguration;
+import com.lamprism.luxspec.core.autoconfigure.LuxspecEventAutoConfiguration;
+import com.lamprism.luxspec.event.EventDispatchFailure;
 import com.lamprism.luxspec.event.EventDispatcher;
 import com.lamprism.luxspec.event.EventSubscription;
 import com.lamprism.luxspec.event.SynchronousEventDispatcher;
+import com.lamprism.luxspec.failure.FailureHandler;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -52,7 +57,7 @@ class LuxspecAuditAutoConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    LuxspecCoreAutoConfiguration.class,
+                    LuxspecEventAutoConfiguration.class,
                     LuxspecAuditAutoConfiguration.class
             ));
 
@@ -149,5 +154,29 @@ class LuxspecAuditAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(AuditEventDefinitionContributor.class);
                     assertThat(context).hasSingleBean(AuditRegistry.class);
                 });
+    }
+
+    @Test
+    void selectsTheAuditFailureHandlerByItsGenericContext() {
+        contextRunner
+                .withUserConfiguration(GenericFailureHandlers.class)
+                .withBean(AuditSink.class, () -> entry -> {
+                })
+                .run(context -> assertThat(context).hasSingleBean(AuditPublisher.class));
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class GenericFailureHandlers {
+        @Bean
+        FailureHandler<AuditPublicationFailure> auditFailureHandler() {
+            return (context, failure) -> {
+            };
+        }
+
+        @Bean
+        FailureHandler<EventDispatchFailure> eventFailureHandler() {
+            return (context, failure) -> {
+            };
+        }
     }
 }

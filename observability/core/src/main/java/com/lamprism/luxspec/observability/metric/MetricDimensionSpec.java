@@ -37,6 +37,8 @@ import java.util.function.Function;
  * @author RollW
  */
 public final class MetricDimensionSpec<T> {
+    private static final MetricTextNormalizer NAME_NORMALIZER = MetricTextNormalizer.INSTANCE;
+
     private final String name;
     private final Class<T> valueType;
     private final Function<? super T, @Nullable String> formatter;
@@ -174,7 +176,7 @@ public final class MetricDimensionSpec<T> {
         private int maximumValueLength = 256;
 
         private Builder(String name, Class<T> valueType) {
-            this.name = NameValidation.require(name, "Metric dimension name");
+            this.name = NAME_NORMALIZER.normalize(name);
             this.valueType = Objects.requireNonNull(valueType, "valueType");
             if (valueType.isPrimitive()) {
                 throw new IllegalArgumentException("Metric dimension value types must use boxed classes");

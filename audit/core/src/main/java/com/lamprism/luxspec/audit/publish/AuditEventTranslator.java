@@ -31,6 +31,18 @@ import org.jspecify.annotations.Nullable;
  */
 @FunctionalInterface
 public interface AuditEventTranslator<E> {
+    /**
+     * Translates one immutable publication envelope.
+     *
+     * <p>Implementations should be deterministic for the same envelope so a
+     * replay preserves audit semantics. They should not mutate or retain the
+     * event payload, perform sink delivery, or replace publisher-owned
+     * identity and metadata. A runtime failure is handled according to the
+     * publisher's delivery policy.</p>
+     *
+     * @param envelope the event and publisher-owned audit metadata
+     * @return translated entry content, or {@code null} when this event instance should not be audited
+     */
     @Nullable
     AuditEntryContent translate(AuditEnvelope<E> envelope);
 }

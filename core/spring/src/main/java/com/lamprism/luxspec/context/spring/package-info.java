@@ -15,7 +15,7 @@
  */
 
 /**
- * Spring task integration for explicitly selected execution-context storage.
+ * Spring task integration for configured execution-context storage.
  */
 @org.jspecify.annotations.NullMarked
 package com.lamprism.luxspec.context.spring;

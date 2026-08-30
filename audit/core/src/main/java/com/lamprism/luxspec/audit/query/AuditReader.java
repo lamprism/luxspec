@@ -31,5 +31,15 @@ import com.lamprism.luxspec.data.query.QueryCriteria;
  * @author RollW
  */
 public interface AuditReader {
+    /**
+     * Reads audit entries matching validated provider-independent criteria.
+     *
+     * <p>The implementation must apply its supported audit query schema and
+     * complexity limits before executing the query.</p>
+     *
+     * @param criteria the structured audit filters and ordering
+     * @param window   the requested result window
+     * @return the matching complete, page, or slice result
+     */
     QueryResult<AuditEntry> browse(QueryCriteria criteria, QueryWindow window);
 }

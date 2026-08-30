@@ -3,19 +3,20 @@ package com.lamprism.luxspec.database.jdbc;
 import com.lamprism.luxspec.database.DatabaseConfig;
 import com.lamprism.luxspec.database.DatabaseTarget;
 import com.lamprism.luxspec.database.DatabaseType;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Builds SQLite JDBC connection details.
  *
  * @author RollW
  */
-public class SqliteDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
-    @Override
-    public DatabaseType getDatabaseType() {
-        return DatabaseType.SQLITE;
+public class SqliteDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
+    public SqliteDatabaseUrlBuilder() {
+        super(DatabaseType.SQLITE, "org.sqlite.JDBC");
     }
 
     @Override
@@ -31,17 +32,27 @@ public class SqliteDatabaseUrlBuilder extends AbstractDatabaseUrlBuilder {
     }
 
     @Override
-    protected String getDriverClassName() {
-        return "org.sqlite.JDBC";
-    }
-
-    @Override
     protected Map<String, String> buildDriverProperties(
             DatabaseConfig settings,
             List<AutoCloseable> resources
     ) {
-        Map<String, String> properties = baseProperties(settings, CharacterSetFlavor.SQLITE);
-        requireSslDisabled(settings.getSsl(), DatabaseType.SQLITE);
+        Map<String, String> properties = driverProperties(settings);
+        applyCharacterSet(properties, settings.getCharset());
+        requireSslDisabled(settings.getSsl());
         return properties;
+    }
+
+    private void applyCharacterSet(
+            Map<String, String> properties,
+            @Nullable String characterSet
+    ) {
+        if (characterSet == null) {
+            return;
+        }
+        rejectManagedOptions(properties, Set.of("encoding"), "character set");
+        boolean utf8 = characterSet.equalsIgnoreCase("utf8")
+                || characterSet.equalsIgnoreCase("utf-8")
+                || characterSet.equalsIgnoreCase("utf8mb4");
+        properties.put("encoding", utf8 ? "UTF-8" : characterSet);
     }
 }

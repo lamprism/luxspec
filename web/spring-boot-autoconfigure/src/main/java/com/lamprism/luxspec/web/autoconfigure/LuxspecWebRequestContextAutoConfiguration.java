@@ -22,73 +22,29 @@ import com.lamprism.luxspec.config.catalog.ConfigSpecContributor;
 import com.lamprism.luxspec.context.CorrelationIdGenerator;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.UuidCorrelationIdGenerator;
-import com.lamprism.luxspec.message.MessageResolver;
-import com.lamprism.luxspec.message.spring.SpringMessageResolver;
 import com.lamprism.luxspec.web.WebConfigSpec;
-import com.lamprism.luxspec.web.spring.DefaultErrorHttpStatusResolver;
-import com.lamprism.luxspec.web.spring.ErrorHttpStatusResolver;
-import com.lamprism.luxspec.web.spring.LuxspecExceptionHandler;
 import com.lamprism.luxspec.web.spring.LuxspecRequestContextFilter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.MessageSource;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import java.util.Objects;
 
 /**
- * Registers default MVC error-envelope support when an application has not supplied replacements.
+ * Supplies correlation identifiers and request-context integration for Spring MVC.
  *
  * @author RollW
  */
-@AutoConfiguration
+@AutoConfiguration(afterName =
+        "com.lamprism.luxspec.core.autoconfigure.LuxspecExecutionContextStorageAutoConfiguration")
 @ConditionalOnClass(DispatcherServlet.class)
-public class LuxspecWebAutoConfiguration {
-    /**
-     * Supplies the conservative default mapping from business errors to HTTP status codes.
-     *
-     * @return the default status resolver
-     */
-    @Bean
-    @ConditionalOnMissingBean(ErrorHttpStatusResolver.class)
-    public ErrorHttpStatusResolver errorHttpStatusResolver() {
-        return new DefaultErrorHttpStatusResolver();
-    }
-
-    /**
-     * Supplies the default MVC exception advice for Luxspec exceptions.
-     *
-     * @param statusResolver  the configured error status resolver
-     * @param messageResolver the optional message resolver
-     * @return the exception advice
-     */
-    @Bean
-    @ConditionalOnMissingBean(LuxspecExceptionHandler.class)
-    public LuxspecExceptionHandler luxspecExceptionHandler(
-            ErrorHttpStatusResolver statusResolver,
-            ObjectProvider<MessageResolver> messageResolver
-    ) {
-        MessageResolver optionalMessageResolver = messageResolver.getIfAvailable();
-        return new LuxspecExceptionHandler(statusResolver, optionalMessageResolver);
-    }
-
-    /**
-     * Adapts the application message source when no provider-independent resolver was supplied.
-     *
-     * @param messageSource the application message source
-     * @return the safe Spring message resolver
-     */
-    @Bean
-    @ConditionalOnMissingBean(MessageResolver.class)
-    @ConditionalOnBean(MessageSource.class)
-    public MessageResolver messageResolver(MessageSource messageSource) {
-        return new SpringMessageResolver(messageSource, "[message unavailable]");
-    }
-
+@ConditionalOnWebApplication(type = Type.SERVLET)
+public class LuxspecWebRequestContextAutoConfiguration {
     /**
      * Registers the Web configuration definitions with the application catalog.
      *
@@ -104,8 +60,8 @@ public class LuxspecWebAutoConfiguration {
      * Supplies the request filter when an application has not supplied one.
      *
      * @param configReaders the optional Luxspec configuration reader
-     * @param generators    the optional correlation ID generators
-     * @param storage       the optional explicitly selected context storage
+     * @param generators    the optional configured correlation ID generator
+     * @param storage       the optional configured context storage
      * @return the request filter
      */
     @Bean
@@ -115,7 +71,9 @@ public class LuxspecWebAutoConfiguration {
             ObjectProvider<CorrelationIdGenerator> generators,
             ObjectProvider<ExecutionContextStorage> storage
     ) {
-        CorrelationIdGenerator generator = generators.getIfAvailable(UuidCorrelationIdGenerator::new);
+        CorrelationIdGenerator generator = generators.getIfAvailable(
+                UuidCorrelationIdGenerator::new
+        );
         return new LuxspecRequestContextFilter(
                 correlationIdHeader(configReaders),
                 generator,
