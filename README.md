@@ -42,6 +42,7 @@ Nimbus JWT, and Spring Boot adapters.
 | Security      | Authentication dispatch, subjects and grants, authorization scopes and resource actions, fail-closed request firewalls, cryptographic key-set contracts, access tokens, refresh-token lifecycle roles, and revocation boundaries.   |
 | Users         | User and role contracts, lifecycle state, user browsing, password schemes, and user-to-security adapters. User persistence remains application-owned.                                                                               |
 | Web           | Provider-independent HTTP response and collection representation models, explicit pagination metadata, and Spring MVC adapters.                                                                                                     |
+| Console       | Provider-independent command specifications, immutable catalogs and invocations, a shared process CLI and application Shell execution facade, and replaceable Help rendering.                                                       |
 | Spring Boot   | Focused auto-configuration modules for core, cache, configuration, data, security, users, and web utilities, plus one aggregate MVC starter.                                                                                        |
 
 ## Architecture
@@ -53,7 +54,7 @@ and persistence concerns.
 Application code
     |
     +--> Provider-independent contracts
-    |       core, data, config, security, user, web
+    |       core, data, config, security, user, web, console
     |
     +--> Optional adapters
             Spring, Spring Boot, JPA, Servlet, Nimbus JWT, Caffeine
@@ -95,6 +96,14 @@ repositories {
 
 dependencies {
     implementation("com.lamprism.luxspec:luxspec-core:VERSION")
+}
+```
+
+For a pure-JDK hierarchical command-line entry point, use the standalone console module:
+
+```kotlin
+dependencies {
+    implementation("com.lamprism.luxspec:luxspec-console-core:VERSION")
 }
 ```
 
@@ -260,6 +269,12 @@ the remaining modules follow the `luxspec-<project-name>` naming convention.
 | `:user:user-security`                  | `luxspec-user-security`                  | Adapters between user and security modules, including password protection and grant assembly. |
 | `:user:user-spring`                    | `luxspec-user-spring`                    | Spring adapters for user capabilities.                                                        |
 | `:user:user-spring-boot-autoconfigure` | `luxspec-user-spring-boot-autoconfigure` | Spring Boot auto-configuration for user capabilities.                                         |
+
+### Console
+
+| Gradle project          | Artifact               | Purpose                                                                                                                                                    |
+|-------------------------|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `:console:console-core` | `luxspec-console-core` | Provider-independent command specifications, catalog and parser, shared CLI/Shell execution sessions, structured failures, and replaceable Help rendering. |
 
 ### Aggregate
 

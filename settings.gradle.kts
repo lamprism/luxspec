@@ -53,6 +53,7 @@ listOf(
     "config:jpa",
     "config:jpa-spring-boot-autoconfigure",
     "config:spring-boot-autoconfigure",
+    "console:core",
     "security:core",
     "security:spring",
     "security:jwt-nimbus",
