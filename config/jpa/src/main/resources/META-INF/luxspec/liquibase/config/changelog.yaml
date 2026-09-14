@@ -1,0 +1,42 @@
+databaseChangeLog:
+  - changeSet:
+      id: luxspec-config-001-initial
+      author: RollW
+      changes:
+        - createTable:
+            tableName: luxspec_config_entry
+            columns:
+              - column:
+                  name: source_id
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: config_key
+                  type: VARCHAR(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tombstone
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payload
+                  type: CLOB
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: luxspec_config_entry
+            columnNames: source_id, config_key
+            constraintName: pk_luxspec_config_entry

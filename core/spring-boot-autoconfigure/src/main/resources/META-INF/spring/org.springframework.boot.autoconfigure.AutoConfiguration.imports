@@ -1,0 +1,4 @@
+com.lamprism.luxspec.core.autoconfigure.LuxspecExecutionContextStorageAutoConfiguration
+com.lamprism.luxspec.core.autoconfigure.LuxspecContextAutoConfiguration
+com.lamprism.luxspec.core.autoconfigure.LuxspecEventAutoConfiguration
+com.lamprism.luxspec.core.autoconfigure.LuxspecResourceAutoConfiguration

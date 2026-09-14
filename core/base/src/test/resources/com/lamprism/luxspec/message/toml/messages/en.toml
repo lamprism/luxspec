@@ -1,0 +1,6 @@
+# This comment is translation context for the application's sign-in flow.
+[error]
+denied = "Denied"
+
+[app]
+welcome = "Welcome, {0}."

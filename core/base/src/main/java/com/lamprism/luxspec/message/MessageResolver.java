@@ -1,0 +1,54 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.lamprism.luxspec.message;
+
+import java.util.Locale;
+import java.util.Objects;
+
+/**
+ * Resolves localized messages without coupling callers to a message provider.
+ *
+ * @author RollW
+ */
+public interface MessageResolver {
+    /**
+     * Resolves a message for an explicit locale.
+     *
+     * @param key       the non-blank message key
+     * @param locale    the locale used for resolution
+     * @param arguments the values used by message placeholders
+     * @return the resolved message or the provider's configured safe fallback
+     */
+    String resolve(String key, Locale locale, Object... arguments);
+
+    /**
+     * Resolves a message resource for an explicit locale.
+     *
+     * <p>The default maps the resource to a qualified flat key for providers such as Spring's
+     * {@code MessageSource}. Catalog-backed resolvers override this method to preserve namespace
+     * ownership.</p>
+     *
+     * @param resource  the message resource
+     * @param locale    the locale used for resolution
+     * @param arguments the values used by message placeholders
+     * @return the resolved message or the provider's configured safe fallback
+     */
+    default String resolve(MessageResource resource, Locale locale, Object... arguments) {
+        MessageResource nonNullResource = Objects.requireNonNull(resource, "resource");
+        return resolve(nonNullResource.getQualifiedKey(), locale, arguments);
+    }
+}
