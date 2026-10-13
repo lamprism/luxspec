@@ -71,6 +71,7 @@ public class StandardObservationSet implements ObservabilitySet {
     public enum Domain {
         WEB,
         DATABASE,
+        INFRASTRUCTURE,
         SECURITY,
         CONFIG,
         AUDIT,
@@ -80,6 +81,7 @@ public class StandardObservationSet implements ObservabilitySet {
             return switch (this) {
                 case WEB -> new ObservationSpec[]{StandardObservationCatalog.WEB_REQUEST};
                 case DATABASE -> new ObservationSpec[]{StandardObservationCatalog.DATABASE_OPERATION};
+                case INFRASTRUCTURE -> new ObservationSpec[]{StandardObservationCatalog.EXECUTOR_TASK};
                 case SECURITY -> new ObservationSpec[]{
                         StandardObservationCatalog.SECURITY_AUTHENTICATION,
                         StandardObservationCatalog.SECURITY_AUTHORIZATION,

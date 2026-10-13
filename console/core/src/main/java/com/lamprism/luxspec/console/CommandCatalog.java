@@ -95,17 +95,17 @@ public final class CommandCatalog {
     }
 
     /**
-     * Returns a handler for a canonical command path.
+     * Returns a runner for a canonical command path.
      *
      * @param path canonical command path
-     * @return the registered handler when executable
+     * @return the registered runner when executable
      */
-    public Optional<CommandHandler> handler(CommandPath path) {
+    public Optional<CommandRunner> runner(CommandPath path) {
         Node node = findCanonical(Objects.requireNonNull(path, "path"));
-        if (node == null || node.handler == null) {
+        if (node == null || node.runner == null) {
             return Optional.empty();
         }
-        return Optional.of(node.handler);
+        return Optional.of(node.runner);
     }
 
     Node rootNode() {
@@ -163,7 +163,7 @@ public final class CommandCatalog {
      */
     public static final class Builder {
         private final LinkedHashMap<CommandPath, CommandSpec> specifications = new LinkedHashMap<>();
-        private final LinkedHashMap<CommandPath, CommandHandler> handlers = new LinkedHashMap<>();
+        private final LinkedHashMap<CommandPath, CommandRunner> runners = new LinkedHashMap<>();
 
         private Builder(CommandSpec root) {
             specifications.put(CommandPath.root(), root);
@@ -202,21 +202,21 @@ public final class CommandCatalog {
         }
 
         /**
-         * Registers one command and its handler.
+         * Registers one command and its runner.
          *
          * @param specification executable command specification
-         * @param handler       command handler
+         * @param runner        command runner
          * @return this builder
          */
-        public Builder register(CommandSpec specification, CommandHandler handler) {
+        public Builder register(CommandSpec specification, CommandRunner runner) {
             CommandSpec nonNullSpecification = Objects.requireNonNull(specification, "specification");
-            CommandHandler nonNullHandler = Objects.requireNonNull(handler, "handler");
+            CommandRunner nonNullRunner = Objects.requireNonNull(runner, "runner");
             CommandPath path = nonNullSpecification.getPath();
             CommandSpec previous = specifications.putIfAbsent(path, nonNullSpecification);
             if (previous != null && previous != nonNullSpecification) {
                 throw new IllegalArgumentException("Duplicate command path: " + path);
             }
-            if (handlers.putIfAbsent(path, nonNullHandler) != null) {
+            if (runners.putIfAbsent(path, nonNullRunner) != null) {
                 throw new IllegalArgumentException("Duplicate command registration: " + path);
             }
             return this;
@@ -230,7 +230,7 @@ public final class CommandCatalog {
          */
         public Builder register(CommandRegistration registration) {
             CommandRegistration nonNullRegistration = Objects.requireNonNull(registration, "registration");
-            return register(nonNullRegistration.getSpecification(), nonNullRegistration.getHandler());
+            return register(nonNullRegistration.getSpecification(), nonNullRegistration.getRunner());
         }
 
         /**
@@ -270,12 +270,12 @@ public final class CommandCatalog {
                 MutableNode node = nodes.get(specification.getPath());
                 node.specification = specification;
             }
-            for (Map.Entry<CommandPath, CommandHandler> entry : handlers.entrySet()) {
+            for (Map.Entry<CommandPath, CommandRunner> entry : runners.entrySet()) {
                 MutableNode node = nodes.get(entry.getKey());
                 if (node == null) {
                     throw new IllegalStateException("Registration has no command node: " + entry.getKey());
                 }
-                node.handler = entry.getValue();
+                node.runner = entry.getValue();
             }
             return nodes;
         }
@@ -383,14 +383,14 @@ public final class CommandCatalog {
                     lookup.put(alias, child);
                 }
             }
-            return new Node(node.path, node.specification, node.handler, children, lookup, canonicalChildren);
+            return new Node(node.path, node.specification, node.runner, children, lookup, canonicalChildren);
         }
     }
 
     private static final class MutableNode {
         private final CommandPath path;
         private CommandSpec specification;
-        private @Nullable CommandHandler handler;
+        private @Nullable CommandRunner runner;
         private final List<MutableNode> children = new ArrayList<>();
         private Map<String, MutableNode> lookup = Collections.emptyMap();
 
@@ -403,20 +403,20 @@ public final class CommandCatalog {
     static final class Node {
         final CommandPath path;
         final CommandSpec specification;
-        final @Nullable CommandHandler handler;
+        final @Nullable CommandRunner runner;
         final List<Node> children;
         final Map<String, Node> lookup;
         final Map<String, Node> canonicalChildren;
 
         private Node(CommandPath path,
                      CommandSpec specification,
-                     @Nullable CommandHandler handler,
+                     @Nullable CommandRunner runner,
                      List<Node> children,
                      Map<String, Node> lookup,
                      Map<String, Node> canonicalChildren) {
             this.path = path;
             this.specification = specification;
-            this.handler = handler;
+            this.runner = runner;
             this.children = List.copyOf(children);
             this.lookup = Map.copyOf(lookup);
             this.canonicalChildren = Map.copyOf(canonicalChildren);

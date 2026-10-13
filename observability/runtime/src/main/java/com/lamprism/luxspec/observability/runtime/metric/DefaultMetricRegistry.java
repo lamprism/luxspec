@@ -43,6 +43,7 @@ import com.lamprism.luxspec.observability.metric.MetricKind;
 import com.lamprism.luxspec.observability.metric.MetricName;
 import com.lamprism.luxspec.observability.metric.MetricReading;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
+import com.lamprism.luxspec.observability.metric.MetricRegistryEventSource;
 import com.lamprism.luxspec.observability.metric.MetricSnapshot;
 import com.lamprism.luxspec.observability.metric.MetricSpec;
 import com.lamprism.luxspec.observability.metric.NumberReader;

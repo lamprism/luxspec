@@ -30,7 +30,7 @@ public final class ResourceProviderNotRegisteredException extends ResourceExcept
      * @param resourceType the unregistered resource type
      */
     public ResourceProviderNotRegisteredException(ResourceType<?> resourceType) {
-        super(ResourceErrorCode.PROVIDER_NOT_REGISTERED, message(resourceType));
+        super(message(resourceType));
     }
 
     private static String message(ResourceType<?> resourceType) {

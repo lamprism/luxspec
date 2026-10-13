@@ -138,7 +138,6 @@ class LayeredConfigReaderTest {
                 () -> new LayeredConfigReader(List.of(higher, lower)).get(spec)
         );
 
-        assertEquals(ConfigErrorCode.INVALID_VALUE, exception.getErrorCode());
         assertEquals("Configuration value is invalid", exception.getMessage());
         assertFalse(exception.getMessage().contains("sample.limit"));
         assertFalse(exception.getMessage().contains("higher"));

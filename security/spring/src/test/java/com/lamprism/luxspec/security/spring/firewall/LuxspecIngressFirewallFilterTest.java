@@ -16,9 +16,9 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
-import com.lamprism.luxspec.security.firewall.FirewallChain;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
 import com.lamprism.luxspec.security.firewall.IngressRequest;
+import com.lamprism.luxspec.security.firewall.SimpleFirewallRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -35,14 +35,14 @@ class LuxspecIngressFirewallFilterTest {
     @Test
     void passesTheConfiguredClientAddressIntoTheIngressFirewall() throws Exception {
         AtomicReference<IngressRequest> observedRequest = new AtomicReference<>();
-        FirewallChain<IngressRequest> firewallChain = new FirewallChain<>(
+        SimpleFirewallRegistry<IngressRequest> firewallRegistry = new SimpleFirewallRegistry<>(
                 List.of(request -> {
                     observedRequest.set(request);
-                    return FirewallDecision.pass();
+                    return FirewallDecision.allow();
                 })
         );
         LuxspecIngressFirewallFilter filter = new LuxspecIngressFirewallFilter(
-                firewallChain,
+                firewallRegistry,
                 request -> "198.51.100.42",
                 (ignoredRequest, ignoredResponse, decision) -> {
                     throw new AssertionError("Passing firewall decision must not be handled");

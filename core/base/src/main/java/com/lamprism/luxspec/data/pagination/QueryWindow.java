@@ -21,7 +21,7 @@ package com.lamprism.luxspec.data.pagination;
  *
  * @author RollW
  */
-public sealed interface QueryWindow permits UnboundedWindow, PageWindow, SliceWindow, TimeSeriesWindow {
+public sealed interface QueryWindow permits UnboundedWindow, PageWindow, SliceWindow, KeysetWindow, TimeSeriesWindow {
     /**
      * Validates the common offset and limit range used by bounded windows and results.
      *

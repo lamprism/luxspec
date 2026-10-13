@@ -17,7 +17,6 @@
 package com.lamprism.luxspec.user.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
-import com.lamprism.luxspec.CommonErrorCode;
 import com.lamprism.luxspec.resource.ResourceException;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
@@ -181,7 +180,7 @@ class PasswordAuthenticatorTest {
 
         private User requireUser() {
             if (user == null) {
-                throw new ResourceException(CommonErrorCode.NOT_FOUND, "User was not found");
+                throw new ResourceException("User was not found");
             }
             return user;
         }

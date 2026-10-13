@@ -111,8 +111,7 @@ For Maven:
 
 ## Modules
 
-The following consumer artifacts are grouped by capability. Artifact IDs use the `luxspec-` prefix; `luxspec-core` is
-the special artifact for the core base module.
+The following consumer artifacts are grouped by capability. Artifact IDs use the `luxspec-` prefix.
 
 | Area          | Artifacts                                                                                                                                                                                                                             |
 |---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

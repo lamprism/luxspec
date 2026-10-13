@@ -46,9 +46,21 @@ public final class DefaultErrorHttpStatusResolver implements ErrorHttpStatusReso
                     ResourceErrorCode.INVALID_REFERENCE
             ),
             ErrorHttpStatusMapping.forErrors(
+                    HttpStatusCode.METHOD_NOT_ALLOWED,
+                    WebErrorCode.METHOD_NOT_ALLOWED
+            ),
+            ErrorHttpStatusMapping.forErrors(
+                    HttpStatusCode.NOT_ACCEPTABLE,
+                    WebErrorCode.NOT_ACCEPTABLE
+            ),
+            ErrorHttpStatusMapping.forErrors(
                     HttpStatusCode.NOT_FOUND,
                     CommonErrorCode.NOT_FOUND,
                     ResourceErrorCode.NOT_FOUND
+            ),
+            ErrorHttpStatusMapping.forErrors(
+                    HttpStatusCode.UNSUPPORTED_MEDIA_TYPE,
+                    WebErrorCode.UNSUPPORTED_MEDIA_TYPE
             ),
             ErrorHttpStatusMapping.forErrors(
                     HttpStatusCode.FORBIDDEN,

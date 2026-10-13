@@ -18,7 +18,9 @@ package com.lamprism.luxspec.security.crypto;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -30,11 +32,11 @@ import java.util.Optional;
  */
 public final class KeySet {
     private final Map<String, KeyEntry> entries;
-    private final Optional<KeyEntry> activeKey;
+    private final @Nullable KeyEntry activeKey;
 
-    private KeySet(Map<String, KeyEntry> entries, Optional<KeyEntry> activeKey) {
-        this.entries = Map.copyOf(entries);
-        this.activeKey = Objects.requireNonNull(activeKey, "activeKey");
+    private KeySet(Map<String, KeyEntry> entries, @Nullable KeyEntry activeKey) {
+        this.entries = Collections.unmodifiableMap(new LinkedHashMap<>(entries));
+        this.activeKey = activeKey;
     }
 
     /**
@@ -75,12 +77,12 @@ public final class KeySet {
         for (KeySet keySet : keySets) {
             KeySet nonNullKeySet = Objects.requireNonNull(keySet, "keySet");
             hasSnapshot = true;
-            Optional<KeyEntry> candidateActiveKey = nonNullKeySet.getActiveKey();
-            if (candidateActiveKey.isPresent()) {
+            KeyEntry candidateActiveKey = nonNullKeySet.getActiveKey();
+            if (candidateActiveKey != null) {
                 if (activeKeyId != null) {
                     throw new IllegalArgumentException("Multiple active signing keys are not supported");
                 }
-                activeKeyId = candidateActiveKey.orElseThrow().getId();
+                activeKeyId = candidateActiveKey.getId();
             }
             for (KeyEntry entry : nonNullKeySet.entries.values()) {
                 if (combinedEntries.put(entry.getId(), entry) != null) {
@@ -100,10 +102,19 @@ public final class KeySet {
     /**
      * Returns the active signing key entry when this snapshot can sign.
      *
-     * @return the optional active signing key entry
+     * @return the active signing key entry, or {@code null} for a verification-only key set
      */
-    public Optional<KeyEntry> getActiveKey() {
+    public @Nullable KeyEntry getActiveKey() {
         return activeKey;
+    }
+
+    /**
+     * Returns every key entry in this immutable snapshot.
+     *
+     * @return the entries in provider snapshot order
+     */
+    public List<KeyEntry> getEntries() {
+        return List.copyOf(entries.values());
     }
 
     /**
@@ -129,15 +140,15 @@ public final class KeySet {
             throw new IllegalArgumentException("At least one key entry is required");
         }
         if (activeKeyId == null) {
-            return new KeySet(indexedEntries, Optional.empty());
+            return new KeySet(indexedEntries, null);
         }
         KeyEntry activeKey = indexedEntries.get(activeKeyId);
         if (activeKey == null) {
             throw new IllegalArgumentException("Active key ID is unknown");
         }
-        if (activeKey.getSigningKey().isEmpty()) {
+        if (activeKey.getSigningKey() == null) {
             throw new IllegalArgumentException("Active key must contain signing material");
         }
-        return new KeySet(indexedEntries, Optional.of(activeKey));
+        return new KeySet(indexedEntries, activeKey);
     }
 }

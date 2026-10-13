@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.observability.runtime.observation;
-
-import com.lamprism.luxspec.observability.observation.ObservationHandler;
+package com.lamprism.luxspec.security.secret;
 
 /**
- * Optional runtime extension used by provider adapters to observe lifecycles.
+ * Secret loading boundary with an explicit refresh capability.
  *
  * @author RollW
  */
-public interface ObservationRegistryEventSource {
-    AutoCloseable addHandler(ObservationHandler handler);
+public interface RefreshableSecretProvider extends SecretProvider {
+    /**
+     * Refreshes one secret reference.
+     *
+     * @param reference the provider-owned secret reference
+     */
+    void refresh(SecretReference reference);
 }

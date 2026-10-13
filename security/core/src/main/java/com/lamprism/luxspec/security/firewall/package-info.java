@@ -15,7 +15,8 @@
  */
 
 /**
- * Provides framework-independent request firewall contracts and common stateless rules.
+ * Provides framework-independent firewall contracts, registry execution, and common stateless
+ * firewalls.
  */
 @NullMarked
 package com.lamprism.luxspec.security.firewall;

@@ -18,6 +18,7 @@ package com.lamprism.luxspec.data.jpa;
 
 import com.lamprism.luxspec.data.query.QueryField;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.From;
 import jakarta.persistence.criteria.Root;
 
 import java.util.Objects;
@@ -31,7 +32,15 @@ public class DefaultJpaQueryFieldResolver<T> implements JpaQueryFieldResolver<T>
 
     @Override
     public <V> Expression<V> resolve(Root<T> root, QueryField<V> field) {
-        Root<T> nonNullRoot = Objects.requireNonNull(root, "root");
+        return resolveFrom(Objects.requireNonNull(root, "root"), field);
+    }
+
+    @Override
+    public <V> Expression<V> resolve(From<?, ?> source, QueryField<V> field) {
+        return resolveFrom(Objects.requireNonNull(source, "source"), field);
+    }
+
+    private <V> Expression<V> resolveFrom(From<?, ?> source, QueryField<V> field) {
         QueryField<V> nonNullField = Objects.requireNonNull(field, "field");
         String attributeName = Objects.requireNonNull(
                 namingStrategy.toAttributeName(nonNullField.getName()),
@@ -40,6 +49,6 @@ public class DefaultJpaQueryFieldResolver<T> implements JpaQueryFieldResolver<T>
         if (attributeName.isEmpty()) {
             throw new IllegalArgumentException("Naming strategy must return a non-empty attribute name");
         }
-        return nonNullRoot.<V>get(attributeName);
+        return source.<V>get(attributeName);
     }
 }

@@ -1,7 +1,5 @@
 package com.lamprism.luxspec.config.runtime;
 
-import com.lamprism.luxspec.LuxspecException;
-import com.lamprism.luxspec.config.ConfigErrorCode;
 import com.lamprism.luxspec.config.ConfigKey;
 import com.lamprism.luxspec.config.policy.ConfigPolicyOperation;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
@@ -16,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  *
  * @author RollW
  */
-public final class ConfigWriteException extends LuxspecException {
+public final class ConfigWriteException extends RuntimeException {
     /**
      * Creates a write failure without an underlying cause.
      *
@@ -46,7 +44,6 @@ public final class ConfigWriteException extends LuxspecException {
             @Nullable Throwable cause
     ) {
         super(
-                ConfigErrorCode.SOURCE_WRITE_FAILED,
                 "Configuration write failed for key: " + key.getValue()
                         + " in source: " + sourceId.getValue()
                         + " during operation: " + operation,

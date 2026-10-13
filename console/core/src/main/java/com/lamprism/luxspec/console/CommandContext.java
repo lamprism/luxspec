@@ -19,7 +19,7 @@ package com.lamprism.luxspec.console;
 import java.util.Objects;
 
 /**
- * Immutable per-invocation context supplied to a command handler.
+ * Immutable per-invocation context supplied to a command runner.
  *
  * @author RollW
  */

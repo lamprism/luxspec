@@ -17,14 +17,14 @@
 package com.lamprism.luxspec.security.authorization;
 
 import com.lamprism.luxspec.ErrorCode;
-import com.lamprism.luxspec.resource.ResourceException;
+import com.lamprism.luxspec.LuxspecException;
 
 /**
  * Indicates that an otherwise supported resource action was denied.
  *
  * @author RollW
  */
-public final class ResourceAccessDeniedException extends ResourceException {
+public final class ResourceAccessDeniedException extends LuxspecException {
     /**
      * Creates a denial exception with its stable authorization reason.
      *

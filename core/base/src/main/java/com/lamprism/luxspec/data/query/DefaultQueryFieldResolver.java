@@ -42,6 +42,15 @@ class DefaultQueryFieldResolver<T> implements QueryFieldResolver<T> {
         return accessor(field).compare(left, right);
     }
 
+    @Override
+    public <V> int compareValues(
+            @Nullable V left,
+            @Nullable V right,
+            QueryField<V> field
+    ) {
+        return accessor(field).compareValues(left, right);
+    }
+
     @SuppressWarnings("unchecked")
     private <V> FieldAccessor<T, V> accessor(QueryField<V> field) {
         QueryField<V> nonNullField = Objects.requireNonNull(field, "field");
@@ -79,8 +88,10 @@ class DefaultQueryFieldResolver<T> implements QueryFieldResolver<T> {
         }
 
         private int compare(T left, T right) {
-            V leftValue = resolve(left);
-            V rightValue = resolve(right);
+            return compareValues(resolve(left), resolve(right));
+        }
+
+        private int compareValues(@Nullable V leftValue, @Nullable V rightValue) {
             if (leftValue == null) {
                 return rightValue == null ? 0 : 1;
             }

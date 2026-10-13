@@ -16,8 +16,8 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
-import com.lamprism.luxspec.security.firewall.FirewallChain;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
+import com.lamprism.luxspec.security.firewall.FirewallRegistry;
 import com.lamprism.luxspec.security.firewall.IngressRequest;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Applies an ingress Firewall chain before authentication and downstream processing.
+ * Applies an ingress Firewall registry before authentication and downstream processing.
  *
  * <p>The filter is explicit and is not installed by security auto-configuration. Applications
  * choose its position relative to authentication filters.</p>
@@ -37,18 +37,18 @@ import java.util.Objects;
  * @author RollW
  */
 public class LuxspecIngressFirewallFilter extends OncePerRequestFilter {
-    private final FirewallChain<IngressRequest> firewallChain;
+    private final FirewallRegistry<IngressRequest> firewallRegistry;
     private final ServletClientAddressResolver clientAddressResolver;
     private final FirewallDecisionHandler decisionHandler;
 
     /**
      * Creates an ingress filter with Servlet remote-address resolution and HTTP 403 denials.
      *
-     * @param firewallChain the ingress Firewall chain
+     * @param firewallRegistry the ingress Firewall registry
      */
-    public LuxspecIngressFirewallFilter(FirewallChain<IngressRequest> firewallChain) {
+    public LuxspecIngressFirewallFilter(FirewallRegistry<IngressRequest> firewallRegistry) {
         this(
-                firewallChain,
+                firewallRegistry,
                 ServletClientAddressResolver.remoteAddress(),
                 new HttpStatusFirewallDecisionHandler()
         );
@@ -57,16 +57,16 @@ public class LuxspecIngressFirewallFilter extends OncePerRequestFilter {
     /**
      * Creates an ingress filter with explicit client-address resolution and denial handling.
      *
-     * @param firewallChain          the ingress Firewall chain
+     * @param firewallRegistry       the ingress Firewall registry
      * @param clientAddressResolver the trusted client-address resolver
      * @param decisionHandler        the denied-decision handler
      */
     public LuxspecIngressFirewallFilter(
-            FirewallChain<IngressRequest> firewallChain,
+            FirewallRegistry<IngressRequest> firewallRegistry,
             ServletClientAddressResolver clientAddressResolver,
             FirewallDecisionHandler decisionHandler
     ) {
-        this.firewallChain = Objects.requireNonNull(firewallChain, "firewallChain");
+        this.firewallRegistry = Objects.requireNonNull(firewallRegistry, "firewallRegistry");
         this.clientAddressResolver = Objects.requireNonNull(clientAddressResolver, "clientAddressResolver");
         this.decisionHandler = Objects.requireNonNull(decisionHandler, "decisionHandler");
     }
@@ -77,7 +77,7 @@ public class LuxspecIngressFirewallFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        FirewallDecision decision = firewallChain.evaluate(
+        FirewallDecision decision = firewallRegistry.filter(
                 ServletIngressRequestAdapter.adapt(request, clientAddressResolver)
         );
         if (!decision.passed()) {

@@ -68,6 +68,19 @@ public class LuxspecObservabilityAutoConfiguration {
         return builder.build();
     }
 
+    /**
+     * Wraps only the infrastructure beans named by the application configuration.
+     */
+    @Bean
+    @ConditionalOnSingleCandidate(ObservationRegistry.class)
+    @ConditionalOnMissingBean(LuxspecObservabilityInstrumentationPostProcessor.class)
+    public LuxspecObservabilityInstrumentationPostProcessor luxspecObservabilityInstrumentation(
+            LuxspecObservabilityConfiguration settings,
+            ObservationRegistry observationRegistry
+    ) {
+        return new LuxspecObservabilityInstrumentationPostProcessor(settings, observationRegistry);
+    }
+
     @Bean
     @ConditionalOnMissingBean(HealthRegistry.class)
     @ConditionalOnSingleCandidate(Executor.class)
@@ -161,6 +174,27 @@ public class LuxspecObservabilityAutoConfiguration {
     ) {
         metricSet.register(metricRegistry);
         return new LuxspecHttpMetricsFilter(metricRegistry);
+    }
+
+    /**
+     * Installs the opt-in Servlet HTTP observation filter when the standard web observation is
+     * registered.
+     */
+    @Bean
+    @ConditionalOnWebApplication(type = Type.SERVLET)
+    @ConditionalOnClass(DispatcherServlet.class)
+    @ConditionalOnProperty(
+            prefix = "luxspec.observability.http.observation",
+            name = "enabled",
+            havingValue = "true"
+    )
+    @ConditionalOnSingleCandidate(ObservationRegistry.class)
+    @ConditionalOnBean(StandardObservationSet.class)
+    @ConditionalOnMissingBean(LuxspecHttpObservationFilter.class)
+    public LuxspecHttpObservationFilter luxspecHttpObservationFilter(
+            ObservationRegistry observationRegistry
+    ) {
+        return new LuxspecHttpObservationFilter(observationRegistry);
     }
 
     @Bean

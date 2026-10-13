@@ -24,6 +24,10 @@ import com.lamprism.luxspec.security.authentication.AccessTokenAuthenticator;
 import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.crypto.DefaultPublicKeyDeriver;
+import com.lamprism.luxspec.security.crypto.FixedKeySetProvider;
+import com.lamprism.luxspec.security.crypto.KeyEntry;
+import com.lamprism.luxspec.security.crypto.KeySet;
+import com.lamprism.luxspec.security.crypto.KeySetProvider;
 import com.lamprism.luxspec.security.crypto.PublicKeyDeriver;
 import com.lamprism.luxspec.security.crypto.config.ConfigKeySetProvider;
 import com.lamprism.luxspec.security.jwt.ConfigJwtAccessTokenSettingsSource;
@@ -35,9 +39,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -99,6 +106,28 @@ class LuxspecJwtAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(JwtAccessTokenAdapter.class);
                     assertThat(context).doesNotHaveBean(ConfigJwtAccessTokenSettingsSource.class);
+                });
+    }
+
+    @Test
+    void usesAnApplicationProvidedKeySetProviderWithoutCreatingTheConfigProvider() {
+        SecretKeySpec key = new SecretKeySpec(
+                "application-provided-signing-key".getBytes(StandardCharsets.US_ASCII),
+                "HmacSHA256"
+        );
+        FixedKeySetProvider keySetProvider = new FixedKeySetProvider(Map.of(
+                "access",
+                KeySet.withActiveKey("active", List.of(new KeyEntry("active", key, key)))
+        ));
+
+        contextRunner
+                .withPropertyValues("luxspec.security.jwt.enabled=true")
+                .withBean(ConfigReader.class, ConfiguredJwtReader::new)
+                .withBean(KeySetProvider.class, () -> keySetProvider)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(JwtAccessTokenAdapter.class);
+                    assertThat(context.getBean(KeySetProvider.class)).isSameAs(keySetProvider);
+                    assertThat(context).doesNotHaveBean(ConfigKeySetProvider.class);
                 });
     }
 

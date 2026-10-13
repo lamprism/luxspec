@@ -24,29 +24,57 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Represents the result of evaluating one firewall rule or complete rule chain.
+ * Represents the result of evaluating one firewall or a complete firewall registry.
  *
  * @author RollW
  */
 public final class FirewallDecision {
-    private static final FirewallDecision PASS = new FirewallDecision(true, null, null);
-    private final boolean passed;
+    /**
+     * Describes how a registry should handle the evaluated request.
+     */
+    public enum Case {
+        /**
+         * Stop evaluation and allow the request.
+         */
+        ALLOW,
+        /**
+         * Continue evaluation with the next registered firewall.
+         */
+        NEUTRAL,
+        /**
+         * Stop evaluation and deny the request.
+         */
+        DENY
+    }
+
+    private static final FirewallDecision ALLOW = new FirewallDecision(Case.ALLOW, null, null);
+    private static final FirewallDecision NEUTRAL = new FirewallDecision(Case.NEUTRAL, null, null);
+    private final Case decisionCase;
     private final @Nullable ErrorCode reasonCode;
     private final @Nullable Duration retryAfter;
 
-    private FirewallDecision(boolean passed, @Nullable ErrorCode reasonCode, @Nullable Duration retryAfter) {
-        this.passed = passed;
+    private FirewallDecision(Case decisionCase, @Nullable ErrorCode reasonCode, @Nullable Duration retryAfter) {
+        this.decisionCase = Objects.requireNonNull(decisionCase, "decisionCase");
         this.reasonCode = reasonCode;
         this.retryAfter = retryAfter;
     }
 
     /**
-     * Returns the shared passing firewall decision.
+     * Returns the shared explicit allow decision.
      *
-     * @return the passing decision
+     * @return the allow decision
      */
-    public static FirewallDecision pass() {
-        return PASS;
+    public static FirewallDecision allow() {
+        return ALLOW;
+    }
+
+    /**
+     * Returns the shared neutral decision.
+     *
+     * @return the neutral decision
+     */
+    public static FirewallDecision neutral() {
+        return NEUTRAL;
     }
 
     /**
@@ -56,7 +84,7 @@ public final class FirewallDecision {
      * @return the denial decision
      */
     public static FirewallDecision deny(ErrorCode reasonCode) {
-        return new FirewallDecision(false, Objects.requireNonNull(reasonCode, "reasonCode"), null);
+        return new FirewallDecision(Case.DENY, Objects.requireNonNull(reasonCode, "reasonCode"), null);
     }
 
     /**
@@ -71,27 +99,36 @@ public final class FirewallDecision {
         if (nonNullRetryAfter.isNegative() || nonNullRetryAfter.isZero()) {
             throw new IllegalArgumentException("retryAfter must be positive");
         }
-        return new FirewallDecision(false, Objects.requireNonNull(reasonCode, "reasonCode"), nonNullRetryAfter);
+        return new FirewallDecision(Case.DENY, Objects.requireNonNull(reasonCode, "reasonCode"), nonNullRetryAfter);
     }
 
     /**
-     * Reports whether the evaluated policy chain passed.
+     * Returns the three-state registry decision.
      *
-     * @return {@code true} when all evaluated rules passed
+     * @return the decision case
+     */
+    public Case getCase() {
+        return decisionCase;
+    }
+
+    /**
+     * Reports whether this decision does not deny the request.
+     *
+     * @return {@code true} for {@link Case#ALLOW} and {@link Case#NEUTRAL}
      */
     public boolean passed() {
-        return passed;
+        return decisionCase != Case.DENY;
     }
 
     /**
      * Returns the stable denial reason.
      *
      * @return the denial reason
-     * @throws IllegalStateException when this decision passed
+     * @throws IllegalStateException when this decision is not a denial
      */
     public ErrorCode getReasonCode() {
-        if (reasonCode == null) {
-            throw new IllegalStateException("Passing decision has no reason code");
+        if (decisionCase != Case.DENY || reasonCode == null) {
+            throw new IllegalStateException("Non-denial decision has no reason code");
         }
         return reasonCode;
     }

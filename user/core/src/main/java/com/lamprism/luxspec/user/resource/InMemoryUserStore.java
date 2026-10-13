@@ -21,7 +21,6 @@ import com.lamprism.luxspec.data.pagination.QueryWindow;
 import com.lamprism.luxspec.data.query.QueryComplexityBudget;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.resource.InMemoryResourceBrowser;
-import com.lamprism.luxspec.resource.ResourceErrorCode;
 import com.lamprism.luxspec.resource.ResourceException;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
@@ -331,13 +330,13 @@ public class InMemoryUserStore implements UserRegistry, UserProvider, UserBrowse
     private static ResourceReference<Long> requireUserReference(ResourceReference<Long> reference) {
         ResourceReference<Long> nonNullReference = Objects.requireNonNull(reference, "reference");
         if (!User.RESOURCE_TYPE.equals(nonNullReference.resourceType())) {
-            throw new ResourceException(ResourceErrorCode.INVALID_REFERENCE, "Reference is not a user reference");
+            throw new ResourceException("Reference is not a user reference");
         }
         return nonNullReference;
     }
 
     private static ResourceException notFound() {
-        return new ResourceException(ResourceErrorCode.NOT_FOUND, "User was not found");
+        return new ResourceException("User was not found");
     }
 
     private static String requireUsername(String username) {

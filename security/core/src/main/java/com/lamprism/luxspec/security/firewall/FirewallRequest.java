@@ -16,8 +16,11 @@
 
 package com.lamprism.luxspec.security.firewall;
 
+import com.lamprism.luxspec.security.authentication.Subject;
+import org.jspecify.annotations.Nullable;
+
 /**
- * Exposes immutable request facts consumed by common firewall rules.
+ * Exposes optional request facts consumed by common firewalls.
  *
  * <p>The boundary adapter is responsible for supplying the operation method, canonical resource
  * path, and normalized client address used by both routing and firewall policy. HTTP adapters map
@@ -32,19 +35,34 @@ public interface FirewallRequest {
      *
      * @return the operation method
      */
-    String getMethod();
+    default @Nullable String getMethod() {
+        return null;
+    }
 
     /**
      * Returns the canonical resource path used by routing and firewall policy.
      *
      * @return the canonical resource path
      */
-    String getPath();
+    default @Nullable String getPath() {
+        return null;
+    }
 
     /**
      * Returns the normalized client address supplied by the trusted boundary adapter.
      *
      * @return the normalized client address
      */
-    String getClientAddress();
+    default @Nullable String getClientAddress() {
+        return null;
+    }
+
+    /**
+     * Returns the authenticated subject when this request has already crossed authentication.
+     *
+     * @return the subject, or {@code null} before authentication
+     */
+    default @Nullable Subject getSubject() {
+        return null;
+    }
 }

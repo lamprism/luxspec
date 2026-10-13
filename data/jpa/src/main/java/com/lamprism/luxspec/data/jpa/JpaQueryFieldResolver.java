@@ -18,6 +18,7 @@ package com.lamprism.luxspec.data.jpa;
 
 import com.lamprism.luxspec.data.query.QueryField;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.From;
 import jakarta.persistence.criteria.Root;
 
 import java.util.Objects;
@@ -65,4 +66,29 @@ public interface JpaQueryFieldResolver<T> {
      * @return the JPA expression for that typed field
      */
     <V> Expression<V> resolve(Root<T> root, QueryField<V> field);
+
+    /**
+     * Resolves a field from an entity root, join, or correlated subquery source.
+     *
+     * <p>Custom resolvers that support relationship predicates or projections over joins should
+     * override this method. The default delegates to the root resolver for the existing direct
+     * root-only extension contract.</p>
+     *
+     * @param source the Criteria source
+     * @param field  the explicit allowed typed field
+     * @param <V>    the field value type
+     * @return the JPA expression for that typed field
+     */
+    default <V> Expression<V> resolve(From<?, ?> source, QueryField<V> field) {
+        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(field, "field");
+        if (!(source instanceof Root<?> root)) {
+            throw new IllegalArgumentException(
+                    "Custom JPA field resolvers must implement From-based resolution for joins"
+            );
+        }
+        @SuppressWarnings("unchecked")
+        Root<T> typedRoot = (Root<T>) root;
+        return resolve(typedRoot, field);
+    }
 }

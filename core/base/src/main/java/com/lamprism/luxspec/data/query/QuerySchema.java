@@ -18,6 +18,7 @@ package com.lamprism.luxspec.data.query;
 
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,9 +31,14 @@ import java.util.Set;
  */
 public final class QuerySchema {
     private final Map<String, FieldDefinition> fields;
+    private final Map<QueryRelation<?>, QuerySchema> relations;
 
-    private QuerySchema(Map<String, FieldDefinition> fields) {
+    private QuerySchema(
+            Map<String, FieldDefinition> fields,
+            Map<QueryRelation<?>, QuerySchema> relations
+    ) {
         this.fields = Map.copyOf(fields);
+        this.relations = Map.copyOf(relations);
     }
 
     /**
@@ -55,6 +61,41 @@ public final class QuerySchema {
         QueryComplexityBudget nonNullLimits = Objects.requireNonNull(limits, "limits");
         validateOrders(nonNullCriteria.getOrders());
         validateExpression(nonNullCriteria.getCondition(), nonNullLimits, 1, new ValidationState());
+    }
+
+    /**
+     * Validates the source criteria, selected values, grouping, and HAVING condition of one plan.
+     *
+     * @param plan   the query plan to validate
+     * @param limits the role-specific complexity limits
+     */
+    public void validate(QueryPlan<?> plan, QueryComplexityBudget limits) {
+        QueryPlan<?> nonNullPlan = Objects.requireNonNull(plan, "plan");
+        QueryComplexityBudget nonNullLimits = Objects.requireNonNull(limits, "limits");
+        validate(nonNullPlan.getCriteria(), nonNullLimits);
+        if (nonNullPlan instanceof TimeSeriesQueryPlan<?> timeSeries) {
+            validateValue(timeSeries.getTimestamp());
+            if (timeSeries.getValue() != null) {
+                validateValue(timeSeries.getValue());
+            }
+            return;
+        }
+        if (!(nonNullPlan instanceof ProjectionQueryPlan<?> projectionPlan)) {
+            throw new IllegalArgumentException("Unsupported query plan: " + nonNullPlan.getClass().getName());
+        }
+        QueryProjection<?> projection = projectionPlan.getProjection();
+        for (QueryValue<?> value : projection.getValues()) {
+            validateValue(value);
+        }
+        for (QueryValue<?> value : projectionPlan.getGroupBy()) {
+            if (QueryValue.containsAggregate(value)) {
+                throw new IllegalArgumentException("GROUP BY values must not contain aggregates");
+            }
+            validateValue(value);
+        }
+        if (projectionPlan.getHaving() != null) {
+            validateExpression(projectionPlan.getHaving(), nonNullLimits, 1, new ValidationState());
+        }
     }
 
     private void validateOrders(List<OrderBy<?>> orders) {
@@ -87,6 +128,10 @@ public final class QuerySchema {
             }
             return;
         }
+        if (expression instanceof QueryValueCondition<?> condition) {
+            validateValueCondition(condition, limits);
+            return;
+        }
         if (expression instanceof ComparisonCondition<?> condition) {
             validateOperator(condition.getField(), condition.getOperator());
             return;
@@ -112,6 +157,16 @@ public final class QuerySchema {
             validateExpression(condition.getExpression(), limits, depth + 1, state);
             return;
         }
+        if (expression instanceof ExistsCondition<?> condition) {
+            QuerySchema relatedSchema = relations.get(condition.getRelation());
+            if (relatedSchema == null) {
+                throw new IllegalArgumentException(
+                        "Query relation is not part of this schema: " + condition.getRelation().getName()
+                );
+            }
+            relatedSchema.validateExpression(condition.getCondition(), limits, depth + 1, state);
+            return;
+        }
         throw new IllegalArgumentException("Unsupported query expression");
     }
 
@@ -119,10 +174,102 @@ public final class QuerySchema {
         validateOperator(condition.getField(), condition.getOperator());
     }
 
+    private void validateValueCondition(QueryValueCondition<?> condition, QueryComplexityBudget limits) {
+        validateValue(condition.getValue());
+        for (QueryField<?> field : referencedFields(condition.getValue())) {
+            validateOperator(field, condition.getOperator());
+        }
+        if (condition.getValues().size() > limits.getMaximumMembershipValues()
+                && (condition.getOperator() == QueryOperator.IN || condition.getOperator() == QueryOperator.NOT_IN)) {
+            throw new IllegalArgumentException("Membership condition exceeds the maximum value count");
+        }
+        if (condition.getOperator() == QueryOperator.LIKE
+                && condition.getValues().get(0).toString().length() > limits.getMaximumLikePatternLength()) {
+            throw new IllegalArgumentException("LIKE pattern exceeds the maximum length");
+        }
+    }
+
+    private void validateValue(QueryValue<?> value) {
+        if (value instanceof QueryValue.Field<?> field) {
+            findDefinition(field.getField());
+            return;
+        }
+        if (value instanceof QueryValue.Literal<?>) {
+            return;
+        }
+        if (value instanceof QueryValue.Function<?> function) {
+            for (QueryValue<?> argument : function.getArguments()) {
+                validateValue(argument);
+            }
+            for (QueryField<?> field : referencedFields(function)) {
+                validateFunction(field, function.getFunction());
+            }
+            return;
+        }
+        if (value instanceof QueryValue.Cast<?> cast) {
+            validateValue(cast.getOperand());
+            for (QueryField<?> field : referencedFields(cast.getOperand())) {
+                validateFunction(field, QueryFunction.CAST);
+            }
+            return;
+        }
+        if (value instanceof QueryValue.Aggregate<?> aggregate) {
+            if (aggregate.getOperand() == null) {
+                return;
+            }
+            validateValue(aggregate.getOperand());
+            for (QueryField<?> field : referencedFields(aggregate.getOperand())) {
+                validateAggregate(field, aggregate.getFunction());
+            }
+            return;
+        }
+        throw new IllegalArgumentException("Unsupported query value");
+    }
+
+    private Set<QueryField<?>> referencedFields(QueryValue<?> value) {
+        Set<QueryField<?>> fields = new LinkedHashSet<>();
+        collectFields(value, fields);
+        return fields;
+    }
+
+    private void collectFields(QueryValue<?> value, Set<QueryField<?>> fields) {
+        if (value instanceof QueryValue.Field<?> field) {
+            fields.add(field.getField());
+            return;
+        }
+        if (value instanceof QueryValue.Function<?> function) {
+            for (QueryValue<?> argument : function.getArguments()) {
+                collectFields(argument, fields);
+            }
+            return;
+        }
+        if (value instanceof QueryValue.Cast<?> cast) {
+            collectFields(cast.getOperand(), fields);
+            return;
+        }
+        if (value instanceof QueryValue.Aggregate<?> aggregate && aggregate.getOperand() != null) {
+            collectFields(aggregate.getOperand(), fields);
+        }
+    }
+
+    private void validateFunction(QueryField<?> field, QueryFunction function) {
+        FieldDefinition definition = findDefinition(field);
+        if (!definition.functions.contains(function)) {
+            throw new IllegalArgumentException("Query function is not allowed for field: " + field.getName());
+        }
+    }
+
     private void validateOperator(QueryField<?> field, QueryOperator operator) {
         FieldDefinition definition = findDefinition(field);
         if (!definition.operators.contains(operator)) {
             throw new IllegalArgumentException("Query operator is not allowed for field: " + field.getName());
+        }
+    }
+
+    private void validateAggregate(QueryField<?> field, QueryAggregateFunction aggregate) {
+        FieldDefinition definition = findDefinition(field);
+        if (!definition.aggregates.contains(aggregate)) {
+            throw new IllegalArgumentException("Query aggregate is not allowed for field: " + field.getName());
         }
     }
 
@@ -142,6 +289,7 @@ public final class QuerySchema {
      */
     public static final class Builder {
         private final Map<String, FieldDefinition> fields = new LinkedHashMap<>();
+        private final Map<QueryRelation<?>, QuerySchema> relations = new LinkedHashMap<>();
 
         private Builder() {
         }
@@ -168,16 +316,89 @@ public final class QuerySchema {
          * @return this builder
          */
         public <T> Builder add(QueryField<T> field, Set<QueryOperator> operators, boolean orderable) {
+            return add(field, operators, orderable, Set.of());
+        }
+
+        /**
+         * Adds a field with its supported operations, ordering capability, and value functions.
+         *
+         * @param field     the typed domain field
+         * @param operators the supported field operators
+         * @param orderable whether the field may be used for ordering
+         * @param functions the supported value functions and casts
+         * @param <T>       the field value type
+         * @return this builder
+         */
+        public <T> Builder add(
+                QueryField<T> field,
+                Set<QueryOperator> operators,
+                boolean orderable,
+                Set<QueryFunction> functions
+        ) {
+            return add(field, operators, orderable, functions, Set.of());
+        }
+
+        /**
+         * Adds a field with its supported operations, value functions, and aggregate functions.
+         *
+         * @param field      the typed domain field
+         * @param operators  the supported field operators
+         * @param orderable  whether the field may be used for ordering
+         * @param functions  the supported value functions and casts
+         * @param aggregates the supported aggregate functions
+         * @param <T>        the field value type
+         * @return this builder
+         */
+        public <T> Builder add(
+                QueryField<T> field,
+                Set<QueryOperator> operators,
+                boolean orderable,
+                Set<QueryFunction> functions,
+                Set<QueryAggregateFunction> aggregates
+        ) {
             QueryField<T> nonNullField = Objects.requireNonNull(field, "field");
             Set<QueryOperator> copiedOperators = Set.copyOf(Objects.requireNonNull(operators, "operators"));
+            Set<QueryFunction> copiedFunctions = Set.copyOf(Objects.requireNonNull(functions, "functions"));
+            Set<QueryAggregateFunction> copiedAggregates = Set.copyOf(
+                    Objects.requireNonNull(aggregates, "aggregates")
+            );
             if (copiedOperators.isEmpty() && !orderable) {
                 throw new IllegalArgumentException("Query fields must support filtering or ordering");
             }
-            validateOperatorTypes(nonNullField, copiedOperators);
-            FieldDefinition definition = new FieldDefinition(nonNullField, copiedOperators, orderable);
+            validateOperatorTypes(nonNullField, copiedOperators, copiedFunctions);
+            FieldDefinition definition = new FieldDefinition(
+                    nonNullField,
+                    copiedOperators,
+                    copiedFunctions,
+                    copiedAggregates,
+                    orderable
+            );
             FieldDefinition previous = fields.putIfAbsent(nonNullField.getName(), definition);
             if (previous != null) {
                 throw new IllegalArgumentException("Query schema contains a duplicate field: " + nonNullField.getName());
+            }
+            return this;
+        }
+
+        /**
+         * Registers the schema used by an allowed related collection.
+         *
+         * @param relation      the allowed to-many relationship
+         * @param relatedSchema the schema for related candidates
+         * @param <T>           the related candidate type
+         * @return this builder
+         */
+        public <T> Builder relation(QueryRelation<T> relation, QuerySchema relatedSchema) {
+            QueryRelation<T> nonNullRelation = Objects.requireNonNull(relation, "relation");
+            if (nonNullRelation.getCardinality() != QueryRelation.Cardinality.TO_MANY) {
+                throw new IllegalArgumentException("EXISTS schemas require a to-many relation");
+            }
+            QuerySchema nonNullSchema = Objects.requireNonNull(relatedSchema, "relatedSchema");
+            QuerySchema previous = relations.putIfAbsent(nonNullRelation, nonNullSchema);
+            if (previous != null && previous != nonNullSchema) {
+                throw new IllegalArgumentException(
+                        "Query schema contains a duplicate relation: " + nonNullRelation.getName()
+                );
             }
             return this;
         }
@@ -188,12 +409,18 @@ public final class QuerySchema {
          * @return the query schema
          */
         public QuerySchema build() {
-            return new QuerySchema(fields);
+            return new QuerySchema(fields, relations);
         }
 
-        private static void validateOperatorTypes(QueryField<?> field, Set<QueryOperator> operators) {
+        private static void validateOperatorTypes(
+                QueryField<?> field,
+                Set<QueryOperator> operators,
+                Set<QueryFunction> functions
+        ) {
             for (QueryOperator operator : operators) {
-                if (operator == QueryOperator.LIKE && field.getValueType() != String.class) {
+                if (operator == QueryOperator.LIKE
+                        && field.getValueType() != String.class
+                        && !functions.contains(QueryFunction.CAST)) {
                     throw new IllegalArgumentException("LIKE is only supported for String fields");
                 }
                 if (isOrderedComparison(operator) && !Comparable.class.isAssignableFrom(field.getValueType())) {
@@ -213,11 +440,21 @@ public final class QuerySchema {
     private static final class FieldDefinition {
         private final QueryField<?> field;
         private final Set<QueryOperator> operators;
+        private final Set<QueryFunction> functions;
+        private final Set<QueryAggregateFunction> aggregates;
         private final boolean orderable;
 
-        private FieldDefinition(QueryField<?> field, Set<QueryOperator> operators, boolean orderable) {
+        private FieldDefinition(
+                QueryField<?> field,
+                Set<QueryOperator> operators,
+                Set<QueryFunction> functions,
+                Set<QueryAggregateFunction> aggregates,
+                boolean orderable
+        ) {
             this.field = field;
             this.operators = operators;
+            this.functions = functions;
+            this.aggregates = aggregates;
             this.orderable = orderable;
         }
     }

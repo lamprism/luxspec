@@ -16,10 +16,13 @@
 
 package com.lamprism.luxspec.observability.autoconfigure;
 
+import com.lamprism.luxspec.data.query.InMemoryQueryExecutor;
+import com.lamprism.luxspec.data.query.QueryExecutor;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
 import com.lamprism.luxspec.observability.runtime.health.JvmHealthSet;
+import com.lamprism.luxspec.observability.runtime.instrumentation.ObservedQueryExecutor;
 import com.lamprism.luxspec.observability.runtime.metric.HttpServerMetricSet;
 import com.lamprism.luxspec.observability.runtime.metric.JvmMetricSet;
 import com.lamprism.luxspec.observability.runtime.observation.StandardObservationSet;
@@ -29,7 +32,14 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 
+import javax.sql.DataSource;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.logging.Logger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -104,6 +114,20 @@ class LuxspecObservabilityAutoConfigurationTest {
     }
 
     @Test
+    void enablesHttpObservationOnlyWithTheStandardWebDeclaration() {
+        webContextRunner
+                .withPropertyValues(
+                        "luxspec.observability.http.observation.enabled=true",
+                        "luxspec.observability.observation.standard.enabled=true",
+                        "luxspec.observability.observation.standard.domains=WEB"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(StandardObservationSet.class);
+                    assertThat(context).hasSingleBean(LuxspecHttpObservationFilter.class);
+                });
+    }
+
+    @Test
     void assemblesSelectedJvmAndStandardSetsThroughOneRegistryBoundary() {
         contextRunner
                 .withPropertyValues(
@@ -125,6 +149,42 @@ class LuxspecObservabilityAutoConfigurationTest {
                             .extracting(spec -> spec.getName().value())
                             .contains("web.request", "security.authentication");
                 });
+    }
+
+    @Test
+    void wrapsOnlyExplicitlySelectedInfrastructureBeans() {
+        Executor executor = Runnable::run;
+        DataSource dataSource = new StubDataSource();
+        QueryExecutor<String> queryExecutor = InMemoryQueryExecutor.<String>builder(
+                () -> List.of("value")
+        ).build();
+        contextRunner
+                .withBean("applicationExecutor", Executor.class, () -> executor)
+                .withBean("applicationDataSource", DataSource.class, () -> dataSource)
+                .withBean("applicationQueryExecutor", QueryExecutor.class, () -> queryExecutor)
+                .withPropertyValues(
+                        "luxspec.observability.observation.standard.enabled=true",
+                        "luxspec.observability.observation.standard.domains=DATABASE,INFRASTRUCTURE",
+                        "luxspec.observability.instrumentation.executor-beans=applicationExecutor",
+                        "luxspec.observability.instrumentation.data-source-beans=applicationDataSource",
+                        "luxspec.observability.instrumentation.query-executor-beans=applicationQueryExecutor"
+                )
+                .run(context -> {
+                    assertThat(context.getBean("applicationExecutor")).isNotSameAs(executor);
+                    assertThat(context.getBean("applicationDataSource")).isNotSameAs(dataSource);
+                    assertThat(context.getBean("applicationQueryExecutor"))
+                            .isInstanceOf(ObservedQueryExecutor.class);
+                });
+    }
+
+    @Test
+    void requiresStandardDeclarationsForSelectedInfrastructureBeans() {
+        contextRunner
+                .withBean("applicationExecutor", Executor.class, () -> Runnable::run)
+                .withPropertyValues(
+                        "luxspec.observability.instrumentation.executor-beans=applicationExecutor"
+                )
+                .run(context -> assertThat(context).hasFailed());
     }
 
     private static final class StubMetricRegistry implements MetricRegistry {
@@ -181,6 +241,14 @@ class LuxspecObservabilityAutoConfigurationTest {
 
     private static final class StubObservationRegistry implements ObservationRegistry {
         @Override
+        public java.lang.AutoCloseable addHandler(
+                com.lamprism.luxspec.observability.observation.@NonNull ObservationHandler handler
+        ) {
+            return () -> {
+            };
+        }
+
+        @Override
         public void register(com.lamprism.luxspec.observability.observation.@NonNull ObservationSpec spec) {
         }
 
@@ -212,6 +280,51 @@ class LuxspecObservabilityAutoConfigurationTest {
 
         @Override
         public void close() {
+        }
+    }
+
+    private static final class StubDataSource implements DataSource {
+        @Override
+        public Connection getConnection() throws SQLException {
+            throw new SQLFeatureNotSupportedException();
+        }
+
+        @Override
+        public Connection getConnection(String username, String password) throws SQLException {
+            throw new SQLFeatureNotSupportedException();
+        }
+
+        @Override
+        public <T> T unwrap(Class<T> iface) throws SQLException {
+            throw new SQLFeatureNotSupportedException();
+        }
+
+        @Override
+        public boolean isWrapperFor(Class<?> iface) {
+            return false;
+        }
+
+        @Override
+        public PrintWriter getLogWriter() {
+            return null;
+        }
+
+        @Override
+        public void setLogWriter(PrintWriter out) {
+        }
+
+        @Override
+        public void setLoginTimeout(int seconds) {
+        }
+
+        @Override
+        public int getLoginTimeout() {
+            return 0;
+        }
+
+        @Override
+        public Logger getParentLogger() throws SQLFeatureNotSupportedException {
+            throw new SQLFeatureNotSupportedException();
         }
     }
 }

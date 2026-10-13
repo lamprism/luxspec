@@ -71,6 +71,64 @@ public interface QueryFieldResolver<T> {
     <V> int compare(T left, T right, QueryField<V> field);
 
     /**
+     * Compares two resolved field values using the field's ordering rule.
+     *
+     * <p>The default uses natural ordering and keeps the same nulls-last policy as the standard
+     * resolver. Custom resolvers with a non-natural ordering should override this method so
+     * keyset continuation uses the same ordering as ordinary results.</p>
+     *
+     * @param left  the first value
+     * @param right the second value
+     * @param field the field used for comparison
+     * @param <V>   the field value type
+     * @return a negative value, zero, or a positive value when left sorts before, with, or after right
+     */
+    default <V> int compareValues(
+            @Nullable V left,
+            @Nullable V right,
+            QueryField<V> field
+    ) {
+        QueryField<V> nonNullField = Objects.requireNonNull(field, "field");
+        if (left == null) {
+            return right == null ? 0 : 1;
+        }
+        if (right == null) {
+            return -1;
+        }
+        if (!nonNullField.getValueType().isInstance(left)
+                || !nonNullField.getValueType().isInstance(right)) {
+            throw new IllegalArgumentException(
+                    "Query field values do not match field type: " + nonNullField.getName()
+            );
+        }
+        if (!(left instanceof Comparable<?> comparable)) {
+            throw new IllegalArgumentException(
+                    "Query field values require an explicit ordering comparator"
+            );
+        }
+        return compareNaturally(comparable, right);
+    }
+
+    /**
+     * Compares two non-null values with a natural comparator.
+     *
+     * @param left  the first comparable value
+     * @param right the second value
+     * @return the natural comparison result
+     */
+    @SuppressWarnings("unchecked")
+    private static int compareNaturally(Comparable<?> left, Object right) {
+        try {
+            return ((Comparable<Object>) left).compareTo(right);
+        } catch (ClassCastException exception) {
+            throw new IllegalArgumentException(
+                    "Query field values require an explicit ordering comparator",
+                    exception
+            );
+        }
+    }
+
+    /**
      * Builds a resolver from candidate accessors.
      *
      * @param <T> the queried candidate type

@@ -21,7 +21,8 @@ package com.lamprism.luxspec.web.collection;
  *
  * @author RollW
  */
-public sealed interface CollectionPagination permits CompletePagination, PagePagination, SlicePagination {
+public sealed interface CollectionPagination
+        permits CompletePagination, PagePagination, SlicePagination, KeysetPagination {
     /**
      * Returns the stable JSON pagination mode.
      *

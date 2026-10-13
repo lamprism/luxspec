@@ -88,7 +88,7 @@ class InMemoryResourceBrowserTest {
                 () -> browser.provide(new ResourceReference<>(otherType, 1L))
         );
 
-        assertEquals(ResourceErrorCode.INVALID_REFERENCE, exception.getErrorCode());
+        assertEquals("Reference does not match the browser type", exception.getMessage());
     }
 
     private static final class TestResource implements Resource<Long> {

@@ -40,6 +40,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ConfigKeySetProviderTest {
@@ -62,10 +63,10 @@ class ConfigKeySetProviderTest {
         );
 
         KeySet keySet = provider(entries).get("access");
-        KeyEntry keyEntry = keySet.getActiveKey().orElseThrow();
+        KeyEntry keyEntry = keySet.getActiveKey();
 
         assertEquals("primary", keyEntry.getId());
-        assertArrayEquals(secret, keyEntry.getSigningKey().orElseThrow().getEncoded());
+        assertArrayEquals(secret, keyEntry.getSigningKey().getEncoded());
         assertArrayEquals(secret, keyEntry.getVerificationKey().getEncoded());
     }
 
@@ -105,12 +106,12 @@ class ConfigKeySetProviderTest {
         );
 
         KeySet keySet = provider(entries).get("access");
-        KeyEntry signingEntry = keySet.getActiveKey().orElseThrow();
+        KeyEntry signingEntry = keySet.getActiveKey();
         KeyEntry remoteEntry = keySet.findById("remote").orElseThrow();
 
-        assertArrayEquals(keyPair.getPrivate().getEncoded(), signingEntry.getSigningKey().orElseThrow().getEncoded());
+        assertArrayEquals(keyPair.getPrivate().getEncoded(), signingEntry.getSigningKey().getEncoded());
         assertArrayEquals(keyPair.getPublic().getEncoded(), signingEntry.getVerificationKey().getEncoded());
-        assertFalse(remoteEntry.getSigningKey().isPresent());
+        assertNull(remoteEntry.getSigningKey());
         assertArrayEquals(keyPair.getPublic().getEncoded(), remoteEntry.getVerificationKey().getEncoded());
     }
 
@@ -132,9 +133,34 @@ class ConfigKeySetProviderTest {
                 ConfigEntry.present(Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()))
         );
 
-        KeyEntry keyEntry = provider(entries).get("access").getActiveKey().orElseThrow();
+        KeyEntry keyEntry = provider(entries).get("access").getActiveKey();
 
-        assertArrayEquals(keyPair.getPrivate().getEncoded(), keyEntry.getSigningKey().orElseThrow().getEncoded());
+        assertArrayEquals(keyPair.getPrivate().getEncoded(), keyEntry.getSigningKey().getEncoded());
+        assertArrayEquals(keyPair.getPublic().getEncoded(), keyEntry.getVerificationKey().getEncoded());
+    }
+
+    @Test
+    void derivesAnEd25519PublicKeyForAConfiguredKeyPair() throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519");
+        KeyPair keyPair = generator.generateKeyPair();
+        Map<ConfigKey, ConfigEntry> entries = new HashMap<>();
+        Map<String, String> keySetParameters = Map.of("key-set", "access");
+        Map<String, String> keyParameters = Map.of("key-set", "access", "key-id", "signing");
+        entries.put(ConfigKeySetProvider.ACTIVE_KEY_ID.bind(keySetParameters).getKey(), ConfigEntry.present("signing"));
+        entries.put(ConfigKeySetProvider.KEY_IDS.bind(keySetParameters).getKey(), ConfigEntry.present(List.of("signing")));
+        entries.put(
+                ConfigKeySetProvider.TYPE.bind(keyParameters).getKey(),
+                typeEntry(ConfigKeyMaterialType.KEY_PAIR)
+        );
+        entries.put(ConfigKeySetProvider.ALGORITHM.bind(keyParameters).getKey(), ConfigEntry.present("Ed25519"));
+        entries.put(
+                ConfigKeySetProvider.PRIVATE_KEY.bind(keyParameters).getKey(),
+                ConfigEntry.present(Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()))
+        );
+
+        KeyEntry keyEntry = provider(entries).get("access").getActiveKey();
+
+        assertArrayEquals(keyPair.getPrivate().getEncoded(), keyEntry.getSigningKey().getEncoded());
         assertArrayEquals(keyPair.getPublic().getEncoded(), keyEntry.getVerificationKey().getEncoded());
     }
 

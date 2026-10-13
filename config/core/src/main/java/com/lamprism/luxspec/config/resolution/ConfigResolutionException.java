@@ -1,14 +1,12 @@
 package com.lamprism.luxspec.config.resolution;
 
-import com.lamprism.luxspec.LuxspecException;
-import com.lamprism.luxspec.config.ConfigErrorCode;
 
 /**
  * Indicates that a usable source entry cannot satisfy a configuration definition.
  *
  * @author RollW
  */
-public final class ConfigResolutionException extends LuxspecException {
+public final class ConfigResolutionException extends RuntimeException {
     /**
      * Creates a value-free configuration resolution failure.
      *
@@ -16,6 +14,6 @@ public final class ConfigResolutionException extends LuxspecException {
      * failures may contain raw or decoded sensitive configuration values.</p>
      */
     public ConfigResolutionException() {
-        super(ConfigErrorCode.INVALID_VALUE, "Configuration value is invalid");
+        super("Configuration value is invalid");
     }
 }

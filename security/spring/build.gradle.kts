@@ -22,9 +22,12 @@ description = "Spring Security integration for Luxspec security."
 
 dependencies {
     api(project(":security:security-core"))
+    api(project(":web:web-core"))
     api("jakarta.servlet:jakarta.servlet-api")
     api("org.springframework.security:spring-security-core")
     api("org.springframework.security:spring-security-config")
     api("org.springframework.security:spring-security-web")
+    api("org.springframework:spring-webmvc")
+    implementation("com.github.seancfoley:ipaddress")
     testImplementation("org.springframework:spring-test")
 }

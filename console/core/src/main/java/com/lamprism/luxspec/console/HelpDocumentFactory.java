@@ -104,7 +104,7 @@ final class HelpDocumentFactory {
         }
         usage.append(" [OPTIONS]");
         if (!node.children.isEmpty()) {
-            if (node.handler == null) {
+            if (node.runner == null) {
                 usage.append(" <COMMAND>");
             } else {
                 usage.append(" [<COMMAND>]");

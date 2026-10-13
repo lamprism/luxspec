@@ -16,9 +16,10 @@
 
 package com.lamprism.luxspec.security.crypto;
 
+import org.jspecify.annotations.Nullable;
+
 import java.security.Key;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Associates a stable key ID with verification material and optional signing material.
@@ -28,7 +29,7 @@ import java.util.Optional;
 public final class KeyEntry {
     private final String id;
     private final Key verificationKey;
-    private final Optional<Key> signingKey;
+    private final @Nullable Key signingKey;
 
     /**
      * Creates an entry that can sign and verify cryptographic messages.
@@ -38,7 +39,9 @@ public final class KeyEntry {
      * @param verificationKey the public or secret verification key
      */
     public KeyEntry(String id, Key signingKey, Key verificationKey) {
-        this(id, verificationKey, Optional.of(Objects.requireNonNull(signingKey, "signingKey")));
+        this.id = requireId(id);
+        this.verificationKey = Objects.requireNonNull(verificationKey, "verificationKey");
+        this.signingKey = Objects.requireNonNull(signingKey, "signingKey");
     }
 
     /**
@@ -48,13 +51,9 @@ public final class KeyEntry {
      * @param verificationKey the public or secret verification key
      */
     public KeyEntry(String id, Key verificationKey) {
-        this(id, verificationKey, Optional.empty());
-    }
-
-    private KeyEntry(String id, Key verificationKey, Optional<Key> signingKey) {
         this.id = requireId(id);
         this.verificationKey = Objects.requireNonNull(verificationKey, "verificationKey");
-        this.signingKey = Objects.requireNonNull(signingKey, "signingKey");
+        this.signingKey = null;
     }
 
     /**
@@ -78,9 +77,9 @@ public final class KeyEntry {
     /**
      * Returns the private or secret signing key when this entry can sign.
      *
-     * @return the optional signing key
+     * @return the signing key, or {@code null} when this entry is verification-only
      */
-    public Optional<Key> getSigningKey() {
+    public @Nullable Key getSigningKey() {
         return signingKey;
     }
 

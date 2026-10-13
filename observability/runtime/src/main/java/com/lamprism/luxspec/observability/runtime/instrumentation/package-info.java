@@ -14,20 +14,10 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.observability.runtime.metric;
-
-import com.lamprism.luxspec.observability.metric.Metric;
-import com.lamprism.luxspec.observability.metric.MetricSpec;
-
-import java.util.function.Consumer;
-
 /**
- * Optional runtime extension used by provider adapters to observe declarations.
- *
- * @author RollW
+ * Provider-independent infrastructure instrumentation over the existing observation registry.
  */
-public interface MetricRegistryEventSource {
-    AutoCloseable addRegistrationListener(Consumer<MetricSpec<?>> listener);
+@NullMarked
+package com.lamprism.luxspec.observability.runtime.instrumentation;
 
-    AutoCloseable addMaterializationListener(Consumer<Metric> listener);
-}
+import org.jspecify.annotations.NullMarked;

@@ -118,7 +118,7 @@ class ResourceRegistryTest {
             requireType(reference);
             TestResource resource = resources.get(reference.id());
             if (resource == null) {
-                throw new ResourceException(ResourceErrorCode.NOT_FOUND, "Test resource was not found");
+                throw new ResourceException("Test resource was not found");
             }
             return resource;
         }
@@ -139,7 +139,7 @@ class ResourceRegistryTest {
 
         private void requireType(ResourceReference<Long> reference) {
             if (!resourceType.equals(reference.resourceType())) {
-                throw new ResourceException(ResourceErrorCode.INVALID_REFERENCE, "Reference does not match the provider type");
+                throw new ResourceException("Reference does not match the provider type");
             }
         }
     }
@@ -158,7 +158,7 @@ class ResourceRegistryTest {
 
         @Override
         public Resource<ID> provide(ResourceReference<ID> reference) {
-            throw new ResourceException(ResourceErrorCode.NOT_FOUND, "Test resource was not found");
+            throw new ResourceException("Test resource was not found");
         }
 
         @Override

@@ -14,20 +14,10 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.security.firewall;
-
 /**
- * Evaluates one framework-independent firewall policy.
- *
- * @param <R> the request type accepted by the rule
- * @author RollW
+ * Provides OpenTelemetry and OTLP adapters for Luxspec observations.
  */
-public interface FirewallRule<R extends FirewallRequest> {
-    /**
-     * Evaluates one request at the rule chain's declared stage.
-     *
-     * @param request immutable request facts
-     * @return pass or deny decision
-     */
-    FirewallDecision evaluate(R request);
-}
+@NullMarked
+package com.lamprism.luxspec.observability.otlp;
+
+import org.jspecify.annotations.NullMarked;

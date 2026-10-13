@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.data.jpa;
 
+import com.lamprism.luxspec.data.pagination.KeysetResult;
+import com.lamprism.luxspec.data.pagination.KeysetWindow;
 import com.lamprism.luxspec.data.pagination.PageResult;
 import com.lamprism.luxspec.data.pagination.PageWindow;
 import com.lamprism.luxspec.data.pagination.QueryResult;
@@ -30,6 +32,12 @@ import com.lamprism.luxspec.data.query.QueryCondition;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryExpression;
 import com.lamprism.luxspec.data.query.QueryField;
+import com.lamprism.luxspec.data.query.QueryPlan;
+import com.lamprism.luxspec.data.query.QueryProjection;
+import com.lamprism.luxspec.data.query.QueryValue;
+import com.lamprism.luxspec.data.query.QueryValueCondition;
+import com.lamprism.luxspec.data.query.TimeSeriesBucket;
+import com.lamprism.luxspec.data.query.TimeSeriesPoint;
 import com.lamprism.luxspec.naming.CaseFormat;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -43,12 +51,16 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -122,6 +134,56 @@ class JpaCriteriaTranslatorIntegrationTest {
     }
 
     @Test
+    void translatesNullPredicatesAgainstJpa() {
+        persistItems(
+                new QueryableItemEntity("alpha", "priority", 1),
+                new QueryableItemEntity("bravo", "standard", 2)
+        );
+
+        List<String> nullNames = query(new QueryCriteria(
+                QueryCondition.isNull(NAME),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+        List<String> nonNullNames = query(new QueryCriteria(
+                QueryCondition.isNotNull(NAME),
+                List.of(OrderBy.ascending(NAME))
+        )).stream().map(QueryableItemEntity::name).toList();
+
+        assertEquals(List.of(), nullNames);
+        assertEquals(List.of("alpha", "bravo"), nonNullNames);
+    }
+
+    @Test
+    void translatesValueFunctionsAndCastsAgainstJpa() {
+        persistItems(
+                new QueryableItemEntity("Alpha", "priority", 10),
+                new QueryableItemEntity("bravo", "standard", 20)
+        );
+
+        List<String> lowerNames = query(new QueryCriteria(
+                QueryValueCondition.like(QueryValue.lower(NAME), "a%"),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+        List<String> upperNames = query(new QueryCriteria(
+                QueryValueCondition.equal(QueryValue.upper(NAME), "BRAVO"),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+        List<String> coalesceNames = query(new QueryCriteria(
+                QueryValueCondition.equal(QueryValue.coalesce(NAME, "fallback"), "Alpha"),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+        List<String> castNames = query(new QueryCriteria(
+                QueryValueCondition.like(QueryValue.cast(SCORE, String.class), "2%"),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+
+        assertEquals(List.of("Alpha"), lowerNames);
+        assertEquals(List.of("bravo"), upperNames);
+        assertEquals(List.of("Alpha"), coalesceNames);
+        assertEquals(List.of("bravo"), castNames);
+    }
+
+    @Test
     void executesPageAndSliceWithoutManualCriteriaSetup() {
         persistItems(
                 new QueryableItemEntity("charlie", "standard", 3),
@@ -142,6 +204,35 @@ class JpaCriteriaTranslatorIntegrationTest {
         assertTrue(slice instanceof SliceResult<?>);
         assertEquals(List.of("alpha", "bravo"), names(slice));
         assertTrue(((SliceResult<QueryableItemEntity>) slice).hasNext());
+    }
+
+    @Test
+    void executesKeysetWindowsThroughTheRegularJpaQueryExecutor() {
+        persistItems(
+                new QueryableItemEntity("charlie", "standard", 3),
+                new QueryableItemEntity("alpha", "priority", 1),
+                new QueryableItemEntity("bravo", "standard", 2)
+        );
+        QueryCriteria criteria = new QueryCriteria(
+                QueryExpression.all(),
+                List.of(OrderBy.descending(SCORE), OrderBy.ascending(NAME))
+        );
+
+        KeysetResult<QueryableItemEntity> first = (KeysetResult<QueryableItemEntity>) executor().query(
+                criteria,
+                new KeysetWindow(2)
+        );
+        KeysetResult<QueryableItemEntity> second =
+                (KeysetResult<QueryableItemEntity>) executor().query(
+                        criteria,
+                        new KeysetWindow(2, first.nextPosition())
+                );
+
+        assertEquals(List.of("charlie", "bravo"), names(first));
+        assertEquals(List.of("alpha"), names(second));
+        assertTrue(first.hasNext());
+        assertFalse(second.hasNext());
+        assertEquals(List.of(2, "bravo"), first.nextPosition().values());
     }
 
     @Test
@@ -222,6 +313,91 @@ class JpaCriteriaTranslatorIntegrationTest {
         assertEquals(List.of("alice"), names);
     }
 
+    @Test
+    void executesProjectionAggregateAndHavingPlansThroughJpa() {
+        persistItems(
+                new QueryableItemEntity("alpha", "standard", 10),
+                new QueryableItemEntity("bravo", "standard", 20),
+                new QueryableItemEntity("charlie", "priority", 30)
+        );
+        QueryPlan<GroupSummary> plan = QueryPlan.builder(
+                        QueryProjection.of(
+                                List.of(QueryValue.field(CATEGORY), QueryValue.count(), QueryValue.sum(QueryValue.field(SCORE))),
+                                values -> new GroupSummary(
+                                        (String) values.get(0),
+                                        (Long) values.get(1),
+                                        (BigDecimal) values.get(2)
+                                )
+                        )
+                )
+                .criteria(new QueryCriteria(QueryExpression.all(), List.of(OrderBy.ascending(CATEGORY))))
+                .groupBy(QueryValue.field(CATEGORY))
+                .having(QueryValueCondition.greaterThan(QueryValue.count(), 1L))
+                .build();
+
+        QueryResult<GroupSummary> result = executor().query(plan, UnboundedWindow.getInstance());
+
+        assertEquals(List.of(new GroupSummary("standard", 2L, new BigDecimal("30"))), result.getItems());
+    }
+
+    @Test
+    void executesDistinctAndKeysetProjectionPlansThroughJpa() {
+        persistItems(
+                new QueryableItemEntity("charlie", "standard", 3),
+                new QueryableItemEntity("alpha", "priority", 1),
+                new QueryableItemEntity("bravo", "standard", 2)
+        );
+        QueryPlan<String> distinctPlan = QueryPlan.builder(QueryValue.field(CATEGORY))
+                .distinct()
+                .build();
+        QueryResult<String> distinct = executor().query(distinctPlan, UnboundedWindow.getInstance());
+
+        QueryPlan<String> keysetPlan = QueryPlan.builder(QueryValue.field(NAME))
+                .criteria(new QueryCriteria(
+                        QueryExpression.all(),
+                        List.of(OrderBy.ascending(SCORE), OrderBy.ascending(NAME))
+                ))
+                .build();
+        KeysetResult<String> first = (KeysetResult<String>) executor().query(keysetPlan, new KeysetWindow(2));
+        KeysetResult<String> second = (KeysetResult<String>) executor().query(
+                keysetPlan,
+                new KeysetWindow(2, first.nextPosition())
+        );
+
+        assertEquals(Set.of("standard", "priority"), Set.copyOf(distinct.getItems()));
+        assertEquals(List.of("alpha", "bravo"), first.getItems());
+        assertEquals(List.of("charlie"), second.getItems());
+    }
+
+    @Test
+    void executesTimeSeriesAggregationAndResamplingThroughJpa() {
+        Instant first = Instant.parse("2026-01-01T00:00:00Z");
+        persistItems(
+                new QueryableItemEntity("first", "standard", 10, first.plusSeconds(60L)),
+                new QueryableItemEntity("second", "standard", 20, first.plusSeconds(120L)),
+                new QueryableItemEntity("third", "standard", 30, first.plusSeconds(3_660L))
+        );
+        QueryPlan<TimeSeriesPoint<BigDecimal>> plan = QueryPlan.sum(
+                        QueryValue.field(TimeSeriesPoint.TIMESTAMP),
+                        QueryValue.field(SCORE),
+                        TimeSeriesBucket.of(Duration.ofHours(1), first)
+                )
+                .build();
+
+        QueryResult<TimeSeriesPoint<BigDecimal>> result = executor().query(
+                plan,
+                new TimeSeriesWindow(first, first.plusSeconds(7_200L), 10)
+        );
+
+        assertEquals(
+                List.of(
+                        new TimeSeriesPoint<>(first, new BigDecimal("30")),
+                        new TimeSeriesPoint<>(first.plusSeconds(3_600L), new BigDecimal("30"))
+                ),
+                result.getItems()
+        );
+    }
+
     private List<QueryableItemEntity> query(QueryCriteria criteria) {
         return executor().query(criteria, UnboundedWindow.getInstance()).getItems();
     }
@@ -258,6 +434,9 @@ class JpaCriteriaTranslatorIntegrationTest {
             throw exception;
         }
         entityManager.clear();
+    }
+
+    private record GroupSummary(String category, long count, BigDecimal totalScore) {
     }
 
     private static final class ItemFieldResolver implements JpaQueryFieldResolver<QueryableItemEntity> {

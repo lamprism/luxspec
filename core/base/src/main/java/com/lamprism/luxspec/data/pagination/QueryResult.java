@@ -24,7 +24,7 @@ import java.util.List;
  * @param <T> the element type
  * @author RollW
  */
-public sealed interface QueryResult<T> permits CompleteResult, PageResult, SliceResult {
+public sealed interface QueryResult<T> permits CompleteResult, PageResult, SliceResult, KeysetResult {
     /**
      * Returns immutable result items in their query order.
      *

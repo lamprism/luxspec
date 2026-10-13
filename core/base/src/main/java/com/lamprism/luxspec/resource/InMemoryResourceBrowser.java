@@ -175,7 +175,7 @@ public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements Reso
         Snapshot<ID, R> snapshot = snapshot();
         R resource = snapshot.resourcesByReference.get(nonNullReference);
         if (resource == null) {
-            throw new ResourceException(ResourceErrorCode.NOT_FOUND, "Resource was not found");
+            throw new ResourceException("Resource was not found");
         }
         return resource;
     }
@@ -197,7 +197,7 @@ public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements Reso
             ResourceReference<ID> nonNullReference = requireMatchingReference(reference);
             R resource = snapshot.resourcesByReference.get(nonNullReference);
             if (resource == null) {
-                throw new ResourceException(ResourceErrorCode.NOT_FOUND, "Resource was not found");
+                throw new ResourceException("Resource was not found");
             }
             resources.add(resource);
         }
@@ -248,10 +248,7 @@ public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements Reso
     private ResourceReference<ID> requireMatchingReference(ResourceReference<ID> reference) {
         ResourceReference<ID> nonNullReference = Objects.requireNonNull(reference, "reference");
         if (!resourceType.equals(nonNullReference.resourceType())) {
-            throw new ResourceException(
-                    ResourceErrorCode.INVALID_REFERENCE,
-                    "Reference does not match the browser type"
-            );
+            throw new ResourceException("Reference does not match the browser type");
         }
         return nonNullReference;
     }

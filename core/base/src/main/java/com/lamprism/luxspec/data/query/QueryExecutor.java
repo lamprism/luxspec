@@ -18,14 +18,9 @@ package com.lamprism.luxspec.data.query;
 
 import com.lamprism.luxspec.data.pagination.QueryResult;
 import com.lamprism.luxspec.data.pagination.QueryWindow;
-import com.lamprism.luxspec.data.pagination.TimeSeriesWindow;
 
 /**
- * Executes structured query criteria against one owned data source.
- *
- * <p>A provider may support {@link TimeSeriesWindow} when its
- * field resolver exposes {@link TimeSeriesPoint#TIMESTAMP}. Such a window remains a regular query
- * window and returns a bounded slice result.</p>
+ * Executes provider-neutral query criteria and plans against one owned data source.
  *
  * @param <T> the query result item type
  * @author RollW
@@ -42,4 +37,21 @@ public interface QueryExecutor<T> {
      * @return the complete, page, or slice result
      */
     QueryResult<T> query(QueryCriteria criteria, QueryWindow window);
+
+    /**
+     * Executes one projection, grouping, aggregate, or time-series plan.
+     *
+     * <p>Providers that only support ordinary criteria may keep the default unsupported
+     * behavior. Providers exposing the advanced query model override this method on the same
+     * executor contract.</p>
+     *
+     * @param plan   the validated typed plan
+     * @param window the requested result window
+     * @param <R>    the plan result type
+     * @return the plan query result
+     * @throws UnsupportedOperationException when the provider does not support query plans
+     */
+    default <R> QueryResult<R> query(QueryPlan<R> plan, QueryWindow window) {
+        throw new UnsupportedOperationException("Query plans are not supported");
+    }
 }

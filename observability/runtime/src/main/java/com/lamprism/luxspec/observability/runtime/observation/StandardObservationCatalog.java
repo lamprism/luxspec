@@ -35,6 +35,11 @@ public final class StandardObservationCatalog {
             ObservationKind.CLIENT,
             "Database operation"
     );
+    public static final ObservationSpec EXECUTOR_TASK = spec(
+            "executor.task",
+            ObservationKind.INTERNAL,
+            "Executor task"
+    );
     public static final ObservationSpec SECURITY_AUTHENTICATION = spec(
             "security.authentication",
             ObservationKind.INTERNAL,

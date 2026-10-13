@@ -90,6 +90,7 @@ tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.release.set(javaVersion)
     options.compilerArgs.add("-parameters")
+    options.compilerArgs.add("-Xlint:deprecation")
 }
 
 tasks.withType<Javadoc>().configureEach {

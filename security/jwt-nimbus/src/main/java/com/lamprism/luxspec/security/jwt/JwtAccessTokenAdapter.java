@@ -42,17 +42,27 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jose.crypto.impl.BaseJWSProvider;
+import com.nimbusds.jose.jca.JCAContext;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.jspecify.annotations.Nullable;
 
 import javax.crypto.SecretKey;
+import java.security.GeneralSecurityException;
 import java.security.Key;
+import java.security.Provider;
+import java.security.Signature;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.EdECKey;
+import java.security.interfaces.EdECPrivateKey;
+import java.security.interfaces.EdECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.ECParameterSpec;
+import java.security.spec.NamedParameterSpec;
 import java.text.ParseException;
 import java.time.Clock;
 import java.time.Instant;
@@ -61,6 +71,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -103,12 +114,14 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
     public TokenIssuance issue(Authentication authentication) {
         Authentication nonNullAuthentication = Objects.requireNonNull(authentication, "authentication");
         KeySet keySet = keySet();
-        KeyEntry activeKey = keySet.getActiveKey().orElseThrow(
-                () -> new IllegalStateException("No active signing key is available")
-        );
-        Key signingKey = activeKey.getSigningKey().orElseThrow(
-                () -> new IllegalStateException("Active key does not contain signing material")
-        );
+        KeyEntry activeKey = keySet.getActiveKey();
+        if (activeKey == null) {
+            throw new IllegalStateException("No active signing key is available");
+        }
+        Key signingKey = activeKey.getSigningKey();
+        if (signingKey == null) {
+            throw new IllegalStateException("Active key does not contain signing material");
+        }
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(configuration.getLifetime());
         List<String> scopes = scopeNames(nonNullAuthentication);
@@ -302,6 +315,10 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         if (key instanceof ECPrivateKey privateKey) {
             return ecdsaAlgorithm(privateKey.getParams());
         }
+        if (key instanceof EdECPrivateKey privateKey) {
+            edDsaSignatureAlgorithm(privateKey);
+            return JWSAlgorithm.EdDSA;
+        }
         throw new IllegalArgumentException("JWT signing key type is unsupported: " + key.getClass().getName());
     }
 
@@ -317,6 +334,10 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         if (key instanceof ECPrivateKey privateKey) {
             requireAlgorithm(algorithm, ecdsaAlgorithm(privateKey.getParams()));
             return new ECDSASigner(privateKey);
+        }
+        if (key instanceof EdECPrivateKey privateKey) {
+            requireAlgorithm(algorithm, JWSAlgorithm.EdDSA);
+            return new JcaEdDsaSigner(privateKey);
         }
         throw new IllegalArgumentException("JWT signing key type is unsupported: " + key.getClass().getName());
     }
@@ -334,6 +355,10 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
             requireAlgorithm(algorithm, ecdsaAlgorithm(publicKey.getParams()));
             return new ECDSAVerifier(publicKey);
         }
+        if (key instanceof EdECPublicKey publicKey) {
+            requireEdDsaAlgorithm(algorithm, publicKey);
+            return new JcaEdDsaVerifier(publicKey);
+        }
         throw new IllegalArgumentException("JWT verification key type is unsupported: " + key.getClass().getName());
     }
 
@@ -347,7 +372,100 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         if (key instanceof ECPublicKey publicKey) {
             return ecdsaAlgorithm(publicKey.getParams()).equals(algorithm);
         }
+        if (key instanceof EdECPublicKey publicKey) {
+            return isEdDsaAlgorithm(publicKey, algorithm);
+        }
         return false;
+    }
+
+    private static Set<JWSAlgorithm> edDsaAlgorithms(EdECKey key) {
+        return switch (edDsaSignatureAlgorithm(key)) {
+            case "Ed25519" -> Set.of(JWSAlgorithm.EdDSA, JWSAlgorithm.Ed25519);
+            case "Ed448" -> Set.of(JWSAlgorithm.EdDSA, JWSAlgorithm.Ed448);
+            default -> throw new IllegalArgumentException("JWT Edwards curve is unsupported");
+        };
+    }
+
+    private static String edDsaSignatureAlgorithm(EdECKey key) {
+        NamedParameterSpec parameters = key.getParams();
+        if (parameters == null) {
+            throw new IllegalArgumentException("JWT Edwards key parameters are missing");
+        }
+        return switch (parameters.getName()) {
+            case "Ed25519", "Ed448" -> parameters.getName();
+            default -> throw new IllegalArgumentException(
+                    "JWT Edwards curve is unsupported: " + parameters.getName()
+            );
+        };
+    }
+
+    private static boolean isEdDsaAlgorithm(EdECKey key, JWSAlgorithm algorithm) {
+        return edDsaAlgorithms(key).contains(algorithm);
+    }
+
+    private static void requireEdDsaAlgorithm(JWSAlgorithm algorithm, EdECKey key) {
+        if (!isEdDsaAlgorithm(key, algorithm)) {
+            throw new IllegalArgumentException("JWT algorithm is not compatible with an Edwards key");
+        }
+    }
+
+    private static Signature createSignature(EdECKey key, JCAContext context)
+            throws GeneralSecurityException {
+        String algorithm = edDsaSignatureAlgorithm(key);
+        Provider provider = context.getProvider();
+        if (provider == null) {
+            return Signature.getInstance(algorithm);
+        }
+        return Signature.getInstance(algorithm, provider);
+    }
+
+    private static final class JcaEdDsaSigner extends BaseJWSProvider implements JWSSigner {
+        private final EdECPrivateKey privateKey;
+
+        private JcaEdDsaSigner(EdECPrivateKey privateKey) {
+            super(edDsaAlgorithms(privateKey));
+            this.privateKey = privateKey;
+        }
+
+        @Override
+        public Base64URL sign(JWSHeader header, byte[] signingInput) throws JOSEException {
+            if (!supportedJWSAlgorithms().contains(header.getAlgorithm())) {
+                throw new JOSEException("JWT algorithm is not supported: " + header.getAlgorithm());
+            }
+            try {
+                Signature signature = createSignature(privateKey, getJCAContext());
+                signature.initSign(privateKey, getJCAContext().getSecureRandom());
+                signature.update(signingInput);
+                return Base64URL.encode(signature.sign());
+            } catch (GeneralSecurityException exception) {
+                throw new JOSEException("Unable to sign EdDSA JWT", exception);
+            }
+        }
+    }
+
+    private static final class JcaEdDsaVerifier extends BaseJWSProvider implements JWSVerifier {
+        private final EdECPublicKey publicKey;
+
+        private JcaEdDsaVerifier(EdECPublicKey publicKey) {
+            super(edDsaAlgorithms(publicKey));
+            this.publicKey = publicKey;
+        }
+
+        @Override
+        public boolean verify(JWSHeader header, byte[] signingInput, Base64URL signatureValue)
+                throws JOSEException {
+            if (!supportedJWSAlgorithms().contains(header.getAlgorithm())) {
+                throw new JOSEException("JWT algorithm is not supported: " + header.getAlgorithm());
+            }
+            try {
+                Signature verifier = createSignature(publicKey, getJCAContext());
+                verifier.initVerify(publicKey);
+                verifier.update(signingInput);
+                return verifier.verify(signatureValue.decode());
+            } catch (GeneralSecurityException exception) {
+                throw new JOSEException("Unable to verify EdDSA JWT", exception);
+            }
+        }
     }
 
     private static JWSAlgorithm hmacAlgorithm(Key key) {

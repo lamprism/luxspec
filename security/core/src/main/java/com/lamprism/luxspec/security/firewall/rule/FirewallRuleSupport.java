@@ -48,9 +48,15 @@ final class FirewallRuleSupport {
     }
 
     static FirewallDecision decide(boolean matched, boolean allowMatch, ErrorCode reasonCode) {
-        if (matched == allowMatch) {
-            return FirewallDecision.pass();
+        if (matched) {
+            if (allowMatch) {
+                return FirewallDecision.allow();
+            }
+            return FirewallDecision.deny(reasonCode);
         }
-        return FirewallDecision.deny(reasonCode);
+        if (allowMatch) {
+            return FirewallDecision.deny(reasonCode);
+        }
+        return FirewallDecision.neutral();
     }
 }

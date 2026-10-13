@@ -42,7 +42,7 @@ class CompositeKeySetProviderTest {
 
         KeySet keySet = new CompositeKeySetProvider(List.of(signingProvider, verificationProvider)).get("access");
 
-        assertEquals("active", keySet.getActiveKey().orElseThrow().getId());
+        assertEquals("active", keySet.getActiveKey().getId());
         assertSame(verificationKey, keySet.findById("remote").orElseThrow().getVerificationKey());
     }
 

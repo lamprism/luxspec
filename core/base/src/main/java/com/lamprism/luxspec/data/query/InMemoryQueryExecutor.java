@@ -16,22 +16,15 @@
 
 package com.lamprism.luxspec.data.query;
 
-import com.lamprism.luxspec.data.pagination.CompleteResult;
-import com.lamprism.luxspec.data.pagination.PageResult;
-import com.lamprism.luxspec.data.pagination.PageWindow;
 import com.lamprism.luxspec.data.pagination.QueryResult;
 import com.lamprism.luxspec.data.pagination.QueryWindow;
-import com.lamprism.luxspec.data.pagination.SliceResult;
-import com.lamprism.luxspec.data.pagination.SliceWindow;
-import com.lamprism.luxspec.data.pagination.TimeSeriesWindow;
-import com.lamprism.luxspec.data.pagination.UnboundedWindow;
+import com.lamprism.luxspec.data.query.inmemory.InMemoryQueryEngine;
 import org.jspecify.annotations.Nullable;
 
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -41,8 +34,7 @@ import java.util.function.Supplier;
  * Executes validated structured queries over a supplied in-memory candidate collection.
  *
  * <p>A supplied candidate filter is evaluated after structured criteria and before ordering,
- * counting, and windowing. This avoids expensive visibility checks for candidates that cannot
- * appear in the result. The candidate supplier is called once per operation.</p>
+ * counting, and windowing. The candidate supplier is called once per operation.</p>
  *
  * <p>The executor does not validate which fields, operators, ordering, or complexity a role
  * permits. The owning reader must validate criteria with its {@link QuerySchema} and
@@ -51,26 +43,16 @@ import java.util.function.Supplier;
  * implementation is intended for bounded application-owned collections rather than persistent or
  * arbitrarily large data sets.</p>
  *
- * <p>A {@link TimeSeriesWindow} uses {@link TimeSeriesPoint#TIMESTAMP} as a required non-null
- * timestamp field. Register that field like any other query field when time-series windows are
- * used. Time-series results are slices with a zero offset and use chronological ordering when
- * criteria do not provide an explicit order.</p>
- *
- * <p>Register every field that accepted criteria may reference:</p>
- *
- * <pre>{@code
- * InMemoryQueryExecutor<Item> executor = InMemoryQueryExecutor.<Item>builder(items::snapshot)
- *         .field(ItemFields.NAME, Item::name)
- *         .field(ItemFields.PRIORITY, Item::priority)
- *         .build();
- * }</pre>
+ * <p>A {@link com.lamprism.luxspec.data.pagination.TimeSeriesWindow} uses
+ * {@link TimeSeriesPoint#TIMESTAMP} as a required non-null timestamp field. Register that field
+ * like any other query field when time-series windows are used.</p>
  *
  * @param <T> the queried candidate type
  * @author RollW
  */
-public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
-    private final Supplier<? extends Collection<? extends T>> candidateSupplier;
-    private final QueryFieldResolver<T> fieldResolver;
+public class InMemoryQueryExecutor<T>
+        implements QueryExecutor<T> {
+    private final InMemoryQueryEngine<T> engine;
 
     /**
      * Starts configuring an in-memory query executor without exposing resolver assembly details.
@@ -98,8 +80,98 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
             Supplier<? extends Collection<? extends T>> candidateSupplier,
             QueryFieldResolver<T> fieldResolver
     ) {
-        this.candidateSupplier = Objects.requireNonNull(candidateSupplier, "candidateSupplier");
-        this.fieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
+        this(candidateSupplier, fieldResolver, (candidate, relation) -> null, Map.of(), Map.of());
+    }
+
+    /**
+     * Creates an executor with explicit relationship and related-field resolution.
+     *
+     * @param candidateSupplier     the in-memory candidate source
+     * @param fieldResolver         the root field resolver
+     * @param relationResolver      the allowed relationship resolver
+     * @param relatedFieldResolvers field resolvers keyed by relationship
+     */
+    public InMemoryQueryExecutor(
+            Supplier<? extends Collection<? extends T>> candidateSupplier,
+            QueryFieldResolver<T> fieldResolver,
+            QueryRelationResolver<T> relationResolver,
+            Map<? extends QueryRelation<?>, ? extends QueryFieldResolver<?>> relatedFieldResolvers
+    ) {
+        this(candidateSupplier, fieldResolver, relationResolver, relatedFieldResolvers, Map.of());
+    }
+
+    /**
+     * Creates an executor with explicit relationship, nested relationship, and related-field
+     * resolution.
+     *
+     * @param candidateSupplier        the in-memory candidate source
+     * @param fieldResolver            the root field resolver
+     * @param relationResolver         the root relationship resolver
+     * @param relatedFieldResolvers    field resolvers keyed by relationship
+     * @param relatedRelationResolvers relationship resolvers keyed by nested relationship
+     */
+    public InMemoryQueryExecutor(
+            Supplier<? extends Collection<? extends T>> candidateSupplier,
+            QueryFieldResolver<T> fieldResolver,
+            QueryRelationResolver<T> relationResolver,
+            Map<? extends QueryRelation<?>, ? extends QueryFieldResolver<?>> relatedFieldResolvers,
+            Map<? extends QueryRelation<?>, ? extends QueryRelationResolver<?>> relatedRelationResolvers
+    ) {
+        this.engine = new InMemoryQueryEngine<>(
+                candidateSupplier,
+                fieldResolver,
+                relationResolver,
+                copy(relatedFieldResolvers),
+                copy(relatedRelationResolvers)
+        );
+    }
+
+    /**
+     * Executes criteria over every candidate supplied for this operation.
+     *
+     * @param criteria the validated filters and ordering
+     * @param window   the requested result window
+     * @return the complete, page, or slice result
+     */
+    @Override
+    public QueryResult<T> query(QueryCriteria criteria, QueryWindow window) {
+        return engine.query(criteria, window);
+    }
+
+    /**
+     * Executes criteria over candidates accepted by an in-memory post-condition filter.
+     *
+     * @param candidateFilter the restriction applied before ordering and windowing
+     * @param criteria        the validated filters and ordering
+     * @param window          the requested result window
+     * @return the complete, page, or slice result
+     */
+    public QueryResult<T> query(
+            Predicate<? super T> candidateFilter,
+            QueryCriteria criteria,
+            QueryWindow window
+    ) {
+        return engine.query(candidateFilter, criteria, window);
+    }
+
+    /**
+     * Executes a projection, aggregate, or time-series plan over the supplied in-memory
+     * candidates.
+     *
+     * @param plan   the validated query plan
+     * @param window the requested result window
+     * @param <R>    the plan result type
+     * @return the plan result
+     */
+    @Override
+    public <R> QueryResult<R> query(QueryPlan<R> plan, QueryWindow window) {
+        return engine.query(plan, window);
+    }
+
+    private static <K, V> Map<K, V> copy(
+            Map<? extends K, ? extends V> values
+    ) {
+        return Map.copyOf(Objects.requireNonNull(values, "values"));
     }
 
     /**
@@ -110,6 +182,9 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
     public static class Builder<T> {
         private final Supplier<? extends Collection<? extends T>> candidateSupplier;
         private final QueryFieldResolver.Builder<T> fieldResolverBuilder = QueryFieldResolver.builder();
+        private final Map<QueryRelation<?>, RelationBinding<T, ?>> relationBindings = new LinkedHashMap<>();
+        private final Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers = new LinkedHashMap<>();
+        private final Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers = new LinkedHashMap<>();
 
         private Builder(
                 Supplier<? extends Collection<? extends T>> candidateSupplier
@@ -130,6 +205,65 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
                 Function<? super T, ? extends @Nullable V> accessor
         ) {
             fieldResolverBuilder.field(field, accessor);
+            return this;
+        }
+
+        /**
+         * Registers an allowed to-many relationship and its related-field resolver.
+         *
+         * @param relation      the relationship identity
+         * @param accessor      the related candidate accessor
+         * @param fieldResolver the related candidate field resolver
+         * @param <R>           the related candidate type
+         * @return this builder
+         */
+        public <R> Builder<T> relationToMany(
+                QueryRelation<R> relation,
+                Function<? super T, ? extends Iterable<? extends R>> accessor,
+                QueryFieldResolver<R> fieldResolver
+        ) {
+            QueryRelation<R> nonNullRelation = requireToMany(relation);
+            RelationBinding<T, R> binding = new RelationBinding<>(
+                    Objects.requireNonNull(accessor, "accessor"),
+                    Objects.requireNonNull(fieldResolver, "fieldResolver")
+            );
+            if (relationBindings.putIfAbsent(nonNullRelation, binding) != null
+                    || relatedRelationResolvers.containsKey(nonNullRelation)) {
+                relationBindings.remove(nonNullRelation, binding);
+                throw duplicateRelation(nonNullRelation);
+            }
+            return this;
+        }
+
+        /**
+         * Registers a relationship resolver for a relation inside another relation scope.
+         *
+         * <p>The resolver uses the source candidate type of that nested scope. Registering nested
+         * relations through the same builder keeps field and relationship resolution in one
+         * configuration, while the public resolver contract remains the existing
+         * {@link QueryRelationResolver} interface.</p>
+         *
+         * @param relation      the relationship identity
+         * @param resolver      the source-candidate relationship resolver
+         * @param fieldResolver the related candidate field resolver
+         * @param <S>           the source candidate type
+         * @param <R>           the related candidate type
+         * @return this builder
+         */
+        public <S, R> Builder<T> relationToMany(
+                QueryRelation<R> relation,
+                QueryRelationResolver<S> resolver,
+                QueryFieldResolver<R> fieldResolver
+        ) {
+            QueryRelation<R> nonNullRelation = requireToMany(relation);
+            QueryRelationResolver<S> nonNullResolver = Objects.requireNonNull(resolver, "resolver");
+            QueryFieldResolver<R> nonNullFieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
+            if (relationBindings.containsKey(nonNullRelation)
+                    || relatedRelationResolvers.containsKey(nonNullRelation)) {
+                throw duplicateRelation(nonNullRelation);
+            }
+            relatedRelationResolvers.put(nonNullRelation, nonNullResolver);
+            relatedFieldResolvers.put(nonNullRelation, nonNullFieldResolver);
             return this;
         }
 
@@ -157,331 +291,45 @@ public class InMemoryQueryExecutor<T> implements QueryExecutor<T> {
          * @return a new in-memory query executor
          */
         public InMemoryQueryExecutor<T> build() {
-            return new InMemoryQueryExecutor<>(candidateSupplier, fieldResolverBuilder.build());
-        }
-    }
-
-    /**
-     * Executes criteria over every candidate supplied for this operation.
-     *
-     * @param criteria the validated filters and ordering
-     * @param window   the requested result window
-     * @return the complete, page, or slice result
-     */
-    @Override
-    public QueryResult<T> query(
-            QueryCriteria criteria,
-            QueryWindow window
-    ) {
-        return query(candidate -> true, criteria, window);
-    }
-
-    /**
-     * Executes criteria over candidates accepted by an in-memory post-condition filter.
-     *
-     * @param candidateFilter the restriction applied before ordering and windowing
-     * @param criteria        the validated filters and ordering
-     * @param window          the requested result window
-     * @return the complete, page, or slice result
-     */
-    public QueryResult<T> query(
-            Predicate<? super T> candidateFilter,
-            QueryCriteria criteria,
-            QueryWindow window
-    ) {
-        Predicate<? super T> nonNullCandidateFilter = Objects.requireNonNull(candidateFilter, "candidateFilter");
-        QueryCriteria nonNullCriteria = Objects.requireNonNull(criteria, "criteria");
-        QueryWindow nonNullWindow = Objects.requireNonNull(window, "window");
-        Collection<? extends T> nonNullCandidates = candidates();
-        return query(
-                nonNullCandidates,
-                nonNullCandidateFilter,
-                nonNullCriteria,
-                nonNullWindow
-        );
-    }
-
-    private QueryResult<T> query(
-            Collection<? extends T> candidates,
-            Predicate<? super T> candidateFilter,
-            QueryCriteria criteria,
-            QueryWindow window
-    ) {
-        QueryCriteria effectiveCriteria = effectiveCriteria(criteria, window);
-        Predicate<? super T> windowedCandidateFilter = candidateFilterForWindow(candidateFilter, window);
-        List<T> matchingCandidates = matchingCandidates(
-                candidates,
-                windowedCandidateFilter,
-                effectiveCriteria.getCondition()
-        );
-        order(matchingCandidates, effectiveCriteria.getOrders());
-        return window(matchingCandidates, window);
-    }
-
-    private static QueryCriteria effectiveCriteria(QueryCriteria criteria, QueryWindow window) {
-        if (!(window instanceof TimeSeriesWindow) || !criteria.getOrders().isEmpty()) {
-            return criteria;
-        }
-        return new QueryCriteria(
-                criteria.getCondition(),
-                List.of(OrderBy.ascending(TimeSeriesPoint.TIMESTAMP))
-        );
-    }
-
-    private Predicate<? super T> candidateFilterForWindow(
-            Predicate<? super T> candidateFilter,
-            QueryWindow window
-    ) {
-        if (!(window instanceof TimeSeriesWindow timeSeriesWindow)) {
-            return candidateFilter;
-        }
-        return candidate -> {
-            if (!candidateFilter.test(candidate)) {
-                return false;
+            Map<QueryRelation<?>, QueryFieldResolver<?>> resolvers = new LinkedHashMap<>(relatedFieldResolvers);
+            for (Map.Entry<QueryRelation<?>, RelationBinding<T, ?>> entry : relationBindings.entrySet()) {
+                resolvers.put(entry.getKey(), entry.getValue().fieldResolver());
             }
-            Instant timestamp = timestamp(candidate);
-            return timeSeriesWindow.contains(timestamp);
-        };
-    }
-
-    private Instant timestamp(T candidate) {
-        T nonNullCandidate = Objects.requireNonNull(candidate, "candidate");
-        Instant timestamp = fieldResolver.resolve(nonNullCandidate, TimeSeriesPoint.TIMESTAMP);
-        if (timestamp == null) {
-            throw new IllegalStateException("Time-series timestamp field must not resolve to null");
-        }
-        return timestamp;
-    }
-
-    private Collection<? extends T> candidates() {
-        return Objects.requireNonNull(candidateSupplier.get(), "candidateSupplier result");
-    }
-
-    private List<T> matchingCandidates(
-            Collection<? extends T> candidates,
-            Predicate<? super T> candidateFilter,
-            QueryExpression condition
-    ) {
-        List<T> matches = new ArrayList<>();
-        for (T candidate : candidates) {
-            T nonNullCandidate = Objects.requireNonNull(candidate, "candidate");
-            if (matches(nonNullCandidate, condition) && candidateFilter.test(nonNullCandidate)) {
-                matches.add(nonNullCandidate);
-            }
-        }
-        return matches;
-    }
-
-    private boolean matches(T candidate, QueryExpression condition) {
-        return new CandidateMatcher<>(fieldResolver, candidate).matches(condition);
-    }
-
-    private void order(List<T> candidates, List<OrderBy<?>> orders) {
-        Comparator<T> comparator = null;
-        for (OrderBy<?> order : orders) {
-            Comparator<T> nextComparator = comparator(order);
-            if (comparator == null) {
-                comparator = nextComparator;
-            } else {
-                comparator = comparator.thenComparing(nextComparator);
-            }
-        }
-        if (comparator != null) {
-            candidates.sort(comparator);
-        }
-    }
-
-    private <V> Comparator<T> comparator(OrderBy<V> order) {
-        OrderBy<V> nonNullOrder = Objects.requireNonNull(order, "order");
-        if (nonNullOrder.getDirection() == OrderBy.Direction.ASCENDING) {
-            return (left, right) -> fieldResolver.compare(left, right, nonNullOrder.getField());
-        }
-        return (left, right) -> fieldResolver.compare(right, left, nonNullOrder.getField());
-    }
-
-    private QueryResult<T> window(List<T> candidates, QueryWindow window) {
-        if (window instanceof UnboundedWindow) {
-            return new CompleteResult<>(candidates);
-        }
-        if (window instanceof PageWindow pageWindow) {
-            return page(candidates, pageWindow);
-        }
-        if (window instanceof SliceWindow sliceWindow) {
-            return slice(candidates, sliceWindow);
-        }
-        if (window instanceof TimeSeriesWindow timeSeriesWindow) {
-            return timeSeries(candidates, timeSeriesWindow);
-        }
-        throw new IllegalArgumentException("Unsupported query window: " + window.getClass().getName());
-    }
-
-    private PageResult<T> page(List<T> candidates, PageWindow window) {
-        int start = startIndex(candidates.size(), window.offset());
-        int end = endIndex(start, window.limit(), candidates.size());
-        return new PageResult<>(
-                candidates.subList(start, end),
-                window.offset(),
-                window.limit(),
-                candidates.size()
-        );
-    }
-
-    private SliceResult<T> slice(List<T> candidates, SliceWindow window) {
-        int start = startIndex(candidates.size(), window.offset());
-        int end = endIndex(start, window.limit(), candidates.size());
-        return new SliceResult<>(
-                candidates.subList(start, end),
-                window.offset(),
-                window.limit(),
-                end < candidates.size()
-        );
-    }
-
-    private SliceResult<T> timeSeries(List<T> candidates, TimeSeriesWindow window) {
-        int end = Math.min(candidates.size(), window.maximumPoints());
-        return new SliceResult<>(
-                candidates.subList(0, end),
-                0L,
-                window.maximumPoints(),
-                end < candidates.size()
-        );
-    }
-
-    private static int startIndex(int size, long offset) {
-        if (offset >= size) {
-            return size;
-        }
-        return (int) offset;
-    }
-
-    private static int endIndex(int start, int limit, int size) {
-        long requestedEnd = (long) start + limit;
-        return (int) Math.min(requestedEnd, size);
-    }
-
-    private static boolean matchesLike(String value, String pattern) {
-        int valueIndex = 0;
-        int patternIndex = 0;
-        int wildcardIndex = -1;
-        int wildcardValueIndex = -1;
-        while (valueIndex < value.length()) {
-            if (patternIndex < pattern.length()) {
-                char patternCharacter = pattern.charAt(patternIndex);
-                if (patternCharacter == LikeCondition.ESCAPE_CHARACTER) {
-                    if (value.charAt(valueIndex) == pattern.charAt(patternIndex + 1)) {
-                        valueIndex++;
-                        patternIndex += 2;
-                        continue;
-                    }
-                } else if (patternCharacter == '_') {
-                    valueIndex++;
-                    patternIndex++;
-                    continue;
-                } else if (patternCharacter == '%') {
-                    wildcardIndex = patternIndex;
-                    wildcardValueIndex = valueIndex;
-                    patternIndex++;
-                    continue;
-                } else if (value.charAt(valueIndex) == patternCharacter) {
-                    valueIndex++;
-                    patternIndex++;
-                    continue;
+            QueryRelationResolver<T> relationResolver = (candidate, relation) -> {
+                RelationBinding<T, ?> binding = relationBindings.get(relation);
+                if (binding == null) {
+                    throw new IllegalArgumentException("Query relation is not resolved: " + relation.getName());
                 }
-            }
-            if (wildcardIndex < 0) {
-                return false;
-            }
-            wildcardValueIndex++;
-            valueIndex = wildcardValueIndex;
-            patternIndex = wildcardIndex + 1;
-        }
-        while (patternIndex < pattern.length() && pattern.charAt(patternIndex) == '%') {
-            patternIndex++;
-        }
-        return patternIndex == pattern.length();
-    }
-
-    private static final class CandidateMatcher<T> implements QueryExpressionVisitor<Boolean> {
-        private final QueryFieldResolver<T> fieldResolver;
-        private final T candidate;
-
-        private CandidateMatcher(QueryFieldResolver<T> fieldResolver, T candidate) {
-            this.fieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
-            this.candidate = Objects.requireNonNull(candidate, "candidate");
-        }
-
-        private boolean matches(QueryExpression expression) {
-            return Objects.requireNonNull(expression, "expression").accept(this);
-        }
-
-        @Override
-        public Boolean visitMatchAll() {
-            return true;
-        }
-
-        @Override
-        public <V> Boolean visitCondition(QueryCondition<V> condition) {
-            V candidateValue = fieldResolver.resolve(candidate, condition.getField());
-            return switch (condition.getOperator()) {
-                case EQUAL -> Objects.equals(candidateValue, condition.getValues().get(0));
-                case NOT_EQUAL -> !Objects.equals(candidateValue, condition.getValues().get(0));
-                case IN -> condition.getValues().contains(candidateValue);
-                case NOT_IN -> !condition.getValues().contains(candidateValue);
-                default -> throw new IllegalArgumentException("Unsupported simple query operator");
+                return binding.resolve(candidate);
             };
+            return new InMemoryQueryExecutor<>(
+                    candidateSupplier,
+                    fieldResolverBuilder.build(),
+                    relationResolver,
+                    resolvers,
+                    relatedRelationResolvers
+            );
         }
 
-        @Override
-        public <V extends Comparable<? super V>> Boolean visitComparison(ComparisonCondition<V> condition) {
-            V candidateValue = fieldResolver.resolve(candidate, condition.getField());
-            if (candidateValue == null) {
-                return false;
+        private static <R> QueryRelation<R> requireToMany(QueryRelation<R> relation) {
+            QueryRelation<R> nonNullRelation = Objects.requireNonNull(relation, "relation");
+            if (nonNullRelation.getCardinality() != QueryRelation.Cardinality.TO_MANY) {
+                throw new IllegalArgumentException("relationToMany requires a to-many relation");
             }
-            int comparison = candidateValue.compareTo(condition.getValue());
-            return switch (condition.getOperator()) {
-                case GREATER_THAN -> comparison > 0;
-                case GREATER_THAN_OR_EQUAL -> comparison >= 0;
-                case LESS_THAN -> comparison < 0;
-                case LESS_THAN_OR_EQUAL -> comparison <= 0;
-                default -> throw new IllegalArgumentException("Unsupported ordered query operator");
-            };
+            return nonNullRelation;
         }
 
-        @Override
-        public Boolean visitLike(LikeCondition condition) {
-            String candidateValue = fieldResolver.resolve(candidate, condition.getField());
-            return candidateValue != null && matchesLike(candidateValue, condition.getPattern());
+        private static IllegalArgumentException duplicateRelation(QueryRelation<?> relation) {
+            return new IllegalArgumentException("Query relation is already resolved: " + relation.getName());
         }
+    }
 
-        @Override
-        public Boolean visitLogical(LogicalCondition condition) {
-            if (condition.getOperator() == LogicalOperator.AND) {
-                return matchesAll(condition.getExpressions());
-            }
-            return matchesAny(condition.getExpressions());
-        }
-
-        @Override
-        public Boolean visitNegated(NegatedQueryExpression condition) {
-            return !matches(condition.getExpression());
-        }
-
-        private boolean matchesAll(List<QueryExpression> expressions) {
-            for (QueryExpression expression : expressions) {
-                if (!matches(expression)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private boolean matchesAny(List<QueryExpression> expressions) {
-            for (QueryExpression expression : expressions) {
-                if (matches(expression)) {
-                    return true;
-                }
-            }
-            return false;
+    private record RelationBinding<T, R>(
+            Function<? super T, ? extends Iterable<? extends R>> accessor,
+            QueryFieldResolver<R> fieldResolver
+    ) {
+        private Iterable<? extends R> resolve(T candidate) {
+            return accessor.apply(Objects.requireNonNull(candidate, "candidate"));
         }
     }
 }

@@ -21,6 +21,7 @@ import com.lamprism.luxspec.LuxspecException;
 import com.lamprism.luxspec.message.MessageResolver;
 import com.lamprism.luxspec.web.DefaultErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.HttpResponse;
+import com.lamprism.luxspec.web.query.QueryBindingException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -71,5 +72,20 @@ class LuxspecExceptionHandlerTest {
         );
 
         assertEquals("The request is invalid.", response.getBody().status().message());
+    }
+
+    @Test
+    void mapsQueryBindingFailuresAtTheWebBoundary() {
+        LuxspecExceptionHandler handler = new LuxspecExceptionHandler(
+                new DefaultErrorHttpStatusResolver(List.of())
+        );
+
+        ResponseEntity<HttpResponse<Void>> response = handler.handleQueryBinding(
+                new QueryBindingException("limit", "limit is invalid"),
+                Locale.US
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("common:invalid-argument", response.getBody().status().code());
     }
 }

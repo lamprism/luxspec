@@ -23,12 +23,15 @@ import com.lamprism.luxspec.security.crypto.PublicKeyDeriver;
 import com.lamprism.luxspec.security.crypto.config.ConfigKeySetProvider;
 import com.lamprism.luxspec.security.jwt.ConfigJwtAccessTokenSettingsSource;
 import com.lamprism.luxspec.security.jwt.JwtAccessTokenAdapter;
+import com.lamprism.luxspec.security.jwt.spring.JwtJwksController;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.context.annotation.Bean;
 
 import java.time.Clock;
@@ -96,5 +99,21 @@ public class LuxspecJwtAutoConfiguration {
                 clock,
                 settingsSource.getConfiguration()
         );
+    }
+
+    /**
+     * Creates the opt-in configurable public JWKS endpoint.
+     *
+     * @param reader         the configured JWT settings reader
+     * @param keySetProvider the current key-set provider
+     * @return the public JWKS controller
+     */
+    @Bean
+    @ConditionalOnWebApplication(type = Type.SERVLET)
+    @ConditionalOnProperty(prefix = "luxspec.security.jwt.jwks", name = "enabled", havingValue = "true")
+    @ConditionalOnBean({ConfigReader.class, KeySetProvider.class})
+    @ConditionalOnMissingBean(JwtJwksController.class)
+    public JwtJwksController jwtJwksController(ConfigReader reader, KeySetProvider keySetProvider) {
+        return new JwtJwksController(reader, keySetProvider);
     }
 }

@@ -20,6 +20,7 @@ import com.lamprism.luxspec.console.help.HelpDocument;
 import com.lamprism.luxspec.console.session.PromptResult;
 import com.lamprism.luxspec.console.session.PromptSpec;
 
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
 import java.io.PrintWriter;
@@ -59,10 +60,10 @@ class CommandApplicationTest {
                 .options(List.of(message, verbose))
                 .argument(target)
                 .build();
-        RecordingHandler handler = new RecordingHandler(message, verbose, target);
+        RecordingRunner runner = new RecordingRunner(message, verbose, target);
         CommandApplication application = CommandApplication.builder("demo")
                 .version("1.2.3")
-                .command(echo, handler)
+                .command(echo, runner)
                 .build();
 
         TestSession tokenSession = new TestSession();
@@ -70,18 +71,18 @@ class CommandApplicationTest {
                 List.of("tools", "say", "--message", "hello", "--verbose"), tokenSession
         );
         assertEquals(0, tokenResult.getExitCode());
-        assertEquals("hello", handler.message());
-        assertTrue(handler.verbose());
-        assertEquals("console", handler.target());
+        assertEquals("hello", runner.message());
+        assertTrue(runner.verbose());
+        assertEquals("console", runner.target());
 
         TestSession lineSession = new TestSession();
         CommandResult lineResult = application.executeLine(
                 "tools echo --message \"hello world\"", lineSession
         );
         assertEquals(0, lineResult.getExitCode());
-        assertEquals("hello world", handler.message());
-        assertFalse(handler.verbose());
-        assertEquals("console", handler.target());
+        assertEquals("hello world", runner.message());
+        assertFalse(runner.verbose());
+        assertEquals("console", runner.target());
     }
 
     @Test
@@ -102,11 +103,11 @@ class CommandApplicationTest {
         CommandSpec command = CommandSpec.builder("echo")
                 .options(List.of(message, verbose))
                 .build();
-        CapturingInvocationHandler handler = new CapturingInvocationHandler();
+        CapturingInvocationRunner runner = new CapturingInvocationRunner();
         CommandApplication application = CommandApplication.builder("demo")
                 .rootOption(config)
                 .rootOption(quiet)
-                .command(command, handler)
+                .command(command, runner)
                 .build();
 
         TestSession session = new TestSession();
@@ -115,10 +116,10 @@ class CommandApplicationTest {
         );
 
         assertEquals(0, result.getExitCode());
-        assertEquals(List.of("app.properties"), handler.optionValues(config));
-        assertEquals(List.of(Boolean.TRUE), handler.optionValues(quiet));
-        assertEquals(List.of("hello"), handler.optionValues(message));
-        assertEquals(List.of(Boolean.FALSE), handler.optionValues(verbose));
+        assertEquals(List.of("app.properties"), runner.optionValues(config));
+        assertEquals(List.of(Boolean.TRUE), runner.optionValues(quiet));
+        assertEquals(List.of("hello"), runner.optionValues(message));
+        assertEquals(List.of(Boolean.FALSE), runner.optionValues(verbose));
     }
 
     @Test
@@ -265,7 +266,7 @@ class CommandApplicationTest {
                 standard.prompt(PromptSpec.confirm("Continue", false)).getStatus());
     }
 
-    private static final class RecordingHandler implements CommandHandler {
+    private static final class RecordingRunner implements CommandRunner {
         private final OptionSpec<String> message;
         private final OptionSpec<Boolean> verbose;
         private final ArgumentSpec<String> target;
@@ -273,7 +274,7 @@ class CommandApplicationTest {
         private boolean verboseValue;
         private String targetValue;
 
-        private RecordingHandler(OptionSpec<String> message,
+        private RecordingRunner(OptionSpec<String> message,
                                  OptionSpec<Boolean> verbose,
                                  ArgumentSpec<String> target) {
             this.message = message;
@@ -282,7 +283,7 @@ class CommandApplicationTest {
         }
 
         @Override
-        public CommandResult execute(CommandContext context) {
+        public CommandResult execute(@NonNull CommandContext context) {
             messageValue = context.getInvocation().getOptionValue(message).orElseThrow();
             verboseValue = context.getInvocation().getOptionValue(verbose).orElseThrow();
             targetValue = context.getInvocation().getArgumentValue(target).orElseThrow();
@@ -302,11 +303,11 @@ class CommandApplicationTest {
         }
     }
 
-    private static final class CapturingInvocationHandler implements CommandHandler {
+    private static final class CapturingInvocationRunner implements CommandRunner {
         private CommandInvocation invocation;
 
         @Override
-        public CommandResult execute(CommandContext context) {
+        public CommandResult execute(@NonNull CommandContext context) {
             invocation = context.getInvocation();
             return CommandResult.success();
         }

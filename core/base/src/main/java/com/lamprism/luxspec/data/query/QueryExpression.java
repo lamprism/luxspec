@@ -24,8 +24,8 @@ import java.util.Objects;
  *
  * @author RollW
  */
-public sealed interface QueryExpression permits QueryCondition, ComparisonCondition, LikeCondition,
-        LogicalCondition, NegatedQueryExpression, MatchAllQueryExpression {
+public sealed interface QueryExpression permits QueryCondition, QueryValueCondition, ComparisonCondition,
+        LikeCondition, LogicalCondition, NegatedQueryExpression, MatchAllQueryExpression, ExistsCondition {
     /**
      * Returns an expression that accepts every candidate.
      *
@@ -63,6 +63,33 @@ public sealed interface QueryExpression permits QueryCondition, ComparisonCondit
      */
     static LogicalCondition or(List<? extends QueryExpression> expressions) {
         return LogicalCondition.or(expressions);
+    }
+
+    /**
+     * Reports whether this expression contains an aggregate value.
+     *
+     * @param expression the expression to inspect
+     * @return true when the expression contains an aggregate
+     */
+    static boolean containsAggregate(QueryExpression expression) {
+        QueryExpression nonNullExpression = Objects.requireNonNull(expression, "expression");
+        if (nonNullExpression instanceof QueryValueCondition<?> condition) {
+            return QueryValue.containsAggregate(condition.getValue());
+        }
+        if (nonNullExpression instanceof LogicalCondition condition) {
+            for (QueryExpression child : condition.getExpressions()) {
+                if (containsAggregate(child)) {
+                    return true;
+                }
+            }
+        }
+        if (nonNullExpression instanceof NegatedQueryExpression condition) {
+            return containsAggregate(condition.getExpression());
+        }
+        if (nonNullExpression instanceof ExistsCondition<?> condition) {
+            return containsAggregate(condition.getCondition());
+        }
+        return false;
     }
 
     /**

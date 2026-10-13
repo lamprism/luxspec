@@ -53,7 +53,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * @author RollW
  */
-final class DefaultObservationRegistry implements ObservationRegistry, ObservationRegistryEventSource {
+final class DefaultObservationRegistry implements ObservationRegistry {
     private static final ContextKey<Observation> CURRENT_OBSERVATION = ContextKey.of(
             "luxspec.observability.observation",
             Observation.class

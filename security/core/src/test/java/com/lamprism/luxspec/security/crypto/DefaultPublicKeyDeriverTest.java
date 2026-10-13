@@ -60,6 +60,25 @@ class DefaultPublicKeyDeriverTest {
         assertThrows(PublicKeyDerivationException.class, () -> deriver.derivePublicKey(privateKey));
     }
 
+    @Test
+    void rejectsADeclaredAlgorithmThatDoesNotMatchTheEncodedKey() throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        KeyPair keyPair = generator.generateKeyPair();
+        PrivateKey mismatchedKey = new DelegatingPrivateKey("EC", keyPair.getPrivate());
+
+        assertThrows(PublicKeyDerivationException.class, () -> deriver.derivePublicKey(mismatchedKey));
+    }
+
+    @Test
+    void acceptsTheGenericEdDsaAlgorithmAlias() throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519");
+        KeyPair keyPair = generator.generateKeyPair();
+        PrivateKey aliasedKey = new DelegatingPrivateKey("EdDSA", keyPair.getPrivate());
+
+        assertEquals(keyPair.getPublic(), deriver.derivePublicKey(aliasedKey));
+    }
+
     private void assertDerivedKeyMatches(String algorithm, Integer keySize) throws GeneralSecurityException {
         KeyPairGenerator generator = KeyPairGenerator.getInstance(algorithm);
         if (keySize != null) {
@@ -68,5 +87,30 @@ class DefaultPublicKeyDeriverTest {
         KeyPair keyPair = generator.generateKeyPair();
 
         assertEquals(keyPair.getPublic(), deriver.derivePublicKey(keyPair.getPrivate()));
+    }
+
+    private static final class DelegatingPrivateKey implements PrivateKey {
+        private final String algorithm;
+        private final PrivateKey delegate;
+
+        private DelegatingPrivateKey(String algorithm, PrivateKey delegate) {
+            this.algorithm = algorithm;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getAlgorithm() {
+            return algorithm;
+        }
+
+        @Override
+        public String getFormat() {
+            return delegate.getFormat();
+        }
+
+        @Override
+        public byte[] getEncoded() {
+            return delegate.getEncoded();
+        }
     }
 }

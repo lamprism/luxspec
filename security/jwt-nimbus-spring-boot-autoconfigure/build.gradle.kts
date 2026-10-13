@@ -22,6 +22,8 @@ description = "Spring Boot auto-configuration for the Luxspec Nimbus JWT adapter
 
 dependencies {
     api(project(":security:security-jwt-nimbus"))
+    implementation("org.springframework:spring-web")
+    implementation("org.springframework:spring-webmvc")
     testImplementation("org.springframework.boot:spring-boot-test")
     testImplementation("org.assertj:assertj-core")
 }

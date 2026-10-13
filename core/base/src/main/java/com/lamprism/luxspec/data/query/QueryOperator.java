@@ -57,5 +57,13 @@ public enum QueryOperator {
     /**
      * Matches no value in a supplied collection.
      */
-    NOT_IN
+    NOT_IN,
+    /**
+     * Matches a field whose value is null.
+     */
+    IS_NULL,
+    /**
+     * Matches a field whose value is not null.
+     */
+    IS_NOT_NULL
 }

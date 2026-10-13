@@ -16,22 +16,30 @@
 
 package com.lamprism.luxspec.resource;
 
-import com.lamprism.luxspec.ErrorCode;
-import com.lamprism.luxspec.LuxspecException;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Indicates a provider-independent resource failure.
  *
  * @author RollW
  */
-public class ResourceException extends LuxspecException {
+public class ResourceException extends RuntimeException {
     /**
-     * Creates a resource failure with a stable provider-independent error code.
+     * Creates a resource failure without an application-facing error code.
      *
-     * @param errorCode the stable resource error code
-     * @param message   the safe failure description
+     * @param message the safe failure description
      */
-    public ResourceException(ErrorCode errorCode, String message) {
-        super(errorCode, message);
+    public ResourceException(String message) {
+        super(message);
+    }
+
+    /**
+     * Creates a resource failure with an optional underlying cause.
+     *
+     * @param message the safe failure description
+     * @param cause   the optional underlying failure
+     */
+    public ResourceException(String message, @Nullable Throwable cause) {
+        super(message, cause);
     }
 }

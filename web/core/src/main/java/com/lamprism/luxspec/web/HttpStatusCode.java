@@ -47,6 +47,21 @@ public record HttpStatusCode(int value) {
     public static final HttpStatusCode NOT_FOUND = new HttpStatusCode(404);
 
     /**
+     * HTTP 405 Method Not Allowed.
+     */
+    public static final HttpStatusCode METHOD_NOT_ALLOWED = new HttpStatusCode(405);
+
+    /**
+     * HTTP 406 Not Acceptable.
+     */
+    public static final HttpStatusCode NOT_ACCEPTABLE = new HttpStatusCode(406);
+
+    /**
+     * HTTP 415 Unsupported Media Type.
+     */
+    public static final HttpStatusCode UNSUPPORTED_MEDIA_TYPE = new HttpStatusCode(415);
+
+    /**
      * HTTP 500 Internal Server Error.
      */
     public static final HttpStatusCode INTERNAL_SERVER_ERROR = new HttpStatusCode(500);

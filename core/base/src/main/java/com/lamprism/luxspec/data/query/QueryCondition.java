@@ -63,6 +63,28 @@ public final class QueryCondition<T> implements QueryExpression {
     }
 
     /**
+     * Creates a null-value condition.
+     *
+     * @param field the typed domain field
+     * @param <T>   the field value type
+     * @return the immutable null-value condition
+     */
+    public static <T> QueryCondition<T> isNull(QueryField<T> field) {
+        return noValue(field, QueryOperator.IS_NULL);
+    }
+
+    /**
+     * Creates a non-null-value condition.
+     *
+     * @param field the typed domain field
+     * @param <T>   the field value type
+     * @return the immutable non-null-value condition
+     */
+    public static <T> QueryCondition<T> isNotNull(QueryField<T> field) {
+        return noValue(field, QueryOperator.IS_NOT_NULL);
+    }
+
+    /**
      * Creates a membership condition.
      *
      * @param field  the typed domain field
@@ -105,7 +127,8 @@ public final class QueryCondition<T> implements QueryExpression {
     }
 
     /**
-     * Returns immutable values with the same type as the field.
+     * Returns immutable values with the same type as the field. Null-value conditions have no
+     * values.
      *
      * @return the comparison values
      */
@@ -123,6 +146,14 @@ public final class QueryCondition<T> implements QueryExpression {
         requireSimpleOperator(operator);
         nonNullField.requireValue(value);
         return new QueryCondition<>(nonNullField, operator, List.of(value));
+    }
+
+    private static <T> QueryCondition<T> noValue(QueryField<T> field, QueryOperator operator) {
+        QueryField<T> nonNullField = Objects.requireNonNull(field, "field");
+        if (operator != QueryOperator.IS_NULL && operator != QueryOperator.IS_NOT_NULL) {
+            throw new IllegalArgumentException("Operator does not accept an empty value list");
+        }
+        return new QueryCondition<>(nonNullField, operator, List.of());
     }
 
     private static <T> QueryCondition<T> multipleValues(

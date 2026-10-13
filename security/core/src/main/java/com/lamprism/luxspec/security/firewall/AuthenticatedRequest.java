@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.security.firewall;
 
 import com.lamprism.luxspec.security.authentication.Authentication;
+import com.lamprism.luxspec.security.authentication.Subject;
 
 import java.util.Objects;
 
@@ -57,6 +58,11 @@ public final class AuthenticatedRequest implements FirewallRequest {
      */
     public Authentication getAuthentication() {
         return authentication;
+    }
+
+    @Override
+    public Subject getSubject() {
+        return authentication.subject();
     }
 
     @Override

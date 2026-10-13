@@ -139,7 +139,7 @@ public final class CommandApplication {
         } else if (outcome instanceof CommandParser.ParseFailure parseFailure) {
             result = completeFailure(parseFailure.failure(), session);
         } else if (outcome instanceof CommandParser.InvocationRequest invocationRequest) {
-            result = executeHandler(invocationRequest, session);
+            result = executeRunner(invocationRequest, session);
         } else {
             result = completeFailure(CommandFailure.internal(
                     "Unsupported parser outcome", CommandPath.root(), null
@@ -203,13 +203,13 @@ public final class CommandApplication {
         return executeLine(line, CommandSession.standard());
     }
 
-    private CommandResult executeHandler(CommandParser.InvocationRequest request,
+    private CommandResult executeRunner(CommandParser.InvocationRequest request,
                                          CommandSession session) {
         try {
-            CommandResult result = request.handler().execute(new CommandContext(request.invocation(), session));
+            CommandResult result = request.runner().execute(new CommandContext(request.invocation(), session));
             if (result == null) {
                 return completeFailure(CommandFailure.internal(
-                        "Command handler returned null", request.invocation().getPath(), null
+                        "Command runner returned null", request.invocation().getPath(), null
                 ), session);
             }
             if (result.getFailure() != null) {
@@ -404,11 +404,11 @@ public final class CommandApplication {
          * Adds an executable command registration.
          *
          * @param specification executable command specification
-         * @param handler       command handler
+         * @param runner        command runner
          * @return this builder
          */
-        public Builder command(CommandSpec specification, CommandHandler handler) {
-            registrations.add(new CommandRegistration(specification, handler));
+        public Builder command(CommandSpec specification, CommandRunner runner) {
+            registrations.add(new CommandRegistration(specification, runner));
             return this;
         }
 

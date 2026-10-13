@@ -74,7 +74,7 @@ public final class LikeCondition implements QueryExpression {
         return Objects.requireNonNull(visitor, "visitor").visitLike(this);
     }
 
-    private static void requireValidPattern(String pattern) {
+    static void requireValidPattern(String pattern) {
         boolean escaped = false;
         for (int index = 0; index < pattern.length(); index++) {
             char character = pattern.charAt(index);

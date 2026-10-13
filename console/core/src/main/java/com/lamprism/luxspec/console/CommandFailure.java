@@ -86,7 +86,7 @@ public final class CommandFailure {
      * Creates an execution failure.
      *
      * @param message     failure message
-     * @param commandPath command path whose handler failed
+     * @param commandPath command path whose runner failed
      * @param cause       optional underlying cause
      * @return an execution failure
      */

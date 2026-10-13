@@ -22,4 +22,5 @@ description = "Default Luxspec observability runtime."
 
 dependencies {
     api(project(":observability:observability-core"))
+    testImplementation("com.h2database:h2")
 }

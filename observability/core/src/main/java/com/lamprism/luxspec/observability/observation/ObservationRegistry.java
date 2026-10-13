@@ -24,6 +24,14 @@ package com.lamprism.luxspec.observability.observation;
 public interface ObservationRegistry extends ObservationCatalog, AutoCloseable {
     void register(ObservationSpec spec);
 
+    /**
+     * Adds one lifecycle handler.
+     *
+     * @param handler the lifecycle handler
+     * @return a handle that removes the handler
+     */
+    AutoCloseable addHandler(ObservationHandler handler);
+
     Observation start(ObservationSpec spec);
 
     Observation start(ObservationStart start);

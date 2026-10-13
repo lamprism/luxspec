@@ -35,5 +35,6 @@ dependencies {
         api("com.github.luben:zstd-jni:1.5.7-12")
         api("org.bouncycastle:bcprov-jdk18on:1.85")
         api("com.nimbusds:nimbus-jose-jwt:10.9.1")
+        api("com.github.seancfoley:ipaddress:5.5.1")
     }
 }

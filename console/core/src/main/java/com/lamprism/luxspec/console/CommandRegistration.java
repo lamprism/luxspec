@@ -25,17 +25,17 @@ import java.util.Objects;
  */
 public final class CommandRegistration {
     private final CommandSpec specification;
-    private final CommandHandler handler;
+    private final CommandRunner runner;
 
     /**
      * Creates a command registration.
      *
      * @param specification command specification
-     * @param handler       executable command handler
+     * @param runner        executable command runner
      */
-    public CommandRegistration(CommandSpec specification, CommandHandler handler) {
+    public CommandRegistration(CommandSpec specification, CommandRunner runner) {
         this.specification = Objects.requireNonNull(specification, "specification");
-        this.handler = Objects.requireNonNull(handler, "handler");
+        this.runner = Objects.requireNonNull(runner, "runner");
     }
 
     /**
@@ -46,20 +46,20 @@ public final class CommandRegistration {
     }
 
     /**
-     * @return the executable command handler
+     * @return the executable command runner
      */
-    public CommandHandler getHandler() {
-        return handler;
+    public CommandRunner getRunner() {
+        return runner;
     }
 
     /**
      * Creates a command registration.
      *
      * @param specification command specification
-     * @param handler       executable command handler
+     * @param runner        executable command runner
      * @return a command registration
      */
-    public static CommandRegistration of(CommandSpec specification, CommandHandler handler) {
-        return new CommandRegistration(specification, handler);
+    public static CommandRegistration of(CommandSpec specification, CommandRunner runner) {
+        return new CommandRegistration(specification, runner);
     }
 }

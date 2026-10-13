@@ -17,9 +17,9 @@
 package com.lamprism.luxspec.security.firewall.rule;
 
 import com.lamprism.luxspec.security.SecurityErrorCode;
+import com.lamprism.luxspec.security.firewall.Firewall;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
 import com.lamprism.luxspec.security.firewall.FirewallRequest;
-import com.lamprism.luxspec.security.firewall.FirewallRule;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -32,7 +32,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class RequestMethodFirewallRule implements FirewallRule<FirewallRequest> {
+public class RequestMethodFirewallRule implements Firewall<FirewallRequest> {
     private final Set<String> methods;
     private final boolean allowMatch;
 
@@ -74,10 +74,11 @@ public class RequestMethodFirewallRule implements FirewallRule<FirewallRequest> 
     }
 
     @Override
-    public FirewallDecision evaluate(FirewallRequest request) {
-        String method = Objects.requireNonNull(request, "request").getMethod().toUpperCase(Locale.ROOT);
+    public FirewallDecision verifyRequest(FirewallRequest request) {
+        String method = Objects.requireNonNull(request, "request").getMethod();
+        boolean matched = method != null && methods.contains(method.toUpperCase(Locale.ROOT));
         return FirewallRuleSupport.decide(
-                methods.contains(method),
+                matched,
                 allowMatch,
                 SecurityErrorCode.FIREWALL_METHOD_DENIED
         );

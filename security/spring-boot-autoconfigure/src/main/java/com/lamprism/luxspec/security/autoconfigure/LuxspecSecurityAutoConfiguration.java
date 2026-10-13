@@ -19,6 +19,7 @@ package com.lamprism.luxspec.security.autoconfigure;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.security.authentication.AccessTokenAuthenticator;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
+import com.lamprism.luxspec.security.spring.LuxspecSecurityExceptionHandler;
 import com.lamprism.luxspec.security.spring.authentication.AuthorizationHeaderBearerTokenResolver;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecAccessTokenAuthenticationProvider;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecBearerAuthenticationFilter;
@@ -61,6 +62,17 @@ import java.time.Clock;
         afterName = "com.lamprism.luxspec.security.jwt.autoconfigure.LuxspecJwtAutoConfiguration"
 )
 public class LuxspecSecurityAutoConfiguration {
+    /**
+     * Creates the MVC access-denied adapter when an application has not supplied one.
+     *
+     * @return the standard Luxspec access-denied handler
+     */
+    @Bean
+    @ConditionalOnMissingBean(LuxspecSecurityExceptionHandler.class)
+    public LuxspecSecurityExceptionHandler luxspecSecurityExceptionHandler() {
+        return new LuxspecSecurityExceptionHandler();
+    }
+
     /**
      * Creates the opt-in process-local access-token revocation store.
      *

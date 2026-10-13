@@ -40,6 +40,15 @@ public interface QueryExpressionVisitor<R> {
     <T> R visitCondition(QueryCondition<T> condition);
 
     /**
+     * Visits a condition over a transformed value expression.
+     *
+     * @param condition the value condition
+     * @param <T>       the value expression type
+     * @return the visitor result
+     */
+    <T> R visitValueCondition(QueryValueCondition<T> condition);
+
+    /**
      * Visits a typed ordered comparison condition.
      *
      * @param condition the comparison condition
@@ -71,4 +80,13 @@ public interface QueryExpressionVisitor<R> {
      * @return the visitor result
      */
     R visitNegated(NegatedQueryExpression condition);
+
+    /**
+     * Visits a related collection EXISTS condition.
+     *
+     * @param condition the EXISTS condition
+     * @param <T>       the related candidate type
+     * @return the visitor result
+     */
+    <T> R visitExists(ExistsCondition<T> condition);
 }

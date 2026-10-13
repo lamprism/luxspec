@@ -31,7 +31,7 @@ public final class ResourceProviderConflictException extends ResourceException {
      * @param requestedType the conflicting requested type
      */
     public ResourceProviderConflictException(ResourceType<?> existingType, ResourceType<?> requestedType) {
-        super(ResourceErrorCode.PROVIDER_CONFLICT, message(existingType, requestedType));
+        super(message(existingType, requestedType));
     }
 
     private static String message(ResourceType<?> existingType, ResourceType<?> requestedType) {

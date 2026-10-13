@@ -66,6 +66,7 @@ listOf(
     "observability:runtime",
     "observability:prometheus",
     "observability:micrometer",
+    "observability:otlp",
     "observability:spring-boot-autoconfigure",
     "observability:spring-boot-starter",
     "audit:core",

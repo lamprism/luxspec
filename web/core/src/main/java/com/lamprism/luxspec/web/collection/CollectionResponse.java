@@ -17,9 +17,12 @@
 package com.lamprism.luxspec.web.collection;
 
 import com.lamprism.luxspec.data.pagination.CompleteResult;
+import com.lamprism.luxspec.data.pagination.KeysetResult;
 import com.lamprism.luxspec.data.pagination.PageResult;
 import com.lamprism.luxspec.data.pagination.QueryResult;
 import com.lamprism.luxspec.data.pagination.SliceResult;
+import com.lamprism.luxspec.data.query.OrderBy;
+import com.lamprism.luxspec.web.pagination.KeysetCursorCodec;
 
 import java.util.List;
 import java.util.Objects;
@@ -98,6 +101,39 @@ public final class CollectionResponse<T> {
                     new SlicePagination(sliceResult.offset(), sliceResult.limit(), sliceResult.hasNext())
             );
         }
+        if (result instanceof KeysetResult<?>) {
+            throw new IllegalArgumentException(
+                    "Keyset results require an explicit cursor codec and ordering"
+            );
+        }
         throw new IllegalArgumentException("Unsupported QueryResult type");
+    }
+
+    /**
+     * Converts a keyset result using the configured opaque cursor codec.
+     *
+     * @param result            the keyset result
+     * @param orders            the exact ordering used to execute the result
+     * @param keysetCursorCodec the endpoint keyset cursor codec
+     * @param <T>               the item type
+     * @return the collection response with opaque keyset metadata
+     */
+    public static <T> CollectionResponse<T> from(
+            KeysetResult<T> result,
+            List<? extends OrderBy<?>> orders,
+            KeysetCursorCodec keysetCursorCodec
+    ) {
+        KeysetResult<T> nonNullResult = Objects.requireNonNull(result, "result");
+        KeysetCursorCodec nonNullKeysetCursorCodec = Objects.requireNonNull(
+                keysetCursorCodec,
+                "keysetCursorCodec"
+        );
+        String nextCursor = nonNullResult.nextPosition() == null
+                ? null
+                : nonNullKeysetCursorCodec.encode(orders, nonNullResult.nextPosition());
+        return new CollectionResponse<>(
+                nonNullResult.getItems(),
+                new KeysetPagination(nonNullResult.limit(), nonNullResult.hasNext(), nextCursor)
+        );
     }
 }

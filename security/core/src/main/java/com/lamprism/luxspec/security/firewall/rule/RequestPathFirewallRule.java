@@ -17,9 +17,9 @@
 package com.lamprism.luxspec.security.firewall.rule;
 
 import com.lamprism.luxspec.security.SecurityErrorCode;
+import com.lamprism.luxspec.security.firewall.Firewall;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
 import com.lamprism.luxspec.security.firewall.FirewallRequest;
-import com.lamprism.luxspec.security.firewall.FirewallRule;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -35,7 +35,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class RequestPathFirewallRule implements FirewallRule<FirewallRequest> {
+public class RequestPathFirewallRule implements Firewall<FirewallRequest> {
     private enum MatchType {
         EXACT,
         PREFIX
@@ -100,9 +100,9 @@ public class RequestPathFirewallRule implements FirewallRule<FirewallRequest> {
     }
 
     @Override
-    public FirewallDecision evaluate(FirewallRequest request) {
+    public FirewallDecision verifyRequest(FirewallRequest request) {
         String requestPath = Objects.requireNonNull(request, "request").getPath();
-        boolean matched = paths.stream().anyMatch(path -> matches(path, requestPath));
+        boolean matched = requestPath != null && paths.stream().anyMatch(path -> matches(path, requestPath));
         return FirewallRuleSupport.decide(
                 matched,
                 allowMatch,

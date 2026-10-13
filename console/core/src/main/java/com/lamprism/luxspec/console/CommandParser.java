@@ -88,7 +88,7 @@ final class CommandParser {
                     index++;
                     continue;
                 }
-                if (current.handler == null && !current.children.isEmpty()) {
+                if (current.runner == null && !current.children.isEmpty()) {
                     throw usage("Unknown command '" + token + "' under '" + displayPath(current.path) + "'",
                             current.path, null);
                 }
@@ -98,7 +98,7 @@ final class CommandParser {
             }
             completeOptionValues(current, optionValues, providedOptions);
             Map<ArgumentSpec<?>, List<?>> argumentValues = parseArguments(current, positionalTokens);
-            if (current.handler == null) {
+            if (current.runner == null) {
                 if (!current.children.isEmpty()) {
                     throw usage("A subcommand is required", current.path, null);
                 }
@@ -111,7 +111,7 @@ final class CommandParser {
                     optionValues,
                     providedOptions,
                     argumentValues
-            ), current.handler);
+            ), current.runner);
         } catch (ParseException exception) {
             return new ParseFailure(exception.failure());
         }
@@ -370,7 +370,7 @@ final class CommandParser {
     sealed interface ParseOutcome permits InvocationRequest, HelpRequest, VersionRequest, ParseFailure {
     }
 
-    record InvocationRequest(CommandInvocation invocation, CommandHandler handler) implements ParseOutcome {
+    record InvocationRequest(CommandInvocation invocation, CommandRunner runner) implements ParseOutcome {
     }
 
     record HelpRequest(CommandPath path) implements ParseOutcome {

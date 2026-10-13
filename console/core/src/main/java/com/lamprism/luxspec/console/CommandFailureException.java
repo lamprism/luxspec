@@ -19,7 +19,7 @@ package com.lamprism.luxspec.console;
 import java.util.Objects;
 
 /**
- * Checked failure a command handler may use to return structured diagnostics.
+ * Checked failure a command runner may use to return structured diagnostics.
  *
  * @author RollW
  */

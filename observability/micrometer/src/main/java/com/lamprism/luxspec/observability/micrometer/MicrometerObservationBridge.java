@@ -24,7 +24,6 @@ import com.lamprism.luxspec.observability.observation.ObservationHandler;
 import com.lamprism.luxspec.observability.observation.ObservationId;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
 import com.lamprism.luxspec.observability.observation.ObservationView;
-import com.lamprism.luxspec.observability.runtime.observation.ObservationRegistryEventSource;
 import io.micrometer.observation.Observation;
 
 import java.util.Map;
@@ -39,8 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author RollW
  */
 public class MicrometerObservationBridge implements AutoCloseable {
-    private final io.micrometer.observation.ObservationRegistry observationRegistry;
-    private final ObservationRegistryEventSource events;
+    private final ObservationRegistry registry;
+    private final io.micrometer.observation.ObservationRegistry providerRegistry;
     private final Map<ObservationId, ProviderObservation> observations = new ConcurrentHashMap<>();
     private final ObservationHandler handler = new BridgeHandler();
     private final AutoCloseable listener;
@@ -50,13 +49,9 @@ public class MicrometerObservationBridge implements AutoCloseable {
             ObservationRegistry observationRegistry,
             io.micrometer.observation.ObservationRegistry providerRegistry
     ) {
-        Objects.requireNonNull(observationRegistry, "observationRegistry");
-        this.observationRegistry = Objects.requireNonNull(providerRegistry, "providerRegistry");
-        if (!(observationRegistry instanceof ObservationRegistryEventSource registryEvents)) {
-            throw new IllegalArgumentException("The observation registry does not expose lifecycle events");
-        }
-        events = registryEvents;
-        listener = events.addHandler(handler);
+        registry = Objects.requireNonNull(observationRegistry, "observationRegistry");
+        this.providerRegistry = Objects.requireNonNull(providerRegistry, "providerRegistry");
+        listener = registry.addHandler(handler);
     }
 
     @Override
@@ -85,7 +80,7 @@ public class MicrometerObservationBridge implements AutoCloseable {
             Observation providerObservation =
                     Observation.createNotStarted(
                             view.spec().getName().value(),
-                            observationRegistry
+                            providerRegistry
                     );
             ObservationId parentId = view.parentId();
             ProviderObservation parent = parentId == null ? null : observations.get(parentId);

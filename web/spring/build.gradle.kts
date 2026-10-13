@@ -22,6 +22,7 @@ description = "Spring Web integration for Luxspec web utilities."
 
 dependencies {
     api(project(":web:web-core"))
+    api("jakarta.validation:jakarta.validation-api")
     api("jakarta.servlet:jakarta.servlet-api")
     api("org.springframework:spring-web")
     api("org.springframework:spring-webmvc")

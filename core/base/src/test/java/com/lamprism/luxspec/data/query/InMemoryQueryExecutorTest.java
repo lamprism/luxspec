@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.data.query;
 
+import com.lamprism.luxspec.data.pagination.KeysetResult;
+import com.lamprism.luxspec.data.pagination.KeysetWindow;
 import com.lamprism.luxspec.data.pagination.PageResult;
 import com.lamprism.luxspec.data.pagination.PageWindow;
 import com.lamprism.luxspec.data.pagination.QueryResult;
@@ -38,6 +40,18 @@ class InMemoryQueryExecutorTest {
     private static final QueryField<String> NAME = QueryField.of("name", String.class);
     private static final QueryField<Integer> PRIORITY = QueryField.of("priority", Integer.class);
     private static final QueryField<String> CATEGORY = QueryField.of("category", String.class);
+    private static final QueryField<String> OPTIONAL_VALUE = QueryField.of("optionalValue", String.class);
+    private static final QueryField<String> LABEL = QueryField.of("label", String.class);
+    private static final QueryField<Integer> NUMERIC_VALUE = QueryField.of("numericValue", Integer.class);
+    private static final QueryField<String> MEMBER_NAME = QueryField.of("memberName", String.class);
+    private static final QueryRelation<NestedGroup> GROUPS = QueryRelation.toMany(
+            "groups",
+            NestedGroup.class
+    );
+    private static final QueryRelation<NestedMember> MEMBERS = QueryRelation.toMany(
+            "members",
+            NestedMember.class
+    );
 
     @Test
     void evaluatesTypedConditionsAndLogicalExpressions() {
@@ -81,6 +95,121 @@ class InMemoryQueryExecutorTest {
     }
 
     @Test
+    void evaluatesNullPredicates() {
+        NullableItem empty = new NullableItem(null);
+        NullableItem present = new NullableItem("value");
+        InMemoryQueryExecutor<NullableItem> executor = InMemoryQueryExecutor.<NullableItem>builder(
+                        () -> List.of(empty, present)
+                )
+                .field(OPTIONAL_VALUE, NullableItem::value)
+                .build();
+
+        QueryResult<NullableItem> nullResult = executor.query(
+                new QueryCriteria(QueryCondition.isNull(OPTIONAL_VALUE), List.of()),
+                UnboundedWindow.getInstance()
+        );
+        QueryResult<NullableItem> nonNullResult = executor.query(
+                new QueryCriteria(QueryCondition.isNotNull(OPTIONAL_VALUE), List.of()),
+                UnboundedWindow.getInstance()
+        );
+
+        assertEquals(List.of(empty), nullResult.getItems());
+        assertEquals(List.of(present), nonNullResult.getItems());
+    }
+
+    @Test
+    void evaluatesNestedExistsWithOneRelationResolverContract() {
+        NestedOrder matching = new NestedOrder(
+                List.of(new NestedGroup(List.of(new NestedMember("target"))))
+        );
+        NestedOrder notMatching = new NestedOrder(
+                List.of(new NestedGroup(List.of(new NestedMember("other"))))
+        );
+        NestedOrder empty = new NestedOrder(List.of());
+        QueryFieldResolver<NestedGroup> groupFields = QueryFieldResolver.<NestedGroup>builder().build();
+        QueryFieldResolver<NestedMember> memberFields = QueryFieldResolver.<NestedMember>builder()
+                .field(MEMBER_NAME, NestedMember::name)
+                .build();
+        QueryRelationResolver<NestedGroup> groupRelations = (group, relation) -> {
+            if (!MEMBERS.equals(relation)) {
+                throw new IllegalArgumentException("Unexpected nested relation: " + relation.getName());
+            }
+            return group.members();
+        };
+        InMemoryQueryExecutor<NestedOrder> executor = InMemoryQueryExecutor.<NestedOrder>builder(
+                        () -> List.of(matching, notMatching, empty)
+                )
+                .relationToMany(GROUPS, NestedOrder::groups, groupFields)
+                .relationToMany(MEMBERS, groupRelations, memberFields)
+                .build();
+        QueryExpression condition = ExistsCondition.of(
+                GROUPS,
+                ExistsCondition.of(MEMBERS, QueryCondition.equal(MEMBER_NAME, "target"))
+        );
+        QuerySchema memberSchema = QuerySchema.builder()
+                .add(MEMBER_NAME, Set.of(QueryOperator.EQUAL))
+                .build();
+        QuerySchema groupSchema = QuerySchema.builder()
+                .relation(MEMBERS, memberSchema)
+                .build();
+        QuerySchema schema = QuerySchema.builder()
+                .relation(GROUPS, groupSchema)
+                .build();
+        QueryCriteria criteria = new QueryCriteria(condition, List.of());
+        schema.validate(criteria, QueryComplexityBudget.defaults());
+
+        QueryResult<NestedOrder> result = executor.query(criteria, UnboundedWindow.getInstance());
+
+        assertEquals(List.of(matching), result.getItems());
+    }
+
+    @Test
+    void evaluatesLowerUpperCoalesceAndCastValues() {
+        FunctionItem empty = new FunctionItem(null, 10);
+        FunctionItem present = new FunctionItem("Alpha", 20);
+        InMemoryQueryExecutor<FunctionItem> executor = InMemoryQueryExecutor.<FunctionItem>builder(
+                        () -> List.of(empty, present)
+                )
+                .field(LABEL, FunctionItem::label)
+                .field(NUMERIC_VALUE, FunctionItem::numericValue)
+                .build();
+
+        QueryResult<FunctionItem> lowerResult = executor.query(
+                new QueryCriteria(
+                        QueryValueCondition.like(QueryValue.lower(LABEL), "a%"),
+                        List.of()
+                ),
+                UnboundedWindow.getInstance()
+        );
+        QueryResult<FunctionItem> upperResult = executor.query(
+                new QueryCriteria(
+                        QueryValueCondition.equal(QueryValue.upper(LABEL), "ALPHA"),
+                        List.of()
+                ),
+                UnboundedWindow.getInstance()
+        );
+        QueryResult<FunctionItem> coalesceResult = executor.query(
+                new QueryCriteria(
+                        QueryValueCondition.equal(QueryValue.coalesce(QueryValue.field(LABEL), "fallback"), "fallback"),
+                        List.of()
+                ),
+                UnboundedWindow.getInstance()
+        );
+        QueryResult<FunctionItem> castResult = executor.query(
+                new QueryCriteria(
+                        QueryValueCondition.like(QueryValue.cast(NUMERIC_VALUE, String.class), "2%"),
+                        List.of()
+                ),
+                UnboundedWindow.getInstance()
+        );
+
+        assertEquals(List.of(present), lowerResult.getItems());
+        assertEquals(List.of(present), upperResult.getItems());
+        assertEquals(List.of(empty), coalesceResult.getItems());
+        assertEquals(List.of(present), castResult.getItems());
+    }
+
+    @Test
     void ordersAndWindowsTheFilteredCandidateSet() {
         QueryCriteria criteria = new QueryCriteria(
                 QueryExpression.all(),
@@ -100,6 +229,37 @@ class InMemoryQueryExecutorTest {
         assertEquals(4L, page.total());
         assertEquals(List.of("beta"), names(slice));
         assertTrue(slice.hasNext());
+    }
+
+    @Test
+    void continuesOrderedResultsWithAKeysetPosition() {
+        QueryCriteria criteria = new QueryCriteria(
+                QueryExpression.all(),
+                List.of(OrderBy.descending(PRIORITY), OrderBy.ascending(NAME))
+        );
+
+        KeysetResult<Item> first = (KeysetResult<Item>) executor().query(
+                criteria,
+                new KeysetWindow(2)
+        );
+        KeysetResult<Item> second = (KeysetResult<Item>) executor().query(
+                criteria,
+                new KeysetWindow(2, first.nextPosition())
+        );
+
+        assertEquals(List.of("a_b%", "gamma"), names(first));
+        assertEquals(List.of("beta", "alpha"), names(second));
+        assertTrue(first.hasNext());
+        assertFalse(second.hasNext());
+        assertEquals(List.of(30, "gamma"), first.nextPosition().values());
+    }
+
+    @Test
+    void requiresExplicitOrderingForKeysetWindows() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> executor().query(QueryCriteria.empty(), new KeysetWindow(2))
+        );
     }
 
     @Test
@@ -247,6 +407,72 @@ class InMemoryQueryExecutorTest {
 
     private static List<String> values(QueryResult<TimeSeriesPoint<String>> result) {
         return result.getItems().stream().map(TimeSeriesPoint::getValue).toList();
+    }
+
+    private static final class NullableItem {
+        private final String value;
+
+        private NullableItem(String value) {
+            this.value = value;
+        }
+
+        private String value() {
+            return value;
+        }
+    }
+
+    private static final class FunctionItem {
+        private final String label;
+        private final Integer numericValue;
+
+        private FunctionItem(String label, Integer numericValue) {
+            this.label = label;
+            this.numericValue = numericValue;
+        }
+
+        private String label() {
+            return label;
+        }
+
+        private Integer numericValue() {
+            return numericValue;
+        }
+    }
+
+    private static final class NestedOrder {
+        private final List<NestedGroup> groups;
+
+        private NestedOrder(List<NestedGroup> groups) {
+            this.groups = groups;
+        }
+
+        private List<NestedGroup> groups() {
+            return groups;
+        }
+    }
+
+    private static final class NestedGroup {
+        private final List<NestedMember> members;
+
+        private NestedGroup(List<NestedMember> members) {
+            this.members = members;
+        }
+
+        private List<NestedMember> members() {
+            return members;
+        }
+    }
+
+    private static final class NestedMember {
+        private final String name;
+
+        private NestedMember(String name) {
+            this.name = name;
+        }
+
+        private String name() {
+            return name;
+        }
     }
 
     private static final class Item {

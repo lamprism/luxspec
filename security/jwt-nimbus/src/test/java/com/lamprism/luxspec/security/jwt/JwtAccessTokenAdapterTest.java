@@ -103,6 +103,40 @@ class JwtAccessTokenAdapterTest {
     }
 
     @Test
+    void issuesAndVerifiesAnAccessTokenUsingAnEd25519KeyPair() throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519");
+        assertIssuesAndVerifies(generator.generateKeyPair());
+    }
+
+    @Test
+    void issuesAndVerifiesAnAccessTokenUsingAnEd448KeyPair() throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed448");
+        assertIssuesAndVerifies(generator.generateKeyPair());
+    }
+
+    @Test
+    void rejectsAnHmacTokenForAnEd25519VerificationKey() throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519");
+        KeyPair keyPair = generator.generateKeyPair();
+        JwtAccessTokenAdapter adapter = adapter(KeySet.forVerification(
+                List.of(new KeyEntry("active", keyPair.getPublic()))
+        ));
+        String encoded = signedToken(
+                key("abcdefghijklmnopqrstuvwxyz012345"),
+                "active",
+                AccessToken.KIND.getName(),
+                List.of(SCOPE)
+        );
+
+        AuthenticationException exception = assertThrows(
+                AuthenticationException.class,
+                () -> adapter.verify(new AccessToken(encoded))
+        );
+
+        assertEquals(AuthErrorCode.INVALID_TOKEN, exception.getErrorCode());
+    }
+
+    @Test
     void rejectsATokenWhoseKeyIdIsNotTrusted() {
         Fixture fixture = new Fixture();
         SecretKey untrustedKey = key("abcdefghijklmnopqrstuvwxyz012345");
@@ -152,6 +186,24 @@ class JwtAccessTokenAdapterTest {
         );
 
         assertEquals(AuthErrorCode.INVALID_TOKEN, exception.getErrorCode());
+    }
+
+    private static void assertIssuesAndVerifies(KeyPair keyPair) {
+        KeySet keySet = KeySet.withActiveKey(
+                "active",
+                List.of(new KeyEntry("active", keyPair.getPrivate(), keyPair.getPublic()))
+        );
+        JwtAccessTokenAdapter adapter = adapter(keySet);
+        Authentication authentication = new Authentication(
+                new UserSubject(42L),
+                AuthorizationGrantSet.of(List.of(AuthorizationScope.of(SCOPE)))
+        );
+
+        VerifiedAccessToken token = adapter.verify(
+                adapter.issue(authentication).require(AccessToken.KIND).getToken()
+        );
+
+        assertEquals("42", token.getSubjectId());
     }
 
     private static String signedToken(

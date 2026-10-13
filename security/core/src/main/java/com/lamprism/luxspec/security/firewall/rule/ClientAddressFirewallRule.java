@@ -17,9 +17,9 @@
 package com.lamprism.luxspec.security.firewall.rule;
 
 import com.lamprism.luxspec.security.SecurityErrorCode;
+import com.lamprism.luxspec.security.firewall.Firewall;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
 import com.lamprism.luxspec.security.firewall.FirewallRequest;
-import com.lamprism.luxspec.security.firewall.FirewallRule;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -30,7 +30,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class ClientAddressFirewallRule implements FirewallRule<FirewallRequest> {
+public class ClientAddressFirewallRule implements Firewall<FirewallRequest> {
     private final Set<String> addresses;
     private final boolean allowMatch;
 
@@ -66,10 +66,11 @@ public class ClientAddressFirewallRule implements FirewallRule<FirewallRequest> 
     }
 
     @Override
-    public FirewallDecision evaluate(FirewallRequest request) {
+    public FirewallDecision verifyRequest(FirewallRequest request) {
         FirewallRequest nonNullRequest = Objects.requireNonNull(request, "request");
+        String clientAddress = nonNullRequest.getClientAddress();
         return FirewallRuleSupport.decide(
-                addresses.contains(nonNullRequest.getClientAddress()),
+                clientAddress != null && addresses.contains(clientAddress),
                 allowMatch,
                 SecurityErrorCode.FIREWALL_CLIENT_ADDRESS_DENIED
         );

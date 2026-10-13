@@ -27,7 +27,7 @@ public enum CommandFailureKind {
      */
     USAGE(2),
     /**
-     * A command handler failed while executing.
+     * A command runner failed while executing.
      */
     EXECUTION(1),
     /**

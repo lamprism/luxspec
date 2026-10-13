@@ -70,32 +70,40 @@ public interface ErrorCode {
             throw new IllegalArgumentException("code must not end with a separator");
         }
     }
-}
 
-final class DefaultErrorCode implements ErrorCode {
-    private final String code;
+    /**
+     * Default immutable implementation used by {@link ErrorCode#of(String)}.
+     */
+    final class DefaultErrorCode implements ErrorCode {
+        private final String code;
 
-    DefaultErrorCode(String code) {
-        this.code = code;
-    }
+        DefaultErrorCode(
+                String code
+        ) {
+            this.code = code;
+        }
 
-    @Override
-    public String getCode() {
-        return code;
-    }
+        @Override
+        public String getCode() {
+            return code;
+        }
 
-    @Override
-    public boolean equals(Object other) {
-        return other instanceof DefaultErrorCode value && code.equals(value.code);
-    }
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof DefaultErrorCode value)) {
+                return false;
+            }
+            return code.equals(value.code);
+        }
 
-    @Override
-    public int hashCode() {
-        return code.hashCode();
-    }
+        @Override
+        public int hashCode() {
+            return code.hashCode();
+        }
 
-    @Override
-    public String toString() {
-        return code;
+        @Override
+        public String toString() {
+            return code;
+        }
     }
 }

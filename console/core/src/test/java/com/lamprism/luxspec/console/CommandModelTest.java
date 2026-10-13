@@ -97,8 +97,7 @@ class CommandModelTest {
 
         assertEquals(echo, catalog.find(CommandPath.of("tools", "echo")));
         assertEquals(List.of(echo), catalog.children(CommandPath.of("tools")));
-        assertEquals(echo,
-                catalog.find(CommandPath.of("tools", "echo")));
+        assertTrue(catalog.runner(CommandPath.of("tools", "echo")).isPresent());
     }
 
     @Test

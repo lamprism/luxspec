@@ -21,6 +21,7 @@ import com.lamprism.luxspec.observability.runtime.observation.StandardObservatio
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -38,6 +39,7 @@ public class LuxspecObservabilityConfiguration {
     private final JvmConfiguration jvm = new JvmConfiguration();
     private final HttpConfiguration http = new HttpConfiguration();
     private final ObservationConfiguration observation = new ObservationConfiguration();
+    private final InstrumentationConfiguration instrumentation = new InstrumentationConfiguration();
 
     public JvmConfiguration getJvm() {
         return jvm;
@@ -49,6 +51,10 @@ public class LuxspecObservabilityConfiguration {
 
     public ObservationConfiguration getObservation() {
         return observation;
+    }
+
+    public InstrumentationConfiguration getInstrumentation() {
+        return instrumentation;
     }
 
     /**
@@ -72,9 +78,29 @@ public class LuxspecObservabilityConfiguration {
      */
     public static class HttpConfiguration {
         private final HttpMetricConfiguration metrics = new HttpMetricConfiguration();
+        private final HttpObservationConfiguration observation = new HttpObservationConfiguration();
 
         public HttpMetricConfiguration getMetrics() {
             return metrics;
+        }
+
+        public HttpObservationConfiguration getObservation() {
+            return observation;
+        }
+    }
+
+    /**
+     * HTTP server observation selection.
+     */
+    public static class HttpObservationConfiguration {
+        private boolean enabled;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
     }
 
@@ -170,6 +196,54 @@ public class LuxspecObservabilityConfiguration {
 
         public StandardConfiguration getStandard() {
             return standard;
+        }
+    }
+
+    /**
+     * Explicit infrastructure bean selections for observation wrappers.
+     *
+     * <p>Empty selections keep automatic wrapping disabled. Bean names are used instead of broad
+     * type matching because replacing a framework-owned implementation can change its public
+     * concrete type, lifecycle, or delegate unwrapping behavior.</p>
+     */
+    public static class InstrumentationConfiguration {
+        private Set<String> dataSourceBeans = Set.of();
+        private Set<String> executorBeans = Set.of();
+        private Set<String> queryExecutorBeans = Set.of();
+
+        public Set<String> getDataSourceBeans() {
+            return dataSourceBeans;
+        }
+
+        public void setDataSourceBeans(Set<String> dataSourceBeans) {
+            this.dataSourceBeans = copyBeanNames(dataSourceBeans, "dataSourceBeans");
+        }
+
+        public Set<String> getExecutorBeans() {
+            return executorBeans;
+        }
+
+        public void setExecutorBeans(Set<String> executorBeans) {
+            this.executorBeans = copyBeanNames(executorBeans, "executorBeans");
+        }
+
+        public Set<String> getQueryExecutorBeans() {
+            return queryExecutorBeans;
+        }
+
+        public void setQueryExecutorBeans(Set<String> queryExecutorBeans) {
+            this.queryExecutorBeans = copyBeanNames(queryExecutorBeans, "queryExecutorBeans");
+        }
+
+        private static Set<String> copyBeanNames(Set<String> names, String propertyName) {
+            Set<String> selected = new LinkedHashSet<>();
+            for (String name : Objects.requireNonNull(names, propertyName)) {
+                if (name == null || name.isBlank()) {
+                    throw new IllegalArgumentException(propertyName + " must not contain blank names");
+                }
+                selected.add(name);
+            }
+            return Set.copyOf(selected);
         }
     }
 

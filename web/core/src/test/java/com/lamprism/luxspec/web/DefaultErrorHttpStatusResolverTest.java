@@ -51,6 +51,22 @@ class DefaultErrorHttpStatusResolverTest {
     }
 
     @Test
+    void mapsFrameworkProtocolErrors() {
+        assertEquals(
+                HttpStatusCode.METHOD_NOT_ALLOWED,
+                resolver.resolve(WebErrorCode.METHOD_NOT_ALLOWED)
+        );
+        assertEquals(
+                HttpStatusCode.NOT_ACCEPTABLE,
+                resolver.resolve(WebErrorCode.NOT_ACCEPTABLE)
+        );
+        assertEquals(
+                HttpStatusCode.UNSUPPORTED_MEDIA_TYPE,
+                resolver.resolve(WebErrorCode.UNSUPPORTED_MEDIA_TYPE)
+        );
+    }
+
+    @Test
     void mapsAuthenticationAndAuthorizationFailures() {
         assertEquals(
                 HttpStatusCode.UNAUTHORIZED,

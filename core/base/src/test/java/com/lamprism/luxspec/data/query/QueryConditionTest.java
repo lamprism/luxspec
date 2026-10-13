@@ -37,6 +37,33 @@ class QueryConditionTest {
     }
 
     @Test
+    void createsValueLessNullConditions() {
+        QueryCondition<String> isNull = QueryCondition.isNull(STATUS);
+        QueryCondition<String> isNotNull = QueryCondition.isNotNull(STATUS);
+
+        assertEquals(QueryOperator.IS_NULL, isNull.getOperator());
+        assertEquals(QueryOperator.IS_NOT_NULL, isNotNull.getOperator());
+        assertEquals(List.of(), isNull.getValues());
+        assertEquals(List.of(), isNotNull.getValues());
+    }
+
+    @Test
+    void validatesNullOperatorsThroughTheSchemaAllowlist() {
+        QuerySchema schema = QuerySchema.builder()
+                .add(STATUS, Set.of(QueryOperator.IS_NULL, QueryOperator.IS_NOT_NULL))
+                .build();
+
+        schema.validate(
+                new QueryCriteria(QueryCondition.isNull(STATUS), List.of()),
+                QueryComplexityBudget.defaults()
+        );
+        schema.validate(
+                new QueryCriteria(QueryCondition.isNotNull(STATUS), List.of()),
+                QueryComplexityBudget.defaults()
+        );
+    }
+
+    @Test
     void rejectsOperatorsThatAreNotAllowedByTheSchema() {
         QuerySchema schema = QuerySchema.builder()
                 .add(STATUS, Set.of(QueryOperator.EQUAL), true)
@@ -72,5 +99,42 @@ class QueryConditionTest {
 
         assertThrows(IllegalArgumentException.class, () -> LikeCondition.of(STATUS, "value\\x"));
         assertThrows(UnsupportedOperationException.class, () -> criteria.getOrders().add(OrderBy.descending(STATUS)));
+    }
+
+    @Test
+    void validatesValueFunctionsAndCastsThroughTheSchemaAllowlist() {
+        QueryValue<String> normalizedStatus = QueryValue.lower(STATUS);
+        QueryValueCondition<String> lowerCondition = QueryValueCondition.like(normalizedStatus, "a%");
+        QueryValueCondition<String> castCondition = QueryValueCondition.like(
+                QueryValue.cast(PRIORITY, String.class),
+                "1%"
+        );
+        QuerySchema schema = QuerySchema.builder()
+                .add(
+                        STATUS,
+                        Set.of(QueryOperator.LIKE),
+                        false,
+                        Set.of(QueryFunction.LOWER, QueryFunction.COALESCE)
+                )
+                .add(
+                        PRIORITY,
+                        Set.of(QueryOperator.LIKE),
+                        false,
+                        Set.of(QueryFunction.CAST)
+                )
+                .build();
+
+        schema.validate(new QueryCriteria(lowerCondition, List.of()), QueryComplexityBudget.defaults());
+        schema.validate(new QueryCriteria(castCondition, List.of()), QueryComplexityBudget.defaults());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> QuerySchema.builder()
+                        .add(STATUS, Set.of(QueryOperator.LIKE))
+                        .build()
+                        .validate(
+                                new QueryCriteria(lowerCondition, List.of()),
+                                QueryComplexityBudget.defaults()
+                        )
+        );
     }
 }

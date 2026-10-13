@@ -24,5 +24,5 @@ dependencies {
     api(project(":observability:observability-core"))
     api("io.micrometer:micrometer-core")
     api("io.micrometer:micrometer-observation")
-    implementation(project(":observability:observability-runtime"))
+    testImplementation(project(":observability:observability-runtime"))
 }

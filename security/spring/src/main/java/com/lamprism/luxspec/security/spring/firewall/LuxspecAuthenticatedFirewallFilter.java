@@ -18,8 +18,8 @@ package com.lamprism.luxspec.security.spring.firewall;
 
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.firewall.AuthenticatedRequest;
-import com.lamprism.luxspec.security.firewall.FirewallChain;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
+import com.lamprism.luxspec.security.firewall.FirewallRegistry;
 import com.lamprism.luxspec.security.firewall.IngressRequest;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecSpringAuthentication;
 import jakarta.servlet.FilterChain;
@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Applies an authenticated Firewall chain when the current Spring authentication is Luxspec-backed.
+ * Applies an authenticated Firewall registry when the current Spring authentication is Luxspec-backed.
  *
  * <p>Install this filter after the authentication filter so the Luxspec SecurityContext is
  * available while the chain evaluates the request.</p>
@@ -41,18 +41,18 @@ import java.util.Objects;
  * @author RollW
  */
 public class LuxspecAuthenticatedFirewallFilter extends OncePerRequestFilter {
-    private final FirewallChain<AuthenticatedRequest> firewallChain;
+    private final FirewallRegistry<AuthenticatedRequest> firewallRegistry;
     private final ServletClientAddressResolver clientAddressResolver;
     private final FirewallDecisionHandler decisionHandler;
 
     /**
      * Creates an authenticated filter with Servlet remote-address resolution and HTTP 403 denials.
      *
-     * @param firewallChain the authenticated Firewall chain
+     * @param firewallRegistry the authenticated Firewall registry
      */
-    public LuxspecAuthenticatedFirewallFilter(FirewallChain<AuthenticatedRequest> firewallChain) {
+    public LuxspecAuthenticatedFirewallFilter(FirewallRegistry<AuthenticatedRequest> firewallRegistry) {
         this(
-                firewallChain,
+                firewallRegistry,
                 ServletClientAddressResolver.remoteAddress(),
                 new HttpStatusFirewallDecisionHandler()
         );
@@ -61,16 +61,16 @@ public class LuxspecAuthenticatedFirewallFilter extends OncePerRequestFilter {
     /**
      * Creates an authenticated filter with explicit client-address resolution and denial handling.
      *
-     * @param firewallChain          the authenticated Firewall chain
+     * @param firewallRegistry       the authenticated Firewall registry
      * @param clientAddressResolver the trusted client-address resolver
      * @param decisionHandler        the denied-decision handler
      */
     public LuxspecAuthenticatedFirewallFilter(
-            FirewallChain<AuthenticatedRequest> firewallChain,
+            FirewallRegistry<AuthenticatedRequest> firewallRegistry,
             ServletClientAddressResolver clientAddressResolver,
             FirewallDecisionHandler decisionHandler
     ) {
-        this.firewallChain = Objects.requireNonNull(firewallChain, "firewallChain");
+        this.firewallRegistry = Objects.requireNonNull(firewallRegistry, "firewallRegistry");
         this.clientAddressResolver = Objects.requireNonNull(clientAddressResolver, "clientAddressResolver");
         this.decisionHandler = Objects.requireNonNull(decisionHandler, "decisionHandler");
     }
@@ -89,7 +89,7 @@ public class LuxspecAuthenticatedFirewallFilter extends OncePerRequestFilter {
         }
         IngressRequest ingressRequest = ServletIngressRequestAdapter.adapt(request, clientAddressResolver);
         Authentication authentication = luxspecAuthentication.getLuxspecAuthentication();
-        FirewallDecision decision = firewallChain.evaluate(new AuthenticatedRequest(ingressRequest, authentication));
+        FirewallDecision decision = firewallRegistry.filter(new AuthenticatedRequest(ingressRequest, authentication));
         if (!decision.passed()) {
             decisionHandler.handle(request, response, decision);
             return;

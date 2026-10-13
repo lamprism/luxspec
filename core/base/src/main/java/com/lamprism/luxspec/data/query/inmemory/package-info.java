@@ -14,21 +14,13 @@
  * limitations under the License.
  */
 
-package com.lamprism.luxspec.console;
-
 /**
- * Executes one resolved command in a provider-neutral session.
+ * Internal in-memory execution implementation for the provider-independent query API.
  *
- * @author RollW
+ * <p>{@code InMemoryQueryExecutor} is the public entry point. The engine is exposed only as an
+ * implementation boundary for that facade and is not an extension contract.</p>
  */
-@FunctionalInterface
-public interface CommandHandler {
-    /**
-     * Executes the command.
-     *
-     * @param context immutable invocation and session context
-     * @return the command result
-     * @throws Exception when the command cannot complete normally
-     */
-    CommandResult execute(CommandContext context) throws Exception;
-}
+@NullMarked
+package com.lamprism.luxspec.data.query.inmemory;
+
+import org.jspecify.annotations.NullMarked;

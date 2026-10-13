@@ -17,10 +17,19 @@
 package com.lamprism.luxspec.web.collection;
 
 import com.lamprism.luxspec.data.pagination.CompleteResult;
+import com.lamprism.luxspec.data.pagination.KeysetPosition;
+import com.lamprism.luxspec.data.pagination.KeysetResult;
 import com.lamprism.luxspec.data.pagination.PageResult;
 import com.lamprism.luxspec.data.pagination.SliceResult;
+import com.lamprism.luxspec.data.query.OrderBy;
+import com.lamprism.luxspec.data.query.QueryField;
+import com.lamprism.luxspec.web.pagination.DefaultKeysetCursorCodec;
+import com.lamprism.luxspec.web.pagination.KeysetCursorCodec;
+import com.lamprism.luxspec.web.query.QueryParameterParser;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -56,5 +65,34 @@ class CollectionResponseTest {
         assertEquals(15L, slicePagination.offset());
         assertEquals(5, slicePagination.limit());
         assertEquals(true, slicePagination.hasNext());
+    }
+
+    @Test
+    void mapsKeysetResultsToOpaqueCursorMetadata() {
+        QueryField<Integer> SCORE = QueryField.of("score", Integer.class);
+        List<OrderBy<?>> orders = List.of(OrderBy.descending(SCORE));
+        KeysetCursorCodec codec = DefaultKeysetCursorCodec.builder(
+                        "items",
+                        new SecretKeySpec(
+                                "luxspec-test-signing-key".getBytes(StandardCharsets.UTF_8),
+                                "HmacSHA256"
+                        )
+                )
+                .field(SCORE, QueryParameterParser.integer())
+                .build();
+        CollectionResponse<String> response = CollectionResponse.from(
+                new KeysetResult<>(List.of("item"), 1, new KeysetPosition(List.of(10))),
+                orders,
+                codec
+        );
+
+        KeysetPagination pagination = (KeysetPagination) response.pagination();
+        assertEquals("keyset", pagination.getMode());
+        assertEquals(1, pagination.limit());
+        assertEquals(true, pagination.hasNext());
+        assertEquals(
+                new KeysetPosition(List.of(10)).values(),
+                codec.decode(orders, pagination.nextCursor()).values()
+        );
     }
 }

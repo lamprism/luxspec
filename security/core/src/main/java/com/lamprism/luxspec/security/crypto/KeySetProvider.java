@@ -17,18 +17,22 @@
 package com.lamprism.luxspec.security.crypto;
 
 /**
- * Resolves immutable cryptographic key-set snapshots by provider-owned name.
+ * Resolves immutable cryptographic key-set snapshots by provider-owned reference.
+ *
+ * <p>This is the single loading boundary used by cryptographic consumers. Implementations own the
+ * representation and loading policy behind the reference. Consumers must use the resulting
+ * {@link KeySet} and must not parse source-specific key material.</p>
  *
  * @author RollW
  */
 @FunctionalInterface
 public interface KeySetProvider {
     /**
-     * Returns the current snapshot for one key-set name.
+     * Returns the current snapshot for one provider-owned key-set reference.
      *
-     * @param keySetName the provider-local key-set name
+     * @param keySetReference the provider-owned key-set reference
      * @return the matching non-null key set
      * @throws IllegalArgumentException when the provider does not define the name
      */
-    KeySet get(String keySetName);
+    KeySet get(String keySetReference);
 }

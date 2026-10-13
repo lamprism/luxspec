@@ -20,8 +20,8 @@ import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.firewall.AuthenticatedRequest;
+import com.lamprism.luxspec.security.firewall.Firewall;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
-import com.lamprism.luxspec.security.firewall.FirewallRule;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -33,7 +33,7 @@ import java.util.Set;
  *
  * @author RollW
  */
-public class SubjectFirewallRule implements FirewallRule<AuthenticatedRequest> {
+public class SubjectFirewallRule implements Firewall<AuthenticatedRequest> {
     private final Set<SimpleSubject> subjects;
     private final boolean allowMatch;
 
@@ -69,7 +69,7 @@ public class SubjectFirewallRule implements FirewallRule<AuthenticatedRequest> {
     }
 
     @Override
-    public FirewallDecision evaluate(AuthenticatedRequest request) {
+    public FirewallDecision verifyRequest(AuthenticatedRequest request) {
         Subject subject = Objects.requireNonNull(request, "request").getAuthentication().subject();
         boolean matched = subjects.contains(SimpleSubject.from(subject));
         return FirewallRuleSupport.decide(
