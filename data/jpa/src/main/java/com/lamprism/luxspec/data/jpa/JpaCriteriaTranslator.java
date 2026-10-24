@@ -370,19 +370,22 @@ public class JpaCriteriaTranslator {
         @Override
         public <V extends Comparable<? super V>> Predicate visitComparison(ComparisonCondition<V> condition) {
             Expression<V> expression = fieldResolver.resolve(source, condition.getField());
-            return switch (condition.getOperator()) {
+            return nonNullPredicate(expression, switch (condition.getOperator()) {
                 case GREATER_THAN -> builder.greaterThan(expression, condition.getValue());
                 case GREATER_THAN_OR_EQUAL -> builder.greaterThanOrEqualTo(expression, condition.getValue());
                 case LESS_THAN -> builder.lessThan(expression, condition.getValue());
                 case LESS_THAN_OR_EQUAL -> builder.lessThanOrEqualTo(expression, condition.getValue());
                 default -> throw new IllegalArgumentException("Unsupported ordered query operator");
-            };
+            });
         }
 
         @Override
         public Predicate visitLike(LikeCondition condition) {
             Expression<String> expression = fieldResolver.resolve(source, condition.getField());
-            return builder.like(expression, condition.getPattern(), LikeCondition.ESCAPE_CHARACTER);
+            return nonNullPredicate(
+                    expression,
+                    builder.like(expression, condition.getPattern(), LikeCondition.ESCAPE_CHARACTER)
+            );
         }
 
         @Override
@@ -495,13 +498,17 @@ public class JpaCriteriaTranslator {
                 QueryOperator operator,
                 List<?> values
         ) {
-            return switch (operator) {
+            if (operator == QueryOperator.IS_NULL) {
+                return builder.isNull(expression);
+            }
+            if (operator == QueryOperator.IS_NOT_NULL) {
+                return builder.isNotNull(expression);
+            }
+            Predicate valuePredicate = switch (operator) {
                 case EQUAL -> builder.equal(expression, values.get(0));
                 case NOT_EQUAL -> builder.notEqual(expression, values.get(0));
                 case IN -> expression.in(values);
                 case NOT_IN -> builder.not(expression.in(values));
-                case IS_NULL -> builder.isNull(expression);
-                case IS_NOT_NULL -> builder.isNotNull(expression);
                 case LIKE -> builder.like(
                         stringExpression(expression),
                         (String) values.get(0),
@@ -509,7 +516,13 @@ public class JpaCriteriaTranslator {
                 );
                 case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL ->
                         orderedPredicate(builder, expression, operator, values.get(0));
+                case IS_NULL, IS_NOT_NULL -> throw new IllegalStateException("Null operators were handled above");
             };
+            return nonNullPredicate(expression, valuePredicate);
+        }
+
+        private Predicate nonNullPredicate(Expression<?> expression, Predicate predicate) {
+            return builder.and(builder.isNotNull(expression), predicate);
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})

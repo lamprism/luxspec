@@ -28,6 +28,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -120,6 +121,63 @@ class CommandApplicationTest {
         assertEquals(List.of(Boolean.TRUE), runner.optionValues(quiet));
         assertEquals(List.of("hello"), runner.optionValues(message));
         assertEquals(List.of(Boolean.FALSE), runner.optionValues(verbose));
+    }
+
+    @Test
+    void resolvesLocalOptionsInShortClustersRegardlessOfTheirOrder() {
+        OptionSpec<Boolean> verbose = OptionSpec.flag("--verbose").alias("-v").build();
+        OptionSpec<Boolean> local = OptionSpec.flag("--local").alias("-l").build();
+        ArgumentSpec<String> trailing = ArgumentSpec.builder("trailing", ValueParser.string())
+                .optional()
+                .build();
+        List<CommandInvocation> parentInvocations = new java.util.ArrayList<>();
+        AtomicBoolean nestedInvoked = new AtomicBoolean();
+        CommandApplication application = CommandApplication.builder("demo")
+                .rootOption(verbose)
+                .command(CommandSpec.builder("parent").option(local).argument(trailing).build(), context -> {
+                    parentInvocations.add(context.getInvocation());
+                    return CommandResult.success();
+                })
+                .command(CommandSpec.builder("parent", "child").build(), context -> {
+                    nestedInvoked.set(true);
+                    return CommandResult.success();
+                })
+                .build();
+
+        for (List<String> tokens : List.of(
+                List.of("parent", "-vl", "child"),
+                List.of("parent", "-lv", "child"),
+                List.of("parent", "-v", "-l", "child")
+        )) {
+            assertTrue(application.execute(tokens, new TestSession()).isSuccess());
+        }
+
+        assertEquals(3, parentInvocations.size());
+        assertFalse(nestedInvoked.get());
+        for (CommandInvocation invocation : parentInvocations) {
+            assertEquals(List.of(Boolean.TRUE), invocation.getOptionValues(verbose));
+            assertEquals(List.of(Boolean.TRUE), invocation.getOptionValues(local));
+            assertEquals(List.of("child"), invocation.getArgumentValues(trailing));
+        }
+    }
+
+    @Test
+    void restoresTheInterruptFlagWhenACommandRunnerIsInterrupted() {
+        CommandApplication application = CommandApplication.builder("demo")
+                .command(CommandSpec.builder("run").build(), context -> {
+                    throw new InterruptedException("cancelled");
+                })
+                .build();
+
+        try {
+            CommandResult result = application.execute(List.of("run"), new TestSession());
+
+            assertEquals(1, result.getExitCode());
+            assertEquals(CommandFailureKind.EXECUTION, result.getFailure().getKind());
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test

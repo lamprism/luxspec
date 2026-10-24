@@ -60,8 +60,9 @@ public class PrometheusExporter {
         MetricSnapshot snapshot = registry.snapshot();
         List<MetricFamily> families = plan(snapshot);
         StringBuilder output = new StringBuilder();
+        Map<String, String> sampleFamilies = new HashMap<>();
         for (MetricFamily family : families) {
-            render(family, output);
+            render(family, output, sampleFamilies);
         }
         return output.toString();
     }
@@ -92,7 +93,11 @@ public class PrometheusExporter {
         return result;
     }
 
-    private static void render(MetricFamily family, StringBuilder output) {
+    private static void render(
+            MetricFamily family,
+            StringBuilder output,
+            Map<String, String> sampleFamilies
+    ) {
         MetricReading first = family.readings.get(0);
         output.append("# HELP ").append(family.name).append(' ')
                 .append(escapeHelp(first.binding().getSpec().getDescription()))
@@ -100,42 +105,48 @@ public class PrometheusExporter {
         if (family.readings.stream().anyMatch(PrometheusExporter::isHistogram)) {
             output.append("# TYPE ").append(family.name).append(" histogram\n");
             for (MetricReading reading : family.readings) {
-                renderHistogram(family.name, reading, output);
+                renderHistogram(family.name, family.name, reading, output, sampleFamilies);
             }
             return;
         }
         output.append("# TYPE ").append(family.name).append(' ')
                 .append(typeOf(first)).append('\n');
         for (MetricReading reading : family.readings) {
-            renderSamples(family.name, reading, output);
+            renderSamples(family.name, family.name, reading, output, sampleFamilies);
         }
     }
 
-    private static void renderSamples(String name, MetricReading reading, StringBuilder output) {
+    private static void renderSamples(
+            String name,
+            String familyName,
+            MetricReading reading,
+            StringBuilder output,
+            Map<String, String> sampleFamilies
+    ) {
         Double value = reading.value();
         if (value != null) {
-            sample(output, name, reading.binding().getDimensions(), value);
+            sample(output, name, reading.binding().getDimensions(), value, familyName, sampleFamilies);
         }
         Long count = reading.count();
         if (count != null && isCountFamily(reading)) {
-            sample(output, name + "_count", reading.binding().getDimensions(), count);
+            sample(output, name + "_count", reading.binding().getDimensions(), count, familyName, sampleFamilies);
         }
         Duration totalTime = reading.totalTime();
         if (totalTime != null) {
             String sampleName = reading.kind().equals(MetricKind.TIME_GAUGE) ? name : name + "_sum";
-            sample(output, sampleName, reading.binding().getDimensions(), seconds(totalTime));
+            sample(output, sampleName, reading.binding().getDimensions(), seconds(totalTime), familyName, sampleFamilies);
         }
         Double total = reading.total();
         if (total != null) {
-            sample(output, name + "_sum", reading.binding().getDimensions(), total);
+            sample(output, name + "_sum", reading.binding().getDimensions(), total, familyName, sampleFamilies);
         }
         Double max = reading.max();
         if (max != null) {
-            sample(output, name + "_max", reading.binding().getDimensions(), max);
+            sample(output, name + "_max", reading.binding().getDimensions(), max, familyName, sampleFamilies);
         }
         Long activeTasks = reading.activeTasks();
         if (activeTasks != null) {
-            sample(output, name + "_active_tasks", reading.binding().getDimensions(), activeTasks);
+            sample(output, name + "_active_tasks", reading.binding().getDimensions(), activeTasks, familyName, sampleFamilies);
         }
         Duration activeDuration = reading.activeDuration();
         if (activeDuration != null) {
@@ -143,12 +154,20 @@ public class PrometheusExporter {
                     output,
                     name + "_duration_seconds",
                     reading.binding().getDimensions(),
-                    seconds(activeDuration)
+                    seconds(activeDuration),
+                    familyName,
+                    sampleFamilies
             );
         }
     }
 
-    private static void renderHistogram(String name, MetricReading reading, StringBuilder output) {
+    private static void renderHistogram(
+            String name,
+            String familyName,
+            MetricReading reading,
+            StringBuilder output,
+            Map<String, String> sampleFamilies
+    ) {
         Map<String, String> baseLabels = reading.binding().getDimensions();
         if (containsNormalizedLabel(baseLabels, "le")) {
             throw new PrometheusExportException("Prometheus histogram dimensions must not contain le");
@@ -158,22 +177,22 @@ public class PrometheusExporter {
         for (Map.Entry<Double, Long> bucket : buckets) {
             Map<String, String> labels = new LinkedHashMap<>(baseLabels);
             labels.put("le", Double.toString(bucket.getKey()));
-            sample(output, name + "_bucket", labels, bucket.getValue());
+            sample(output, name + "_bucket", labels, bucket.getValue(), familyName, sampleFamilies);
         }
         Long count = reading.count();
         if (count != null) {
             Map<String, String> infiniteBucket = new LinkedHashMap<>(baseLabels);
             infiniteBucket.put("le", "+Inf");
-            sample(output, name + "_bucket", infiniteBucket, count);
-            sample(output, name + "_count", baseLabels, count);
+            sample(output, name + "_bucket", infiniteBucket, count, familyName, sampleFamilies);
+            sample(output, name + "_count", baseLabels, count, familyName, sampleFamilies);
         }
         Duration totalTime = reading.totalTime();
         if (totalTime != null) {
-            sample(output, name + "_sum", baseLabels, seconds(totalTime));
+            sample(output, name + "_sum", baseLabels, seconds(totalTime), familyName, sampleFamilies);
         }
         Double total = reading.total();
         if (total != null) {
-            sample(output, name + "_sum", baseLabels, total);
+            sample(output, name + "_sum", baseLabels, total, familyName, sampleFamilies);
         }
     }
 
@@ -197,7 +216,18 @@ public class PrometheusExporter {
         return "gauge";
     }
 
-    private static void sample(StringBuilder output, String name, Map<String, String> labels, Object value) {
+    private static void sample(
+            StringBuilder output,
+            String name,
+            Map<String, String> labels,
+            Object value,
+            String familyName,
+            Map<String, String> sampleFamilies
+    ) {
+        String previousFamily = sampleFamilies.putIfAbsent(name, familyName);
+        if (previousFamily != null && !previousFamily.equals(familyName)) {
+            throw new PrometheusExportException("Prometheus sample name collision: " + name);
+        }
         output.append(name);
         appendLabels(output, labels);
         output.append(' ').append(value).append('\n');

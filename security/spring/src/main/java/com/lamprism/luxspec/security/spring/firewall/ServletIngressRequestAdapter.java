@@ -18,15 +18,16 @@ package com.lamprism.luxspec.security.spring.firewall;
 
 import com.lamprism.luxspec.security.firewall.IngressRequest;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.server.PathContainer;
+import org.springframework.http.server.RequestPath;
 
 import java.util.Objects;
 
 /**
  * Converts Servlet request facts into the provider-independent ingress model.
  *
- * <p>The request URI is copied without additional path canonicalization. The servlet container,
- * routing configuration, and application firewall policy must agree on the canonical path seen
- * by both the firewall and handler mapping.</p>
+ * <p>The path is parsed using Spring's HTTP path rules, including context-path removal, percent
+ * decoding of path segments, and removal of matrix parameters.</p>
  *
  * @author RollW
  */
@@ -52,8 +53,34 @@ final class ServletIngressRequestAdapter {
         );
         return new IngressRequest(
                 nonNullRequest.getMethod(),
-                nonNullRequest.getRequestURI(),
+                canonicalPath(nonNullRequest),
                 nonNullResolver.resolve(nonNullRequest)
         );
+    }
+
+    private static String canonicalPath(HttpServletRequest request) {
+        try {
+            PathContainer path = RequestPath.parse(
+                    request.getRequestURI(),
+                    request.getContextPath()
+            ).pathWithinApplication();
+            StringBuilder canonicalPath = new StringBuilder();
+            for (PathContainer.Element element : path.elements()) {
+                if (element instanceof PathContainer.PathSegment segment) {
+                    canonicalPath.append(segment.valueToMatch());
+                } else {
+                    canonicalPath.append(element.value());
+                }
+            }
+            return canonicalPath.toString();
+        } catch (IllegalArgumentException failure) {
+            throw new InvalidRequestPathException();
+        }
+    }
+
+    static final class InvalidRequestPathException extends RuntimeException {
+        private InvalidRequestPathException() {
+            super("Request path is invalid");
+        }
     }
 }

@@ -70,6 +70,27 @@ public final class SlicePagination implements CollectionPagination {
     }
 
     /**
+     * @return the zero-based result offset
+     */
+    public long getOffset() {
+        return offset;
+    }
+
+    /**
+     * @return the requested slice size
+     */
+    public int getLimit() {
+        return limit;
+    }
+
+    /**
+     * @return whether another slice exists
+     */
+    public boolean isHasNext() {
+        return hasNext;
+    }
+
+    /**
      * Returns the no-count slice mode.
      *
      * @return {@code slice}

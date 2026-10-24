@@ -68,6 +68,7 @@ class JpaCriteriaTranslatorIntegrationTest {
     private static final QueryField<String> NAME = QueryField.of("name", String.class);
     private static final QueryField<String> CATEGORY = QueryField.of("category", String.class);
     private static final QueryField<Integer> SCORE = QueryField.of("score", Integer.class);
+    private static final QueryField<String> OPTIONAL_VALUE = QueryField.of("optionalValue", String.class);
     private static final QueryField<String> DISPLAY_NAME = QueryField.of("displayName", String.class);
     private static final QueryField<String> DISPLAY_NAME_SNAKE = QueryField.of("display_name", String.class);
 
@@ -151,6 +152,31 @@ class JpaCriteriaTranslatorIntegrationTest {
 
         assertEquals(List.of(), nullNames);
         assertEquals(List.of("alpha", "bravo"), nonNullNames);
+    }
+
+    @Test
+    void keepsNegativePredicatesTwoValuedForNullFieldsLikeInMemoryQueries() {
+        persistItems(
+                new QueryableItemEntity("empty", "standard", 1, (String) null),
+                new QueryableItemEntity("present", "standard", 2, "value")
+        );
+
+        List<String> notEqualNames = query(new QueryCriteria(
+                QueryCondition.notEqual(OPTIONAL_VALUE, "value"),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+        List<String> notInNames = query(new QueryCriteria(
+                QueryCondition.notIn(OPTIONAL_VALUE, List.of("value")),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+        List<String> negatedEqualNames = query(new QueryCriteria(
+                QueryExpression.not(QueryCondition.equal(OPTIONAL_VALUE, "value")),
+                List.of()
+        )).stream().map(QueryableItemEntity::name).toList();
+
+        assertEquals(List.of(), notEqualNames);
+        assertEquals(List.of(), notInNames);
+        assertEquals(List.of("empty"), negatedEqualNames);
     }
 
     @Test

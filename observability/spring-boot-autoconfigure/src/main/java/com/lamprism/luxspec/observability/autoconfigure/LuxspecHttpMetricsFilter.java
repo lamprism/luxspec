@@ -250,12 +250,10 @@ public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Or
 
         @Override
         public void onTimeout(AsyncEvent event) {
-            complete(null, true);
         }
 
         @Override
         public void onError(AsyncEvent event) {
-            complete(event.getThrowable(), true);
         }
 
         @Override

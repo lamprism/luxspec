@@ -25,6 +25,7 @@ import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.metric.MetricSnapshot;
 import com.lamprism.luxspec.observability.metric.MetricSpec;
 import com.lamprism.luxspec.observability.metric.TimeGaugeSpec;
+import com.lamprism.luxspec.observability.metric.TimerSpec;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -107,6 +108,31 @@ class PrometheusExporterTest {
 
         assertTrue(output.contains("job_age 2.0"));
         assertFalse(output.contains("job_age_sum"));
+    }
+
+    @Test
+    void rejectsARegularMetricFamilyThatCollidesWithAHistogramSampleName() {
+        TimerSpec histogram = TimerSpec.builder("request.latency").build();
+        CounterSpec counter = CounterSpec.builder("request.latency_count").build();
+        MetricSnapshot snapshot = new MetricSnapshot(
+                Instant.parse("2026-01-01T00:00:00Z"),
+                1L,
+                List.of(
+                        MetricReading.builder(histogram.bind(), MetricKind.TIMER)
+                                .count(2L)
+                                .totalTime(Duration.ofSeconds(1L))
+                                .histogram(java.util.Map.of(1.0d, 1L, 2.0d, 2L))
+                                .build(),
+                        MetricReading.builder(counter.bind(), MetricKind.COUNTER)
+                                .value(1.0d)
+                                .build()
+                )
+        );
+
+        assertThrows(
+                PrometheusExportException.class,
+                () -> new PrometheusExporter(new SnapshotRegistry(snapshot)).scrape()
+        );
     }
 
     private static int occurrences(String text, String value) {

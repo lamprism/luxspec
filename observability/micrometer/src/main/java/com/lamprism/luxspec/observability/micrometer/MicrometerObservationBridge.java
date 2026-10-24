@@ -28,6 +28,7 @@ import io.micrometer.observation.Observation;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,7 +44,10 @@ public class MicrometerObservationBridge implements AutoCloseable {
     private final Map<ObservationId, ProviderObservation> observations = new ConcurrentHashMap<>();
     private final ObservationHandler handler = new BridgeHandler();
     private final AutoCloseable listener;
-    private final AtomicBoolean closed = new AtomicBoolean();
+    private final Object lifecycleLock = new Object();
+    private int activeScopeCallbacks;
+    private boolean closed;
+    private boolean listenerDetached;
 
     public MicrometerObservationBridge(
             ObservationRegistry observationRegistry,
@@ -56,26 +60,48 @@ public class MicrometerObservationBridge implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!closed.compareAndSet(false, true)) {
-            return;
-        }
-        try {
-            listener.close();
-        } catch (Exception failure) {
-            throw new MicrometerProjectionException("Unable to detach the Micrometer observation bridge", failure);
-        } finally {
-            for (ProviderObservation observation : observations.values()) {
-                observation.close();
+        synchronized (lifecycleLock) {
+            if (listenerDetached) {
+                return;
             }
-            observations.clear();
+            closed = true;
+        }
+        RuntimeException closeFailure = null;
+        for (ProviderObservation observation : observations.values()) {
+            try {
+                observation.close();
+            } catch (RuntimeException failure) {
+                if (closeFailure == null) {
+                    closeFailure = failure;
+                } else if (closeFailure != failure) {
+                    closeFailure.addSuppressed(failure);
+                }
+            }
+        }
+        observations.entrySet().removeIf(entry ->
+                entry.getValue().isStopped() && entry.getValue().isScopeFree()
+        );
+        try {
+            detachListenerIfIdle();
+        } catch (RuntimeException failure) {
+            if (closeFailure == null) {
+                closeFailure = failure;
+            } else if (closeFailure != failure) {
+                closeFailure.addSuppressed(failure);
+            }
+        }
+        if (closeFailure != null) {
+            throw new MicrometerProjectionException("Unable to close the Micrometer observation bridge", closeFailure);
         }
     }
 
     private final class BridgeHandler implements ObservationHandler {
         @Override
         public void onStart(ObservationView view) {
-            if (closed.get()) {
-                return;
+            synchronized (lifecycleLock) {
+                if (closed) {
+                    return;
+                }
             }
             Observation providerObservation =
                     Observation.createNotStarted(
@@ -90,11 +116,24 @@ public class MicrometerObservationBridge implements AutoCloseable {
             MicrometerObservationLinkContext.put(providerObservation.getContext(), view.links());
             applyAttributes(providerObservation, view.attributes());
             providerObservation.start();
-            observations.put(view.id(), new ProviderObservation(providerObservation));
+            ProviderObservation projectedObservation = new ProviderObservation(providerObservation);
+            boolean stopImmediately;
+            synchronized (lifecycleLock) {
+                stopImmediately = closed;
+                if (!stopImmediately) {
+                    observations.put(view.id(), projectedObservation);
+                }
+            }
+            if (stopImmediately) {
+                projectedObservation.stop();
+            }
         }
 
         @Override
         public void onError(ObservationView view) {
+            if (isClosed()) {
+                return;
+            }
             ProviderObservation observation = observations.get(view.id());
             Throwable error = view.error();
             if (observation != null && error != null) {
@@ -104,6 +143,9 @@ public class MicrometerObservationBridge implements AutoCloseable {
 
         @Override
         public void onEvent(ObservationView view, ObservationEvent event) {
+            if (isClosed()) {
+                return;
+            }
             ProviderObservation observation = observations.get(view.id());
             if (observation == null) {
                 return;
@@ -118,26 +160,47 @@ public class MicrometerObservationBridge implements AutoCloseable {
 
         @Override
         public void onScopeOpened(ObservationView view) {
-            ProviderObservation observation = observations.get(view.id());
-            if (observation != null) {
-                observation.openScope();
+            if (!beginScopeCallback()) {
+                return;
+            }
+            try {
+                ProviderObservation observation = observations.get(view.id());
+                if (observation != null) {
+                    observation.openScope();
+                }
+            } finally {
+                endScopeCallback();
             }
         }
 
         @Override
         public void onScopeClosed(ObservationView view) {
-            ProviderObservation observation = observations.get(view.id());
-            if (observation != null) {
-                observation.closeScope();
-                if (observation.isStopped() && observation.isScopeFree()) {
-                    observations.remove(view.id(), observation);
+            if (!beginScopeCallback()) {
+                return;
+            }
+            try {
+                ProviderObservation observation = observations.get(view.id());
+                if (observation != null) {
+                    observation.closeScope();
+                    if (observation.isStopped() && observation.isScopeFree()) {
+                        observations.remove(view.id(), observation);
+                    }
                 }
+            } finally {
+                endScopeCallback();
             }
         }
 
         @Override
         public void onStop(ObservationView view) {
             ProviderObservation observation = observations.get(view.id());
+            if (isClosed()) {
+                if (observation != null && observation.isStopped() && observation.isScopeFree()) {
+                    observations.remove(view.id(), observation);
+                }
+                detachListenerIfIdle();
+                return;
+            }
             if (observation == null) {
                 return;
             }
@@ -147,6 +210,59 @@ public class MicrometerObservationBridge implements AutoCloseable {
             if (observation.isScopeFree()) {
                 observations.remove(view.id(), observation);
             }
+        }
+    }
+
+    private boolean isClosed() {
+        synchronized (lifecycleLock) {
+            return closed;
+        }
+    }
+
+    private boolean beginScopeCallback() {
+        synchronized (lifecycleLock) {
+            if (listenerDetached) {
+                return false;
+            }
+            activeScopeCallbacks++;
+            return true;
+        }
+    }
+
+    private void endScopeCallback() {
+        synchronized (lifecycleLock) {
+            activeScopeCallbacks--;
+        }
+        detachListenerIfIdle();
+    }
+
+    private void detachListenerIfIdle() {
+        boolean detach;
+        synchronized (lifecycleLock) {
+            if (!closed || listenerDetached || activeScopeCallbacks != 0) {
+                return;
+            }
+            observations.entrySet().removeIf(entry ->
+                    entry.getValue().isStopped() && entry.getValue().isScopeFree()
+            );
+            detach = observations.isEmpty();
+            if (detach) {
+                listenerDetached = true;
+            }
+        }
+        if (!detach) {
+            return;
+        }
+        try {
+            listener.close();
+        } catch (Exception failure) {
+            synchronized (lifecycleLock) {
+                listenerDetached = false;
+            }
+            throw new MicrometerProjectionException(
+                    "Unable to detach the Micrometer observation bridge",
+                    failure
+            );
         }
     }
 
@@ -175,47 +291,90 @@ public class MicrometerObservationBridge implements AutoCloseable {
 
     private static final class ProviderObservation {
         private final Observation observation;
-        private final ConcurrentLinkedDeque<Observation.Scope> scopes = new ConcurrentLinkedDeque<>();
+        private final Map<Thread, ConcurrentLinkedDeque<ScopeEntry>> scopes = new ConcurrentHashMap<>();
         private final AtomicBoolean stopped = new AtomicBoolean();
 
         private ProviderObservation(Observation observation) {
             this.observation = observation;
         }
 
-        private void openScope() {
-            if (!stopped.get()) {
-                scopes.push(observation.openScope());
+        private synchronized void openScope() {
+            Thread owner = Thread.currentThread();
+            Optional<Observation.Scope> scope = stopped.get()
+                    ? Optional.empty()
+                    : Optional.of(observation.openScope());
+            scopes.computeIfAbsent(owner, ignored -> new ConcurrentLinkedDeque<>())
+                    .push(new ScopeEntry(scope));
+        }
+
+        private synchronized void closeScope() {
+            Thread owner = Thread.currentThread();
+            ConcurrentLinkedDeque<ScopeEntry> threadScopes = scopes.get(owner);
+            ScopeEntry scopeEntry = threadScopes == null ? null : threadScopes.pollFirst();
+            if (scopeEntry != null) {
+                try {
+                    scopeEntry.scope().ifPresent(Observation.Scope::close);
+                } finally {
+                    removeEmptyStack(owner, threadScopes);
+                }
             }
         }
 
-        private void closeScope() {
-            Observation.Scope scope = scopes.pollFirst();
-            if (scope != null) {
-                scope.close();
-            }
-        }
-
-        private void stop() {
+        private synchronized void stop() {
             if (!stopped.compareAndSet(false, true)) {
                 return;
             }
             observation.stop();
         }
 
-        private boolean isScopeFree() {
-            return scopes.isEmpty();
+        private synchronized boolean isScopeFree() {
+            return scopes.values().stream().allMatch(ConcurrentLinkedDeque::isEmpty);
         }
 
         private boolean isStopped() {
             return stopped.get();
         }
 
-        private void close() {
-            Observation.Scope scope;
-            while ((scope = scopes.pollFirst()) != null) {
-                scope.close();
+        private synchronized void close() {
+            Thread owner = Thread.currentThread();
+            ConcurrentLinkedDeque<ScopeEntry> threadScopes = scopes.get(owner);
+            RuntimeException failure = null;
+            if (threadScopes != null) {
+                ScopeEntry scopeEntry;
+                while ((scopeEntry = threadScopes.pollFirst()) != null) {
+                    try {
+                        scopeEntry.scope().ifPresent(Observation.Scope::close);
+                    } catch (RuntimeException closeFailure) {
+                        if (failure == null) {
+                            failure = closeFailure;
+                        } else if (failure != closeFailure) {
+                            failure.addSuppressed(closeFailure);
+                        }
+                    }
+                }
+                scopes.remove(owner, threadScopes);
             }
-            stop();
+            try {
+                stop();
+            } catch (RuntimeException stopFailure) {
+                if (failure == null) {
+                    failure = stopFailure;
+                } else if (failure != stopFailure) {
+                    failure.addSuppressed(stopFailure);
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        }
+
+        private void removeEmptyStack(Thread owner, ConcurrentLinkedDeque<ScopeEntry> threadScopes) {
+            if (threadScopes != null && threadScopes.isEmpty()) {
+                scopes.remove(owner, threadScopes);
+            }
+        }
+
+        private record ScopeEntry(Optional<Observation.Scope> scope) {
         }
     }
 }

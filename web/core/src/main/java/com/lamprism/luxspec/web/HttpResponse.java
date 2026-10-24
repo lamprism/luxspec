@@ -28,14 +28,16 @@ import java.util.Objects;
  */
 public final class HttpResponse<T> {
     private final ResponseStatus status;
+    @Nullable
     private final T data;
+    @Nullable
     private final String correlationId;
 
     /**
      * Creates one ordinary JSON response envelope.
      *
-     * @param status  the response status
-     * @param data    the optional response data
+     * @param status        the response status
+     * @param data          the optional response data
      * @param correlationId the optional safe correlation identifier
      */
     public HttpResponse(ResponseStatus status, @Nullable T data, @Nullable String correlationId) {
@@ -72,11 +74,32 @@ public final class HttpResponse<T> {
     }
 
     /**
+     * @return the response status
+     */
+    public ResponseStatus getStatus() {
+        return status;
+    }
+
+    /**
+     * @return the optional response data
+     */
+    public @Nullable T getData() {
+        return data;
+    }
+
+    /**
+     * @return the optional correlation identifier
+     */
+    public @Nullable String getCorrelationId() {
+        return correlationId;
+    }
+
+    /**
      * Creates a successful response envelope.
      *
-     * @param data    the optional response data
+     * @param data          the optional response data
      * @param correlationId the optional safe correlation identifier
-     * @param <T>     the response data type
+     * @param <T>           the response data type
      * @return the successful response
      */
     public static <T> HttpResponse<T> success(@Nullable T data, @Nullable String correlationId) {
@@ -86,10 +109,10 @@ public final class HttpResponse<T> {
     /**
      * Creates a failed response envelope with an explicit status.
      *
-     * @param status  the response status
-     * @param data    the optional response data
+     * @param status        the response status
+     * @param data          the optional response data
      * @param correlationId the optional safe correlation identifier
-     * @param <T>     the response data type
+     * @param <T>           the response data type
      * @return the failed response
      */
     public static <T> HttpResponse<T> failure(

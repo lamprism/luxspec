@@ -63,13 +63,18 @@ public final class FunctionTimerSpec<S> extends AbstractMetricSpec<FunctionTimer
             return false;
         }
         return sourceType.equals(spec.sourceType)
-                && countReader.getClass().equals(spec.countReader.getClass())
-                && totalTimeReader.getClass().equals(spec.totalTimeReader.getClass());
+                && countReader == spec.countReader
+                && totalTimeReader == spec.totalTimeReader;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sourceType, countReader.getClass(), totalTimeReader.getClass());
+        return Objects.hash(
+                super.hashCode(),
+                sourceType,
+                System.identityHashCode(countReader),
+                System.identityHashCode(totalTimeReader)
+        );
     }
 
     /**

@@ -57,12 +57,12 @@ public final class FunctionCounterSpec<S> extends AbstractMetricSpec<FunctionCou
             return false;
         }
         return sourceType.equals(spec.sourceType)
-                && reader.getClass().equals(spec.reader.getClass());
+                && reader == spec.reader;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sourceType, reader.getClass());
+        return Objects.hash(super.hashCode(), sourceType, System.identityHashCode(reader));
     }
 
     /**

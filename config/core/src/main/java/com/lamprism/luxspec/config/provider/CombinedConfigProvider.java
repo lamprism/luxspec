@@ -5,6 +5,7 @@ import com.lamprism.luxspec.config.ConfigProvider;
 import com.lamprism.luxspec.config.ConfigReader;
 import com.lamprism.luxspec.config.ConfigValue;
 import com.lamprism.luxspec.config.ConfigWriter;
+import com.lamprism.luxspec.config.resolution.ConfigValueOrigin;
 import com.lamprism.luxspec.config.resolution.LayeredConfigValue;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
 
@@ -47,9 +48,21 @@ public class CombinedConfigProvider implements ConfigProvider {
         ConfigBinding<T> nonNullBinding = Objects.requireNonNull(binding, "binding");
         List<ConfigValue<T>> layers = new ArrayList<>();
         for (ConfigReader reader : readers) {
-            layers.add(reader.get(nonNullBinding));
+            ConfigValue<T> layer = reader.get(nonNullBinding);
+            layers.add(layer);
+            if (containsTombstone(layer)) {
+                break;
+            }
         }
         return LayeredConfigValue.of(layers);
+    }
+
+    private static boolean containsTombstone(ConfigValue<?> value) {
+        if (value instanceof LayeredConfigValue<?> layered) {
+            return layered.getLayers().stream()
+                    .anyMatch(layer -> layer.getOrigin() instanceof ConfigValueOrigin.TombstoneOrigin);
+        }
+        return value.getOrigin() instanceof ConfigValueOrigin.TombstoneOrigin;
     }
 
     @Override

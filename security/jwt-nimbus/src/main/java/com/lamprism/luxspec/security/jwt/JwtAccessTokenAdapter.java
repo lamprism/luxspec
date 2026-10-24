@@ -122,7 +122,7 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         if (signingKey == null) {
             throw new IllegalStateException("Active key does not contain signing material");
         }
-        Instant issuedAt = clock.instant();
+        Instant issuedAt = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         Instant expiresAt = issuedAt.plus(configuration.getLifetime());
         List<String> scopes = scopeNames(nonNullAuthentication);
         JWSAlgorithm algorithm = signingAlgorithm(signingKey);
@@ -239,7 +239,8 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
                 AuthorizationGrantSet.of(scopes),
                 tokenId,
                 issuedAt,
-                expiresAt
+                expiresAt,
+                skewedExpiration
         );
     }
 

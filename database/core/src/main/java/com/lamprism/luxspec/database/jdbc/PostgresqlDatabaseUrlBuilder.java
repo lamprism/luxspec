@@ -4,6 +4,7 @@ import com.lamprism.luxspec.database.DatabaseConfig;
 import com.lamprism.luxspec.database.DatabaseTarget;
 import com.lamprism.luxspec.database.DatabaseType;
 import com.lamprism.luxspec.database.SslConfig;
+import com.lamprism.luxspec.database.SslMaterial;
 import com.lamprism.luxspec.database.SslMode;
 import org.jspecify.annotations.Nullable;
 
@@ -51,7 +52,9 @@ public class PostgresqlDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
                 "sslmode",
                 "sslrootcert",
                 "sslcert",
-                "sslkey"
+                "sslkey",
+                "sslkeytype",
+                "sslpassword"
         ));
         SslConfig ssl = settings.getSsl();
         requireCaForVerification(ssl);
@@ -64,23 +67,36 @@ public class PostgresqlDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
                 "postgres-ca",
                 ssl.getServerCaCertificate()
         );
-        putMaterial(
-                sslMaterializer,
+        putClientKeyStore(
                 properties,
                 resources,
-                "sslcert",
-                "postgres-cert",
-                ssl.getClientCertificate()
-        );
-        putMaterial(
-                sslMaterializer,
-                properties,
-                resources,
-                "sslkey",
-                "postgres-key",
+                ssl.getClientCertificate(),
                 ssl.getClientPrivateKey()
         );
         return properties;
+    }
+
+    private void putClientKeyStore(
+            Map<String, String> properties,
+            List<AutoCloseable> resources,
+            @Nullable SslMaterial clientCertificate,
+            @Nullable SslMaterial clientPrivateKey
+    ) {
+        if (clientCertificate == null) {
+            return;
+        }
+        KeyStoreArtifact artifact = Objects.requireNonNull(
+                sslMaterializer.materializeClientKeyStore(
+                        "postgres-client",
+                        clientCertificate,
+                        Objects.requireNonNull(clientPrivateKey, "clientPrivateKey")
+                ),
+                "client key store artifact"
+        );
+        resources.add(artifact);
+        properties.put("sslkey", artifact.getPath().toAbsolutePath().normalize().toString());
+        properties.put("sslkeytype", artifact.getKeyStoreType());
+        properties.put("sslpassword", artifact.getPassword());
     }
 
     private static void requireCaForVerification(SslConfig ssl) {

@@ -301,7 +301,9 @@ final class DefaultObservationRegistry implements ObservationRegistry {
             requireActive();
             ObservationAttributeSpec<T> nonNullAttribute = Objects.requireNonNull(attribute, "attribute");
             nonNullAttribute.formatValue(value);
-            attributes.put(nonNullAttribute, Objects.requireNonNull(value, "value"));
+            Object nonNullValue = Objects.requireNonNull(value, "value");
+            attributes.remove(nonNullAttribute);
+            attributes.put(nonNullAttribute, nonNullValue);
         }
 
         @Override

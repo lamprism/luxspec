@@ -66,14 +66,15 @@ public final class HistogramSampleReducer implements MetricReducer<HistogramSumm
         boolean totalAvailable = previous.getTotalCount() != null;
         for (int index = 1; index < ordered.size(); index++) {
             HistogramSummary current = snapshot(ordered.get(index));
-            addBucketDelta(deltaBuckets, previous.getBuckets(), current.getBuckets());
+            boolean reset = resetBetween(previous, current);
+            addBucketDelta(deltaBuckets, previous.getBuckets(), current.getBuckets(), reset);
             if (totalAvailable) {
                 Long previousTotal = previous.getTotalCount();
                 Long currentTotal = current.getTotalCount();
                 if (previousTotal == null || currentTotal == null) {
                     totalAvailable = false;
                 } else {
-                    long increment = currentTotal < previousTotal ? currentTotal : currentTotal - previousTotal;
+                    long increment = reset ? currentTotal : currentTotal - previousTotal;
                     totalDelta = addExact(totalDelta, increment, "histogram count delta");
                 }
             }
@@ -89,14 +90,15 @@ public final class HistogramSampleReducer implements MetricReducer<HistogramSumm
     private static void addBucketDelta(
             Map<Double, Long> deltaBuckets,
             Map<Double, Long> previous,
-            Map<Double, Long> current
+            Map<Double, Long> current,
+            boolean reset
     ) {
         TreeMap<Double, Long> boundaries = new TreeMap<>(previous);
         boundaries.putAll(current);
         for (double boundary : boundaries.keySet()) {
             long previousCount = previous.getOrDefault(boundary, 0L);
             long currentCount = current.getOrDefault(boundary, 0L);
-            long increment = currentCount < previousCount ? currentCount : currentCount - previousCount;
+            long increment = reset ? currentCount : currentCount - previousCount;
             long updated = addExact(
                     deltaBuckets.getOrDefault(boundary, 0L),
                     increment,
@@ -108,6 +110,20 @@ public final class HistogramSampleReducer implements MetricReducer<HistogramSumm
                 deltaBuckets.put(boundary, updated);
             }
         }
+    }
+
+    private static boolean resetBetween(HistogramSummary previous, HistogramSummary current) {
+        Long previousTotal = previous.getTotalCount();
+        Long currentTotal = current.getTotalCount();
+        if (previousTotal != null && currentTotal != null && currentTotal < previousTotal) {
+            return true;
+        }
+        for (Map.Entry<Double, Long> entry : previous.getBuckets().entrySet()) {
+            if (current.getBuckets().getOrDefault(entry.getKey(), 0L) < entry.getValue()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static long addExact(long left, long right, String name) {

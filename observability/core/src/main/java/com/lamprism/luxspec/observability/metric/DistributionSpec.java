@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.observability.metric;
 
+import org.jspecify.annotations.Nullable;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,8 +37,8 @@ public final class DistributionSpec {
     private final boolean histogram;
     private final List<Double> serviceLevelObjectives;
     private final double scale;
-    private final Double minimumExpectedValue;
-    private final Double maximumExpectedValue;
+    private final @Nullable Double minimumExpectedValue;
+    private final @Nullable Double maximumExpectedValue;
 
     private DistributionSpec(Builder builder) {
         this.histogram = builder.histogram;
@@ -67,11 +69,11 @@ public final class DistributionSpec {
         return scale;
     }
 
-    public Double minimumExpectedValue() {
+    public @Nullable Double minimumExpectedValue() {
         return minimumExpectedValue;
     }
 
-    public Double maximumExpectedValue() {
+    public @Nullable Double maximumExpectedValue() {
         return maximumExpectedValue;
     }
 
@@ -99,8 +101,8 @@ public final class DistributionSpec {
         private boolean histogram;
         private final List<Double> serviceLevelObjectives = new ArrayList<>();
         private double scale = 1.0d;
-        private Double minimumExpectedValue;
-        private Double maximumExpectedValue;
+        private @Nullable Double minimumExpectedValue;
+        private @Nullable Double maximumExpectedValue;
 
         private Builder() {
         }

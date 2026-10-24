@@ -47,6 +47,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -198,19 +199,29 @@ class StoredRefreshTokenLifecycleTest {
         CountDownLatch start = new CountDownLatch(1);
         Callable<Boolean> attempt = () -> refreshAfterSignal(fixture, initialToken, ready, start);
         ExecutorService executor = Executors.newFixedThreadPool(2);
+        Future<Boolean> first = null;
+        Future<Boolean> second = null;
 
         try {
-            Future<Boolean> first = executor.submit(attempt);
-            Future<Boolean> second = executor.submit(attempt);
-            ready.await();
+            first = executor.submit(attempt);
+            second = executor.submit(attempt);
+            assertTrue(ready.await(5L, TimeUnit.SECONDS));
             start.countDown();
-            int successCount = Boolean.compare(first.get(), false) + Boolean.compare(second.get(), false);
+            int successCount = Boolean.compare(first.get(5L, TimeUnit.SECONDS), false)
+                    + Boolean.compare(second.get(5L, TimeUnit.SECONDS), false);
 
             assertEquals(1, successCount);
             assertTrue(fixture.store.isRevoked(fixture.store.getSessionId(initialDigest)));
             assertEquals(2, fixture.store.digestCount());
         } finally {
+            if (first != null) {
+                first.cancel(true);
+            }
+            if (second != null) {
+                second.cancel(true);
+            }
             executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5L, TimeUnit.SECONDS));
         }
     }
 
@@ -335,7 +346,9 @@ class StoredRefreshTokenLifecycleTest {
             CountDownLatch start
     ) throws InterruptedException {
         ready.countDown();
-        start.await();
+        if (!start.await(5L, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Timed out waiting for concurrent refresh start");
+        }
         try {
             fixture.lifecycle.refresh(refreshToken);
             return true;

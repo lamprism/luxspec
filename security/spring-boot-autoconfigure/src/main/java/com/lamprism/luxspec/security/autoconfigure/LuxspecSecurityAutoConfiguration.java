@@ -21,6 +21,7 @@ import com.lamprism.luxspec.security.authentication.AccessTokenAuthenticator;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.spring.LuxspecSecurityExceptionHandler;
 import com.lamprism.luxspec.security.spring.authentication.AuthorizationHeaderBearerTokenResolver;
+import com.lamprism.luxspec.security.spring.authentication.BearerAuthenticationEntryPoint;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecAccessTokenAuthenticationProvider;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecBearerAuthenticationFilter;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
@@ -38,7 +39,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -46,7 +46,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 
 import java.time.Clock;
@@ -184,7 +183,7 @@ public class LuxspecSecurityAutoConfiguration {
                 AuthenticationManager authenticationManager,
                 ObjectProvider<ExecutionContextStorage> storage
         ) {
-            AuthenticationEntryPoint unauthorized = new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED);
+            AuthenticationEntryPoint unauthorized = new BearerAuthenticationEntryPoint();
             httpSecurity
                     .csrf(AbstractHttpConfigurer::disable)
                     .formLogin(AbstractHttpConfigurer::disable)

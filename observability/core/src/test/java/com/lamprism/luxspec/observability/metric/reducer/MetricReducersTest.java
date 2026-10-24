@@ -112,6 +112,23 @@ class MetricReducersTest {
     }
 
     @Test
+    void resetsEveryHistogramBucketWhenAnyCumulativeCountDecreases() {
+        TimerSpec spec = TimerSpec.builder("latency").build();
+        Instant start = Instant.parse("2026-01-01T00:00:00Z");
+
+        HistogramSummary summary = new HistogramSampleReducer().reduce(
+                List.of(
+                        histogramSample(spec, start, 1L, Map.of(1.0d, 5L, 2.0d, 10L), 10L),
+                        histogramSample(spec, start.plusSeconds(1L), 2L, Map.of(1.0d, 6L, 2.0d, 8L), 8L)
+                )
+        );
+
+        assertEquals(Map.of(1.0d, 6L, 2.0d, 8L), summary.getBuckets());
+        assertEquals(8L, summary.getTotalCount());
+        assertEquals(1.0d, summary.getQuantile(0.5d));
+    }
+
+    @Test
     void reducesCumulativeCountsForTimerThroughput() {
         TimerSpec spec = TimerSpec.builder("requests").build();
         Instant start = Instant.parse("2026-01-01T00:00:00Z");

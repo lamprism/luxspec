@@ -31,10 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -71,7 +73,7 @@ final class DefaultHealthRegistry implements HealthRegistry {
         if (names.isEmpty()) {
             return HealthResult.of(HealthStatus.UP);
         }
-        Map<String, CompletableFuture<HealthResult>> tasks = new LinkedHashMap<>();
+        Map<String, HealthTask> tasks = new LinkedHashMap<>();
         Map<String, Long> submittedAt = new LinkedHashMap<>();
         Map<String, HealthResult> results = new LinkedHashMap<>();
         for (String name : names) {
@@ -81,41 +83,78 @@ final class DefaultHealthRegistry implements HealthRegistry {
                         contributors.get(name),
                         "health contributor"
                 );
-                tasks.put(name, CompletableFuture.supplyAsync(() -> contribute(contributor), executor));
+                HealthTask task = new HealthTask(() ->
+                        new CompletedHealthResult(contribute(contributor), System.nanoTime())
+                );
+                submit(task);
+                tasks.put(name, task);
                 submittedAt.put(name, startedAt);
             } catch (RuntimeException failure) {
                 results.put(name, HealthResult.of(HealthStatus.UNKNOWN));
             }
         }
-        for (Map.Entry<String, CompletableFuture<HealthResult>> entry : tasks.entrySet()) {
+        for (Map.Entry<String, HealthTask> entry : tasks.entrySet()) {
             long startedAt = Objects.requireNonNull(submittedAt.get(entry.getKey()), "submitted health task");
             results.putIfAbsent(entry.getKey(), resolve(entry.getValue(), startedAt));
+            if (Thread.currentThread().isInterrupted()) {
+                tasks.values().forEach(task -> task.cancel(true));
+                break;
+            }
+        }
+        for (String name : names) {
+            results.putIfAbsent(name, HealthResult.of(HealthStatus.UNKNOWN));
         }
         return aggregate(results);
     }
 
-    private HealthResult resolve(CompletableFuture<HealthResult> task, long submittedAt) {
+    private HealthResult resolve(HealthTask task, long submittedAt) {
         try {
             if (timeoutNanos == null) {
-                return normalize(task.get());
+                return normalize(task.get().result());
             }
             long elapsedNanos = System.nanoTime() - submittedAt;
             long remainingNanos = timeoutNanos - elapsedNanos;
-            if (remainingNanos <= 0L) {
+            if (remainingNanos <= 0L && !task.isDone()) {
                 task.cancel(true);
                 return HealthResult.of(HealthStatus.DOWN);
             }
-            return normalize(task.get(remainingNanos, TimeUnit.NANOSECONDS));
+            CompletedHealthResult completed = remainingNanos <= 0L
+                    ? task.get()
+                    : task.get(remainingNanos, TimeUnit.NANOSECONDS);
+            if (completed.completedAtNanos() - submittedAt > timeoutNanos) {
+                return HealthResult.of(HealthStatus.DOWN);
+            }
+            return normalize(completed.result());
         } catch (TimeoutException failure) {
             task.cancel(true);
             return HealthResult.of(HealthStatus.DOWN);
         } catch (InterruptedException failure) {
+            task.cancel(true);
             Thread.currentThread().interrupt();
             return HealthResult.of(HealthStatus.UNKNOWN);
         } catch (CancellationException failure) {
             return HealthResult.of(HealthStatus.UNKNOWN);
         } catch (ExecutionException failure) {
-            return HealthResult.of(HealthStatus.DOWN);
+            return HealthResult.of(task.wasRejected() ? HealthStatus.UNKNOWN : HealthStatus.DOWN);
+        }
+    }
+
+    private void submit(HealthTask task) {
+        if (timeoutNanos == null) {
+            executor.execute(task);
+            return;
+        }
+        Thread submittingThread = Thread.currentThread();
+        try {
+            executor.execute(() -> {
+                if (Thread.currentThread() == submittingThread) {
+                    ForkJoinPool.commonPool().execute(task);
+                } else {
+                    task.run();
+                }
+            });
+        } catch (RuntimeException failure) {
+            task.fail(failure);
         }
     }
 
@@ -128,6 +167,26 @@ final class DefaultHealthRegistry implements HealthRegistry {
             return HealthResult.of(HealthStatus.UNKNOWN);
         }
         return result;
+    }
+
+    private record CompletedHealthResult(@Nullable HealthResult result, long completedAtNanos) {
+    }
+
+    private static final class HealthTask extends FutureTask<CompletedHealthResult> {
+        private volatile boolean rejected;
+
+        private HealthTask(Callable<CompletedHealthResult> task) {
+            super(task);
+        }
+
+        private void fail(RuntimeException failure) {
+            rejected = true;
+            setException(failure);
+        }
+
+        private boolean wasRejected() {
+            return rejected;
+        }
     }
 
     private static HealthResult aggregate(Map<String, HealthResult> results) {

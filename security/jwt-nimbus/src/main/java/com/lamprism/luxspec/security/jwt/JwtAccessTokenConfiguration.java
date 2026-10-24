@@ -35,7 +35,7 @@ public final class JwtAccessTokenConfiguration {
     /**
      * Creates immutable JWT access-token configuration.
      *
-     * @param lifetime  the positive token lifetime
+     * @param lifetime  the positive whole-second token lifetime
      * @param issuer    the non-blank expected issuer
      * @param audiences accepted audiences, or an empty set to omit audience validation
      * @param clockSkew the non-negative whole-second verification tolerance
@@ -90,8 +90,8 @@ public final class JwtAccessTokenConfiguration {
 
     private static Duration requirePositive(Duration value, String name) {
         Duration duration = Objects.requireNonNull(value, name);
-        if (duration.isNegative() || duration.isZero()) {
-            throw new IllegalArgumentException(name + " must be positive");
+        if (duration.isNegative() || duration.isZero() || duration.getNano() != 0) {
+            throw new IllegalArgumentException(name + " must be a positive whole-second duration");
         }
         return duration;
     }

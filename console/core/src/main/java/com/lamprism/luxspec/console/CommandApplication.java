@@ -218,6 +218,11 @@ public final class CommandApplication {
             return result;
         } catch (CommandFailureException exception) {
             return completeFailure(exception.getFailure(), session);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return completeFailure(CommandFailure.execution(
+                    "Command execution was interrupted", request.invocation().getPath(), exception
+            ), session);
         } catch (Exception exception) {
             return completeFailure(CommandFailure.execution(
                     "Command execution failed", request.invocation().getPath(), exception

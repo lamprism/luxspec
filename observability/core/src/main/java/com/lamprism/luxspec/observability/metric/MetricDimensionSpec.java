@@ -122,12 +122,12 @@ public final class MetricDimensionSpec<T> {
                 && valueType.equals(spec.valueType)
                 && allowedValues.equals(spec.allowedValues)
                 && maximumValueLength == spec.maximumValueLength
-                && formatter.getClass().equals(spec.formatter.getClass());
+                && formatter == spec.formatter;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, valueType, allowedValues, maximumValueLength, formatter.getClass());
+        return Objects.hash(name, valueType, allowedValues, maximumValueLength, System.identityHashCode(formatter));
     }
 
     String format(T value) {

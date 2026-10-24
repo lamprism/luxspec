@@ -36,14 +36,16 @@ import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Statistic;
 import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Tags;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -258,13 +260,16 @@ public class MicrometerMetricBridge implements AutoCloseable {
     }
 
     private Meter register(String name, MetricBinding<?> binding, Supplier<Meter> factory) {
-        Tags expectedTags = Tags.of(tags(binding));
-        for (Meter existing : meterRegistry.getMeters()) {
-            if (existing.getId().getName().equals(name) && existing.getId().getTags().equals(expectedTags)) {
-                throw new MicrometerProjectionException("Micrometer meter already exists: " + existing.getId());
-            }
+        Set<Meter> existingMeters = Collections.newSetFromMap(new IdentityHashMap<>());
+        existingMeters.addAll(meterRegistry.getMeters());
+        Meter meter = factory.get();
+        if (existingMeters.contains(meter)) {
+            throw new MicrometerProjectionException(
+                    "Micrometer meter already exists for " + name + " in " + binding.getSpec().getName()
+                            + ": " + meter.getId()
+            );
         }
-        return factory.get();
+        return meter;
     }
 
     private static List<Tag> tags(MetricBinding<?> binding) {

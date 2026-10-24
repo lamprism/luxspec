@@ -62,6 +62,28 @@ class InMemoryAccessTokenRevocationStoreTest {
         assertEquals(1, store.size());
     }
 
+    @Test
+    void keepsJwtRevocationActiveThroughTheVerifierClockSkewWindow() {
+        MutableClock clock = new MutableClock(NOW, ZoneOffset.UTC);
+        InMemoryAccessTokenRevocationStore store = new InMemoryAccessTokenRevocationStore(clock);
+        VerifiedAccessToken token = VerifiedAccessToken.of(
+                "user",
+                "42",
+                AuthorizationGrantSet.of(List.of()),
+                "token-skew",
+                NOW.minusSeconds(60L),
+                NOW.minusSeconds(10L),
+                NOW.plusSeconds(20L)
+        );
+
+        store.revoke(token);
+
+        assertTrue(store.isRevoked(token));
+        clock.setInstant(NOW.plusSeconds(20L));
+        assertFalse(store.isRevoked(token));
+        assertEquals(0, store.size());
+    }
+
     private static VerifiedAccessToken token(String tokenId, Instant expiresAt) {
         return VerifiedAccessToken.of(
                 "user",

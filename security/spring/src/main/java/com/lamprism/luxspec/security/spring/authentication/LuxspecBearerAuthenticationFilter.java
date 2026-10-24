@@ -29,14 +29,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -67,7 +65,7 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
         this(
                 new ProviderManager(new LuxspecAccessTokenAuthenticationProvider(authenticator)),
                 new AuthorizationHeaderBearerTokenResolver(),
-                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                new BearerAuthenticationEntryPoint(),
                 null
         );
     }
@@ -85,7 +83,7 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
         this(
                 new ProviderManager(new LuxspecAccessTokenAuthenticationProvider(authenticator)),
                 new AuthorizationHeaderBearerTokenResolver(),
-                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                new BearerAuthenticationEntryPoint(),
                 storage
         );
     }
@@ -99,7 +97,7 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
         this(
                 authenticationManager,
                 new AuthorizationHeaderBearerTokenResolver(),
-                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                new BearerAuthenticationEntryPoint(),
                 null
         );
     }
@@ -189,20 +187,16 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
         SecurityContext authenticatedContext = SecurityContextHolder.createEmptyContext();
         authenticatedContext.setAuthentication(new LuxspecSpringAuthentication(authentication));
         SecurityContextHolder.setContext(authenticatedContext);
-        if (storage == null) {
-            try {
-                filterChain.doFilter(request, response);
-            } finally {
-                SecurityContextHolder.setContext(previousContext);
-            }
-            return;
-        }
-        ExecutionContext currentContext = storage.current().orElseGet(ExecutionContext::empty);
-        ExecutionContext authenticatedExecutionContext = contextBridge.withAuthentication(
-                currentContext,
-                authentication
-        );
         try {
+            if (storage == null) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            ExecutionContext currentContext = storage.current().orElseGet(ExecutionContext::empty);
+            ExecutionContext authenticatedExecutionContext = contextBridge.withAuthentication(
+                    currentContext,
+                    authentication
+            );
             try (ExecutionContextStorage.Scope ignored = storage.open(authenticatedExecutionContext);
                  Slf4jMdcScope mdcScope = Slf4jMdcScope.open(authenticatedExecutionContext)) {
                 filterChain.doFilter(request, response);

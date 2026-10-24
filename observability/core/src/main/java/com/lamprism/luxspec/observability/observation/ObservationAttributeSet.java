@@ -81,7 +81,10 @@ public final class ObservationAttributeSet {
     public ObservationAttributeSet with(ObservationAttributeSet additions) {
         Objects.requireNonNull(additions, "additions");
         Map<ObservationAttributeSpec<?>, Object> merged = new LinkedHashMap<>(values);
-        merged.putAll(additions.values);
+        for (Map.Entry<ObservationAttributeSpec<?>, Object> entry : additions.values.entrySet()) {
+            merged.remove(entry.getKey());
+            merged.put(entry.getKey(), entry.getValue());
+        }
         return new ObservationAttributeSet(merged);
     }
 

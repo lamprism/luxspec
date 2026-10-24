@@ -218,7 +218,7 @@ public class LuxspecAuditAutoConfiguration {
      */
     @Bean(destroyMethod = "unsubscribe")
     @ConditionalOnBean({EventDispatcher.class, AuditPublisher.class})
-    @ConditionalOnMissingBean(EventSubscription.class)
+    @ConditionalOnMissingBean(name = "luxspecAuditEventSubscriptions")
     public EventSubscription luxspecAuditEventSubscriptions(
             EventDispatcher dispatcher,
             AuditPublisher publisher,

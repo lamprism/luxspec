@@ -30,29 +30,34 @@ import java.util.Optional;
  * @author RollW
  */
 public final class ThreadLocalExecutionContextStorage implements ExecutionContextStorage {
-    private final ThreadLocal<Deque<ExecutionContext>> stacks = ThreadLocal.withInitial(ArrayDeque::new);
+    private final ThreadLocal<Deque<Frame>> stacks = ThreadLocal.withInitial(ArrayDeque::new);
 
     @Override
     public Optional<ExecutionContext> current() {
-        return Optional.ofNullable(stacks.get().peek());
+        Frame frame = stacks.get().peek();
+        return frame == null ? Optional.empty() : Optional.of(frame.context());
     }
 
     @Override
     public ExecutionContextStorage.Scope open(ExecutionContext context) {
         ExecutionContext nonNullContext = Objects.requireNonNull(context, "context");
-        Deque<ExecutionContext> stack = stacks.get();
-        stack.push(nonNullContext);
-        return new Scope(Thread.currentThread(), nonNullContext);
+        Deque<Frame> stack = stacks.get();
+        Frame frame = new Frame(nonNullContext);
+        stack.push(frame);
+        return new Scope(Thread.currentThread(), frame);
+    }
+
+    private record Frame(ExecutionContext context) {
     }
 
     private final class Scope implements ExecutionContextStorage.Scope {
         private final Thread owner;
-        private final ExecutionContext context;
+        private final Frame frame;
         private boolean closed;
 
-        private Scope(Thread owner, ExecutionContext context) {
+        private Scope(Thread owner, Frame frame) {
             this.owner = owner;
-            this.context = context;
+            this.frame = frame;
         }
 
         @Override
@@ -63,8 +68,8 @@ public final class ThreadLocalExecutionContextStorage implements ExecutionContex
             if (Thread.currentThread() != owner) {
                 throw new IllegalStateException("ExecutionContext scope must close on its owner thread");
             }
-            Deque<ExecutionContext> stack = stacks.get();
-            if (stack.peek() != context) {
+            Deque<Frame> stack = stacks.get();
+            if (stack.peek() != frame) {
                 throw new IllegalStateException("ExecutionContext scopes must close in LIFO order");
             }
             stack.pop();

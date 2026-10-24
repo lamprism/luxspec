@@ -21,7 +21,9 @@ import com.lamprism.luxspec.observability.metric.LongTaskTimer;
 import com.lamprism.luxspec.observability.metric.LongTaskTimerSpec;
 import com.lamprism.luxspec.observability.metric.LongTaskTiming;
 import com.lamprism.luxspec.observability.metric.MetricDimensionSet;
+import com.lamprism.luxspec.observability.metric.MetricDimensionSpec;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
+import com.lamprism.luxspec.observability.metric.NumberReader;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -29,10 +31,41 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultMetricRegistryTest {
+    @Test
+    void rejectsMetricDefinitionsWhoseSameClassReaderHasDifferentCapturedState() {
+        GaugeSpec<AtomicValue> first = GaugeSpec.builder("worker.load", AtomicValue.class)
+                .reader(new ScaleReader(2))
+                .build();
+        GaugeSpec<AtomicValue> second = GaugeSpec.builder("worker.load", AtomicValue.class)
+                .reader(new ScaleReader(3))
+                .build();
+
+        assertNotEquals(first, second);
+        try (MetricRegistry registry = MetricRegistryBuilder.builder().build()) {
+            registry.register(first);
+            assertThrows(IllegalArgumentException.class, () -> registry.register(second));
+        }
+    }
+
+    @Test
+    void distinguishesDimensionFormattersWithDifferentCapturedState() {
+        MetricDimensionSpec<String> first = MetricDimensionSpec.builder("route", String.class)
+                .formatter(new PrefixFormatter("first:"))
+                .build();
+        MetricDimensionSpec<String> second = MetricDimensionSpec.builder("route", String.class)
+                .formatter(new PrefixFormatter("second:"))
+                .build();
+
+        assertNotEquals(first, second);
+    }
+
     @Test
     void startsLongTaskWhileSnapshotReadsAnotherMetric() throws Exception {
         BlockingGaugeSource source = new BlockingGaugeSource();
@@ -92,6 +125,35 @@ class DefaultMetricRegistryTest {
 
         private void releaseRead() {
             releaseRead.countDown();
+        }
+    }
+
+    private static final class AtomicValue {
+    }
+
+    private static final class ScaleReader implements NumberReader<AtomicValue> {
+        private final int scale;
+
+        private ScaleReader(int scale) {
+            this.scale = scale;
+        }
+
+        @Override
+        public Number read(AtomicValue source) {
+            return scale;
+        }
+    }
+
+    private static final class PrefixFormatter implements Function<String, String> {
+        private final String prefix;
+
+        private PrefixFormatter(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public String apply(String value) {
+            return prefix + value;
         }
     }
 }

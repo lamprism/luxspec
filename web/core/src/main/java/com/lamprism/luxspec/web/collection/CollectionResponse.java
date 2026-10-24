@@ -67,6 +67,20 @@ public final class CollectionResponse<T> {
     }
 
     /**
+     * @return the immutable response items
+     */
+    public List<T> getItems() {
+        return items;
+    }
+
+    /**
+     * @return the collection pagination metadata
+     */
+    public CollectionPagination getPagination() {
+        return pagination;
+    }
+
+    /**
      * Creates a complete collection response from ordinary finite items.
      *
      * @param items the response items

@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -129,6 +130,42 @@ class SynchronousEventDispatcherTest {
         assertFalse(first.isActive());
         assertFalse(second.isActive());
         combined.unsubscribe();
+    }
+
+    @Test
+    void attemptsEveryCombinedUnsubscribeWhenMembersThrowTheSameFailure() {
+        IllegalStateException failure = new IllegalStateException("unsubscribe failure");
+        List<String> calls = new ArrayList<>();
+        EventSubscription first = failingSubscription("first", calls, failure);
+        EventSubscription second = failingSubscription("second", calls, failure);
+        EventSubscription combined = EventSubscription.combine(List.of(first, second));
+
+        IllegalStateException actual = assertThrows(
+                IllegalStateException.class,
+                combined::unsubscribe
+        );
+
+        assertSame(failure, actual);
+        assertEquals(List.of("second", "first"), calls);
+    }
+
+    private static EventSubscription failingSubscription(
+            String name,
+            List<String> calls,
+            RuntimeException failure
+    ) {
+        return new EventSubscription() {
+            @Override
+            public boolean isActive() {
+                return true;
+            }
+
+            @Override
+            public void unsubscribe() {
+                calls.add(name);
+                throw failure;
+            }
+        };
     }
 
     @Test

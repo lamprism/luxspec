@@ -94,6 +94,26 @@ class LuxspecAuditAutoConfigurationTest {
     }
 
     @Test
+    void keepsBuiltInAuditSubscriptionsWhenAnApplicationDefinesAnUnrelatedSubscription() {
+        List<AuditEntry> entries = new ArrayList<>();
+        contextRunner
+                .withBean("customSubscription", EventSubscription.class, () -> EventSubscription.combine(List.of()))
+                .withBean(AuditSink.class, () -> entries::add)
+                .run(context -> {
+                    assertThat(context).hasBean("luxspecAuditEventSubscriptions");
+                    assertThat(context.getBeansOfType(EventSubscription.class)).hasSize(2);
+
+                    context.getBean(EventDispatcher.class).publish(new FirewallRuleFailureEvent(
+                            "example.FirewallRule",
+                            SecurityErrorCode.FIREWALL_RULE_FAILURE,
+                            OCCURRED_AT
+                    ));
+
+                    assertThat(entries).hasSize(1);
+                });
+    }
+
+    @Test
     void doesNotCreateAuditRuntimeWithoutAnApplicationSink() {
         contextRunner.run(context -> {
             assertThat(context).doesNotHaveBean(AuditPublisher.class);

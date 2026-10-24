@@ -11,9 +11,11 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -305,5 +307,77 @@ class StandardDatabaseUrlResolverTest {
             detail.close();
         }
         assertFalse(Files.exists(materialPath));
+    }
+
+    @Test
+    void mapsPostgresqlClientIdentityToTheDriverSupportedKeyStoreFormat() throws Exception {
+        PostgresqlDatabaseUrlBuilder builder = new PostgresqlDatabaseUrlBuilder(
+                new SslMaterializer() {
+                    @Override
+                    public SslMaterialArtifact materialize(String name, SslMaterial material) {
+                        return new ManagedSslMaterialArtifact(Path.of(name), List.of());
+                    }
+
+                    @Override
+                    public KeyStoreArtifact materializeTrustStore(
+                            String name,
+                            SslMaterial serverCaMaterial
+                    ) {
+                        return new KeyStoreArtifact(Path.of(name), "PKCS12", "trust-password", List.of());
+                    }
+
+                    @Override
+                    public KeyStoreArtifact materializeClientKeyStore(
+                            String name,
+                            SslMaterial clientCertificate,
+                            SslMaterial clientPrivateKey
+                    ) {
+                        return new KeyStoreArtifact(
+                                Path.of("client-identity.p12"),
+                                "PKCS12",
+                                "client-password",
+                                List.of()
+                        );
+                    }
+                }
+        );
+        JdbcConnectionDetail detail = builder.build(DatabaseConfig.builder(
+                        DatabaseType.POSTGRESQL,
+                        DatabaseTarget.network("localhost")
+                )
+                .databaseName("application")
+                .ssl(SslConfig.builder()
+                        .mode(SslMode.REQUIRED)
+                        .clientCertificate(SslMaterial.value("certificate"))
+                        .clientPrivateKey(SslMaterial.value("private-key"))
+                        .build())
+                .build());
+
+        try {
+            assertEquals(
+                    Path.of("client-identity.p12").toAbsolutePath().normalize().toString(),
+                    detail.getDriverProperties().get("sslkey")
+            );
+            assertEquals("PKCS12", detail.getDriverProperties().get("sslkeytype"));
+            assertEquals("client-password", detail.getDriverProperties().get("sslpassword"));
+        } finally {
+            detail.close();
+        }
+    }
+
+    @Test
+    void createsOneNamedSharedInMemoryDatabasePerSqliteResolution() {
+        DatabaseConfig settings = DatabaseConfig.builder(
+                        DatabaseType.SQLITE,
+                        DatabaseTarget.memory()
+                )
+                .build();
+
+        JdbcConnectionDetail first = resolver.resolve(settings);
+        JdbcConnectionDetail second = resolver.resolve(settings);
+
+        assertTrue(first.getJdbcUrl().contains("mode=memory&cache=shared"));
+        assertTrue(second.getJdbcUrl().contains("mode=memory&cache=shared"));
+        assertNotEquals(first.getJdbcUrl(), second.getJdbcUrl());
     }
 }

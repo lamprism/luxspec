@@ -65,4 +65,18 @@ class ExecutionContextStorageTest {
         }
         assertEquals(true, storage.current().isEmpty());
     }
+
+    @Test
+    void rejectsOutOfOrderCloseForNestedScopesUsingTheSameContextInstance() {
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        ExecutionContext context = ExecutionContext.empty();
+        ExecutionContextStorage.Scope outer = storage.open(context);
+        ExecutionContextStorage.Scope inner = storage.open(context);
+
+        assertThrows(IllegalStateException.class, outer::close);
+        inner.close();
+        outer.close();
+
+        assertTrue(storage.current().isEmpty());
+    }
 }

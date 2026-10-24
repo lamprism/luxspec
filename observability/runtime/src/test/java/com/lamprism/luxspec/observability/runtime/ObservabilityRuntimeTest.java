@@ -57,6 +57,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -213,6 +214,45 @@ class ObservabilityRuntimeTest {
     }
 
     @Test
+    void replacesObservationAttributeSpecificationsAndTheirFormatters() {
+        ObservationAttributeSpec<String> plain = ObservationAttributeSpec.of(
+                "credential",
+                String.class,
+                ObservationAttributeClassification.LOW,
+                value -> value
+        );
+        ObservationAttributeSpec<String> redacted = ObservationAttributeSpec.of(
+                "credential",
+                String.class,
+                ObservationAttributeClassification.LOW,
+                value -> "[REDACTED]"
+        );
+        ObservationSpec spec = ObservationSpec.builder("request").build();
+        List<ObservationView> stopped = new ArrayList<>();
+        ObservationHandler handler = new ObservationHandler() {
+            @Override
+            public void onStop(ObservationView view) {
+                stopped.add(view);
+            }
+        };
+
+        try (var registry = ObservationRegistryBuilder.builder().handler(handler).build()) {
+            registry.register(spec);
+            Observation observation = registry.start(ObservationStart.builder(spec)
+                    .attributes(ObservationAttributeSet.builder().put(plain, "secret-value").build())
+                    .build());
+            observation.put(redacted, "secret-value");
+            observation.stop();
+        }
+
+        ObservationView view = stopped.get(0);
+        ObservationAttributeSpec<?> storedSpec = view.attributes().values().keySet().iterator().next();
+        Object storedValue = view.attributes().values().get(storedSpec);
+        assertSame(redacted, storedSpec);
+        assertEquals("[REDACTED]", formatAttribute(storedSpec, storedValue));
+    }
+
+    @Test
     void isolatesPredicateAndFilterFailures() {
         ObservationSpec spec = ObservationSpec.builder("request").build();
         List<String> callbacks = new ArrayList<>();
@@ -291,6 +331,69 @@ class ObservabilityRuntimeTest {
         }
     }
 
+    @Test
+    void enforcesHealthTimeoutWhenConfiguredExecutorRunsInline() throws Exception {
+        ExecutorService evaluator = Executors.newSingleThreadExecutor();
+        CountDownLatch contributorStarted = new CountDownLatch(1);
+        CountDownLatch contributorInterrupted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            HealthRegistry registry = HealthRegistryBuilder.builder(Runnable::run)
+                    .timeout(Duration.ofMillis(100))
+                    .register("slow", () -> {
+                        contributorStarted.countDown();
+                        try {
+                            release.await();
+                        } catch (InterruptedException failure) {
+                            contributorInterrupted.countDown();
+                            Thread.currentThread().interrupt();
+                        }
+                        return HealthResult.of(HealthStatus.UP);
+                    })
+                    .build();
+
+            var evaluation = evaluator.submit(() -> registry.evaluate(HealthGroup.AGGREGATE));
+
+            assertTrue(contributorStarted.await(1L, TimeUnit.SECONDS));
+            assertEquals(HealthStatus.DOWN, evaluation.get(1L, TimeUnit.SECONDS).getStatus());
+            assertTrue(contributorInterrupted.await(1L, TimeUnit.SECONDS));
+        } finally {
+            release.countDown();
+            evaluator.shutdownNow();
+        }
+    }
+
+    @Test
+    void interruptsTimedOutHealthChecksWithoutMarkingEarlierCompletionAsTimedOut() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch slowInterrupted = new CountDownLatch(1);
+        try {
+            HealthRegistry registry = HealthRegistryBuilder.builder(executor)
+                    .timeout(Duration.ofMillis(150))
+                    .register("slow", () -> {
+                        try {
+                            new CountDownLatch(1).await();
+                        } catch (InterruptedException failure) {
+                            slowInterrupted.countDown();
+                            Thread.currentThread().interrupt();
+                        }
+                        return HealthResult.of(HealthStatus.UP);
+                    })
+                    .register("fast", () -> HealthResult.of(HealthStatus.UP))
+                    .build();
+
+            HealthResult result = registry.evaluate(HealthGroup.AGGREGATE);
+
+            HealthResult slowResult = (HealthResult) result.getDetails().get("slow").orElseThrow();
+            HealthResult fastResult = (HealthResult) result.getDetails().get("fast").orElseThrow();
+            assertEquals(HealthStatus.DOWN, slowResult.getStatus());
+            assertEquals(HealthStatus.UP, fastResult.getStatus());
+            assertTrue(slowInterrupted.await(1L, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private static final class FakeClock implements ObservabilityClock {
         private long nanos;
         private Instant instant = Instant.parse("2026-01-01T00:00:00Z");
@@ -309,5 +412,9 @@ class ObservabilityRuntimeTest {
             nanos += duration.toNanos();
             instant = instant.plus(duration);
         }
+    }
+
+    private static <T> String formatAttribute(ObservationAttributeSpec<T> spec, Object value) {
+        return spec.formatValue(spec.valueType().cast(value));
     }
 }

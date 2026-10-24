@@ -21,11 +21,14 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
 final class OrderedMultiLevelCache<K, V> implements MultiLevelCache<K, V> {
     private final List<Cache<K, V>> levels;
+    private final Object stateLock = new Object();
+    private long generation;
 
     OrderedMultiLevelCache(List<? extends Cache<K, V>> levels) {
         List<? extends Cache<K, V>> nonNullLevels = Objects.requireNonNull(levels, "levels");
@@ -42,10 +45,18 @@ final class OrderedMultiLevelCache<K, V> implements MultiLevelCache<K, V> {
     @Override
     public @Nullable V getIfPresent(K key) {
         K nonNullKey = Objects.requireNonNull(key, "key");
+        long lookupGeneration;
+        synchronized (stateLock) {
+            lookupGeneration = generation;
+        }
         for (int index = 0; index < levels.size(); index++) {
             V value = levels.get(index).getIfPresent(nonNullKey);
             if (value != null) {
-                promoteToAllNearerLevels(nonNullKey, value, index);
+                synchronized (stateLock) {
+                    if (lookupGeneration == generation) {
+                        promoteToAllNearerLevels(nonNullKey, value, index);
+                    }
+                }
                 return value;
             }
         }
@@ -56,39 +67,67 @@ final class OrderedMultiLevelCache<K, V> implements MultiLevelCache<K, V> {
     public V get(K key, Function<? super K, ? extends V> loader) {
         K nonNullKey = Objects.requireNonNull(key, "key");
         Function<? super K, ? extends V> nonNullLoader = Objects.requireNonNull(loader, "loader");
+        long loadGeneration;
+        synchronized (stateLock) {
+            loadGeneration = generation;
+        }
+        AtomicBoolean loaded = new AtomicBoolean();
         Cache<K, V> first = levels.get(0);
-        return first.get(nonNullKey, ignored -> loadLowerLevelOrOrigin(nonNullKey, nonNullLoader));
+        V value = first.get(nonNullKey, ignored -> {
+            loaded.set(true);
+            return loadLowerLevelOrOrigin(nonNullKey, nonNullLoader);
+        });
+        if (loaded.get()) {
+            synchronized (stateLock) {
+                if (loadGeneration == generation) {
+                    writeThroughLowerLevels(nonNullKey, value);
+                }
+            }
+        }
+        return value;
     }
 
     @Override
     public void put(K key, V value) {
         K nonNullKey = Objects.requireNonNull(key, "key");
         V nonNullValue = Objects.requireNonNull(value, "value");
-        for (int index = levels.size() - 1; index >= 0; index--) {
-            levels.get(index).put(nonNullKey, nonNullValue);
+        synchronized (stateLock) {
+            generation++;
+            for (int index = levels.size() - 1; index >= 0; index--) {
+                levels.get(index).put(nonNullKey, nonNullValue);
+            }
         }
     }
 
     @Override
     public void invalidate(K key) {
         K nonNullKey = Objects.requireNonNull(key, "key");
-        for (int index = levels.size() - 1; index >= 0; index--) {
-            levels.get(index).invalidate(nonNullKey);
+        synchronized (stateLock) {
+            generation++;
+            for (int index = levels.size() - 1; index >= 0; index--) {
+                levels.get(index).invalidate(nonNullKey);
+            }
         }
     }
 
     @Override
     public void invalidateAll() {
-        for (int index = levels.size() - 1; index >= 0; index--) {
-            levels.get(index).invalidateAll();
+        synchronized (stateLock) {
+            generation++;
+            for (int index = levels.size() - 1; index >= 0; index--) {
+                levels.get(index).invalidateAll();
+            }
         }
     }
 
     @Override
     public void invalidateAll(Predicate<? super K> predicate) {
         Predicate<? super K> nonNullPredicate = Objects.requireNonNull(predicate, "predicate");
-        for (int index = levels.size() - 1; index >= 0; index--) {
-            levels.get(index).invalidateAll(nonNullPredicate);
+        synchronized (stateLock) {
+            generation++;
+            for (int index = levels.size() - 1; index >= 0; index--) {
+                levels.get(index).invalidateAll(nonNullPredicate);
+            }
         }
     }
 
@@ -96,19 +135,11 @@ final class OrderedMultiLevelCache<K, V> implements MultiLevelCache<K, V> {
         for (int index = 1; index < levels.size(); index++) {
             V value = levels.get(index).getIfPresent(key);
             if (value != null) {
-                promote(key, value, index);
                 return value;
             }
         }
         V loaded = Objects.requireNonNull(loader.apply(key), "loaded value");
-        writeThroughLowerLevels(key, loaded);
         return loaded;
-    }
-
-    private void promote(K key, V value, int hitIndex) {
-        for (int index = hitIndex - 1; index >= 1; index--) {
-            levels.get(index).put(key, value);
-        }
     }
 
     private void promoteToAllNearerLevels(K key, V value, int hitIndex) {

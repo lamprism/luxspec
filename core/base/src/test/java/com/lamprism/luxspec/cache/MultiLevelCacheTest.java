@@ -22,7 +22,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -73,6 +79,95 @@ class MultiLevelCacheTest {
         assertEquals("loaded", far.getIfPresent("loaded"));
         assertEquals("value", near.getIfPresent("explicit"));
         assertEquals("value", far.getIfPresent("explicit"));
+    }
+
+    @Test
+    void doesNotRepublishAnOriginLoadAfterCompositeInvalidation() throws Exception {
+        assertInvalidationDuringLoad(cache -> cache.invalidate("key"));
+        assertInvalidationDuringLoad(MultiLevelCache::invalidateAll);
+        assertInvalidationDuringLoad(cache -> cache.invalidateAll("key"::equals));
+    }
+
+    @Test
+    void doesNotOverwriteExplicitWritesWithAnOriginLoadAlreadyInProgress() throws Exception {
+        CaffeineCache<String, String> near = new CaffeineCache<>(
+                com.github.benmanes.caffeine.cache.Caffeine.newBuilder().build()
+        );
+        MapCache<String, String> far = new MapCache<>();
+        MultiLevelCache<String, String> cache = MultiLevelCache.of(List.of(near, far));
+        CountDownLatch originEntered = new CountDownLatch(1);
+        CountDownLatch releaseOrigin = new CountDownLatch(1);
+        AtomicInteger loaderCalls = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<String> loadedValue = executor.submit(() -> cache.get("key", ignored -> {
+                loaderCalls.incrementAndGet();
+                originEntered.countDown();
+                await(releaseOrigin);
+                return "stale";
+            }));
+
+            assertTrue(originEntered.await(5L, TimeUnit.SECONDS));
+            cache.put("key", "explicit");
+            releaseOrigin.countDown();
+
+            assertEquals("explicit", loadedValue.get(5L, TimeUnit.SECONDS));
+            assertEquals(1, loaderCalls.get());
+            assertEquals("explicit", near.getIfPresent("key"));
+            assertEquals("explicit", far.getIfPresent("key"));
+
+            near.invalidate("key");
+            assertEquals("explicit", cache.getIfPresent("key"));
+            assertEquals("explicit", near.getIfPresent("key"));
+        } finally {
+            releaseOrigin.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    private static void assertInvalidationDuringLoad(
+            Consumer<MultiLevelCache<String, String>> invalidation
+    ) throws Exception {
+        CaffeineCache<String, String> near = new CaffeineCache<>(
+                com.github.benmanes.caffeine.cache.Caffeine.newBuilder().build()
+        );
+        MapCache<String, String> far = new MapCache<>();
+        MultiLevelCache<String, String> cache = MultiLevelCache.of(List.of(near, far));
+        CountDownLatch originEntered = new CountDownLatch(1);
+        CountDownLatch releaseOrigin = new CountDownLatch(1);
+        AtomicInteger loaderCalls = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<String> loadedValue = executor.submit(() -> cache.get("key", ignored -> {
+                int call = loaderCalls.incrementAndGet();
+                if (call == 1) {
+                    originEntered.countDown();
+                    await(releaseOrigin);
+                    return "stale";
+                }
+                return "fresh";
+            }));
+
+            assertTrue(originEntered.await(5L, TimeUnit.SECONDS));
+            invalidation.accept(cache);
+            releaseOrigin.countDown();
+
+            assertEquals("fresh", loadedValue.get(5L, TimeUnit.SECONDS));
+            assertEquals(2, loaderCalls.get());
+            assertNull(far.getIfPresent("key"));
+        } finally {
+            releaseOrigin.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Cache load was interrupted", failure);
+        }
     }
 
     @Test

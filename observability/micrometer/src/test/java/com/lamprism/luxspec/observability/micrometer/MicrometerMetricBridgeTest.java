@@ -20,15 +20,22 @@ import com.lamprism.luxspec.observability.metric.Counter;
 import com.lamprism.luxspec.observability.metric.CounterSpec;
 import com.lamprism.luxspec.observability.metric.LongTaskTimer;
 import com.lamprism.luxspec.observability.metric.LongTaskTimerSpec;
+import com.lamprism.luxspec.observability.metric.MetricDimensionSet;
+import com.lamprism.luxspec.observability.metric.MetricDimensionSpec;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.runtime.metric.MetricRegistryBuilder;
+import io.micrometer.core.instrument.FunctionCounter;
 import io.micrometer.core.instrument.Measurement;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Statistic;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MicrometerMetricBridgeTest {
@@ -67,6 +74,36 @@ class MicrometerMetricBridgeTest {
                 assertTrue(measurementValue(meter, Statistic.DURATION) >= 0.0d);
             }
         }
+    }
+
+    @Test
+    void preservesAnExistingMeterWhenCommonTagsTransformTheProjectedId() {
+        MetricDimensionSpec<String> route = MetricDimensionSpec.required("route");
+        CounterSpec spec = CounterSpec.builder("worker.jobs")
+                .dimension(route)
+                .build();
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        meterRegistry.config().commonTags("environment", "test");
+        AtomicInteger source = new AtomicInteger(7);
+        FunctionCounter external = FunctionCounter.builder("worker.jobs", source, AtomicInteger::get)
+                .tags("route", "api")
+                .register(meterRegistry);
+
+        try (MetricRegistry registry = MetricRegistryBuilder.builder().build()) {
+            registry.register(spec);
+            try (MicrometerMetricBridge ignored = new MicrometerMetricBridge(registry, meterRegistry)) {
+                assertThrows(
+                        MicrometerProjectionException.class,
+                        () -> registry.obtain(spec.bind(MetricDimensionSet.of(route, "api")))
+                );
+                assertEquals(7.0d, external.count());
+                assertEquals(1, meterRegistry.getMeters().size());
+                assertSame(external, meterRegistry.getMeters().get(0));
+            }
+        }
+
+        assertEquals(1, meterRegistry.getMeters().size());
+        assertSame(external, meterRegistry.getMeters().get(0));
     }
 
     private static double measurementValue(Meter meter, Statistic statistic) {

@@ -48,6 +48,17 @@ class LocalizedTextTest {
     }
 
     @Test
+    void rejectsUnicodeWhitespaceOnlyText() {
+        assertThrows(IllegalArgumentException.class, () -> LocalizedText.builder("\u2003"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> LocalizedText.builder("Default").translation(Locale.FRENCH, "\u2003")
+        );
+        assertThrows(IllegalArgumentException.class, () -> MessageResource.of("\u2003", "key"));
+        assertThrows(IllegalArgumentException.class, () -> MessageResource.of("bundle", "\u2003"));
+    }
+
+    @Test
     void acceptsCustomProviderIndependentTextImplementations() {
         LocalizedText text = locale -> locale.getLanguage().equals(Locale.FRENCH.getLanguage())
                 ? "Francais"

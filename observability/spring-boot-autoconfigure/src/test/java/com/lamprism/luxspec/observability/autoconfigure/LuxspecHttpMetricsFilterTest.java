@@ -124,11 +124,49 @@ class LuxspecHttpMetricsFilterTest {
         }
     }
 
+    @Test
+    void waitsForAsyncCompletionBeforeRecordingTimeoutOrErrorAsFinal() throws Exception {
+        HttpServerMetricSet metricSet = new HttpServerMetricSet();
+        try (MetricRegistry registry = MetricRegistryBuilder.builder().set(metricSet).build()) {
+            LuxspecHttpMetricsFilter filter = new LuxspecHttpMetricsFilter(registry);
+            CompletingAsyncRequest request = new CompletingAsyncRequest("GET", "/async-failure");
+            request.setAsyncSupported(true);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicReference<AsyncContext> contextReference = new AtomicReference<>();
+
+            filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                    contextReference.set(servletRequest.startAsync()));
+
+            CompletingAsyncContext context = (CompletingAsyncContext) contextReference.get();
+            context.timeout();
+            context.error();
+
+            assertEquals(0, requestCount(registry.snapshot()));
+            assertEquals(1.0d, reading(registry.snapshot(), "http.server.active.requests").value());
+
+            response.setStatus(503);
+            context.complete();
+
+            assertEquals(1, requestCount(registry.snapshot()));
+            assertEquals("503", reading(registry.snapshot(), "http.server.requests")
+                    .binding().getDimensions().get("status"));
+            assertEquals(0.0d, reading(registry.snapshot(), "http.server.active.requests").value());
+        }
+    }
+
     private static MetricReading reading(MetricSnapshot snapshot, String name) {
         return snapshot.readings().stream()
                 .filter(reading -> name.equals(reading.binding().getSpec().getName().getValue()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static long requestCount(MetricSnapshot snapshot) {
+        return snapshot.readings().stream()
+                .filter(reading -> "http.server.requests"
+                        .equals(reading.binding().getSpec().getName().getValue()))
+                .mapToLong(MetricReading::count)
+                .sum();
     }
 
     private static final class CompletingAsyncRequest extends MockHttpServletRequest {
@@ -206,6 +244,28 @@ class LuxspecHttpMetricsFilterTest {
             for (AsyncListener listener : List.copyOf(listeners)) {
                 try {
                     listener.onComplete(event);
+                } catch (IOException failure) {
+                    throw new IllegalStateException(failure);
+                }
+            }
+        }
+
+        private void timeout() {
+            AsyncEvent event = new AsyncEvent(this);
+            for (AsyncListener listener : List.copyOf(listeners)) {
+                try {
+                    listener.onTimeout(event);
+                } catch (IOException failure) {
+                    throw new IllegalStateException(failure);
+                }
+            }
+        }
+
+        private void error() {
+            AsyncEvent event = new AsyncEvent(this);
+            for (AsyncListener listener : List.copyOf(listeners)) {
+                try {
+                    listener.onError(event);
                 } catch (IOException failure) {
                     throw new IllegalStateException(failure);
                 }

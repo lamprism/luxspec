@@ -8,6 +8,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Builds SQLite JDBC connection details.
@@ -23,7 +24,7 @@ public class SqliteDatabaseUrlBuilder extends BuiltInDatabaseUrlBuilder {
     protected String buildJdbcUrl(DatabaseConfig settings) {
         DatabaseTarget target = settings.getTarget();
         return switch (target.getKind()) {
-            case MEMORY -> "jdbc:sqlite::memory:";
+            case MEMORY -> "jdbc:sqlite:file:luxspec-" + UUID.randomUUID() + "?mode=memory&cache=shared";
             case FILE -> "jdbc:sqlite:" + requireFile(target);
             case NETWORK -> throw new IllegalArgumentException(
                     "SQLite does not support network targets"

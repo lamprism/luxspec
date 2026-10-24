@@ -411,8 +411,8 @@ final class InMemoryQueryMatcher<T>
             Object candidateValue,
             List<?> values
     ) {
-        if (candidateValue == null && isOrdered(operator)) {
-            return false;
+        if (candidateValue == null) {
+            return operator == QueryOperator.IS_NULL;
         }
         return switch (operator) {
             case EQUAL -> Objects.equals(candidateValue, values.get(0));
@@ -428,13 +428,6 @@ final class InMemoryQueryMatcher<T>
             case LESS_THAN -> compare(candidateValue, values.get(0)) < 0;
             case LESS_THAN_OR_EQUAL -> compare(candidateValue, values.get(0)) <= 0;
         };
-    }
-
-    private static boolean isOrdered(QueryOperator operator) {
-        return operator == QueryOperator.GREATER_THAN
-                || operator == QueryOperator.GREATER_THAN_OR_EQUAL
-                || operator == QueryOperator.LESS_THAN
-                || operator == QueryOperator.LESS_THAN_OR_EQUAL;
     }
 
     private boolean matchesAll(List<QueryExpression> expressions) {

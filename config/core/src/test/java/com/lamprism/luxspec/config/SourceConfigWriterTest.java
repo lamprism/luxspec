@@ -13,6 +13,7 @@ import com.lamprism.luxspec.config.policy.ConfigPolicyException;
 import com.lamprism.luxspec.config.policy.ConfigPolicyOperation;
 import com.lamprism.luxspec.config.policy.ConfigSourceSelector;
 import com.lamprism.luxspec.config.provider.CachingConfigProvider;
+import com.lamprism.luxspec.config.resolution.ConfigResolutionException;
 import com.lamprism.luxspec.config.resolution.ConfigValueOrigin;
 import com.lamprism.luxspec.config.runtime.ConfigWriteException;
 import com.lamprism.luxspec.config.runtime.LayeredConfigReader;
@@ -40,6 +41,36 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class SourceConfigWriterTest {
+    @Test
+    void repairsOrRemovesAnEntryWhenEffectiveStateCannotCurrentlyBeResolved() {
+        MutableSource source = new MutableSource();
+        List<Object> events = new ArrayList<>();
+        ConfigReader invalidReader = new ConfigReader() {
+            @Override
+            public <T> ConfigValue<T> get(ConfigBinding<T> binding) {
+                throw new ConfigResolutionException();
+            }
+        };
+        SourceConfigWriter writer = new SourceConfigWriter(
+                List.of(source),
+                source.getId(),
+                events::add,
+                invalidReader,
+                key -> {
+                }
+        );
+        ConfigSpec<String> spec = ConfigSpec.of("sample.value", ConfigCodec.string(), null, false);
+
+        writer.set(spec, "repaired");
+        assertEquals("repaired", source.value.requireString());
+        writer.remove(spec);
+
+        assertNull(source.value);
+        assertEquals(2, events.size());
+        assertEquals(ConfigSourceChangeType.SET, ((ConfigSourceChangedEvent) events.get(0)).getChangeType());
+        assertEquals(ConfigSourceChangeType.REMOVE, ((ConfigSourceChangedEvent) events.get(1)).getChangeType());
+    }
+
     @Test
     void publishesAnEventAfterASuccessfulWrite() {
         MutableSource source = new MutableSource();

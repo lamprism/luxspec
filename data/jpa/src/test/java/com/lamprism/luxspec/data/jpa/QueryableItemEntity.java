@@ -44,6 +44,8 @@ class QueryableItemEntity {
     @Column(nullable = false)
     private int score;
 
+    private String optionalValue;
+
     @Column(name = "recorded_at", nullable = false)
     private Instant timestamp;
 
@@ -55,14 +57,27 @@ class QueryableItemEntity {
     }
 
     QueryableItemEntity(String name, String category, int score, Instant timestamp) {
+        this(name, category, score, timestamp, null);
+    }
+
+    QueryableItemEntity(String name, String category, int score, String optionalValue) {
+        this(name, category, score, Instant.EPOCH, optionalValue);
+    }
+
+    QueryableItemEntity(String name, String category, int score, Instant timestamp, String optionalValue) {
         this.name = name;
         this.displayName = name;
         this.category = category;
         this.score = score;
         this.timestamp = timestamp;
+        this.optionalValue = optionalValue;
     }
 
     String name() {
         return name;
+    }
+
+    String optionalValue() {
+        return optionalValue;
     }
 }

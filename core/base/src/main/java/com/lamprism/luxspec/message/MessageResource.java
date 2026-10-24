@@ -55,10 +55,10 @@ public record MessageResource(String namespace, String key) {
     }
 
     private static String requireText(String value, String name) {
-        String nonNullValue = Objects.requireNonNull(value, name).trim();
-        if (nonNullValue.isEmpty()) {
+        String nonNullValue = Objects.requireNonNull(value, name);
+        if (nonNullValue.isBlank()) {
             throw new IllegalArgumentException(name + " must not be blank");
         }
-        return nonNullValue;
+        return nonNullValue.trim();
     }
 }

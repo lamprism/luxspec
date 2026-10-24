@@ -58,6 +58,25 @@ class Argon2idPasswordSchemeTest {
     }
 
     @Test
+    void doesNotDowngradeStrongerOrIncomparableStoredParameters() {
+        Argon2idPasswordScheme currentScheme = new Argon2idPasswordScheme(
+                new Argon2idPasswordConfiguration(8_192, 2, 1, 16, 32)
+        );
+        Argon2idPasswordScheme strongerScheme = new Argon2idPasswordScheme(
+                new Argon2idPasswordConfiguration(16_384, 2, 1, 16, 32)
+        );
+        Argon2idPasswordScheme incomparableScheme = new Argon2idPasswordScheme(
+                new Argon2idPasswordConfiguration(16_384, 1, 1, 16, 32)
+        );
+
+        EncodedPassword stronger = strongerScheme.encode("secret");
+        EncodedPassword incomparable = incomparableScheme.encode("secret");
+
+        assertFalse(currentScheme.needsUpgrade(stronger));
+        assertFalse(currentScheme.needsUpgrade(incomparable));
+    }
+
+    @Test
     void rejectsMalformedAndUnsupportedStoredValuesExplicitly() {
         Argon2idPasswordScheme scheme = new Argon2idPasswordScheme(TEST_PARAMETERS);
 

@@ -23,4 +23,5 @@ description = "Web core contracts and defaults."
 dependencies {
     api(project(":core:core-base"))
     api(project(":config:config-core"))
+    testImplementation("tools.jackson.core:jackson-databind")
 }

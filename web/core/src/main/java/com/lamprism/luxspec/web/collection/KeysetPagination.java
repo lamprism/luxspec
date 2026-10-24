@@ -77,6 +77,27 @@ public final class KeysetPagination implements CollectionPagination {
         return nextCursor;
     }
 
+    /**
+     * @return the requested page size
+     */
+    public int getLimit() {
+        return limit;
+    }
+
+    /**
+     * @return whether another page is available
+     */
+    public boolean isHasNext() {
+        return hasNext;
+    }
+
+    /**
+     * @return the opaque next cursor, when another page is available
+     */
+    public @Nullable String getNextCursor() {
+        return nextCursor;
+    }
+
     @Override
     public String getMode() {
         return "keyset";

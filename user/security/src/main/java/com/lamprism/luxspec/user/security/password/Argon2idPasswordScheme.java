@@ -112,11 +112,17 @@ public class Argon2idPasswordScheme implements PasswordScheme {
     public boolean needsUpgrade(EncodedPassword encodedPassword) {
         StoredPassword stored = parse(encodedPassword);
         try {
-            return stored.memoryKiB() != parameters.memoryKiB()
-                    || stored.iterations() != parameters.iterations()
-                    || stored.parallelism() != parameters.parallelism()
-                    || stored.salt().length != parameters.saltLength()
-                    || stored.hash().length != parameters.hashLength();
+            boolean noStrongerStoredParameters = stored.memoryKiB() <= parameters.memoryKiB()
+                    && stored.iterations() <= parameters.iterations()
+                    && stored.parallelism() <= parameters.parallelism()
+                    && stored.salt().length <= parameters.saltLength()
+                    && stored.hash().length <= parameters.hashLength();
+            return noStrongerStoredParameters
+                    && (stored.memoryKiB() < parameters.memoryKiB()
+                    || stored.iterations() < parameters.iterations()
+                    || stored.parallelism() < parameters.parallelism()
+                    || stored.salt().length < parameters.saltLength()
+                    || stored.hash().length < parameters.hashLength());
         } finally {
             stored.clear();
         }

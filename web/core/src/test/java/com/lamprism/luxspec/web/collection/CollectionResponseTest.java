@@ -32,9 +32,20 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CollectionResponseTest {
+    @Test
+    void allowsAnEmptyPageBeyondTheExactTotal() {
+        PagePagination pagination = assertDoesNotThrow(() -> new PagePagination(100L, 20, 3L));
+
+        assertEquals(100L, pagination.offset());
+        assertEquals(3L, pagination.total());
+        assertThrows(IllegalArgumentException.class, () -> new PagePagination(0L, 20, -1L));
+    }
+
     @Test
     void mapsOrdinaryListsAndCompleteResultsToCompletePagination() {
         CollectionResponse<String> ordinary = CollectionResponse.from(List.of("first"));

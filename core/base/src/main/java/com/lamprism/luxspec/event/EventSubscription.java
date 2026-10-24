@@ -68,8 +68,8 @@ public interface EventSubscription extends AutoCloseable {
             }
 
             @Override
-            public void unsubscribe() {
-                if (!active.compareAndSet(true, false)) {
+            public synchronized void unsubscribe() {
+                if (!active.get()) {
                     return;
                 }
                 RuntimeException failure = null;
@@ -79,11 +79,12 @@ public interface EventSubscription extends AutoCloseable {
                     } catch (RuntimeException unsubscribeFailure) {
                         if (failure == null) {
                             failure = unsubscribeFailure;
-                        } else {
+                        } else if (failure != unsubscribeFailure) {
                             failure.addSuppressed(unsubscribeFailure);
                         }
                     }
                 }
+                active.set(false);
                 if (failure != null) {
                     throw failure;
                 }

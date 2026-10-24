@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
+import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.firewall.AuthenticatedRequest;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
@@ -87,7 +88,17 @@ public class LuxspecAuthenticatedFirewallFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        IngressRequest ingressRequest = ServletIngressRequestAdapter.adapt(request, clientAddressResolver);
+        IngressRequest ingressRequest;
+        try {
+            ingressRequest = ServletIngressRequestAdapter.adapt(request, clientAddressResolver);
+        } catch (ServletIngressRequestAdapter.InvalidRequestPathException failure) {
+            decisionHandler.handle(
+                    request,
+                    response,
+                    FirewallDecision.deny(SecurityErrorCode.FIREWALL_PATH_DENIED)
+            );
+            return;
+        }
         Authentication authentication = luxspecAuthentication.getLuxspecAuthentication();
         FirewallDecision decision = firewallRegistry.filter(new AuthenticatedRequest(ingressRequest, authentication));
         if (!decision.passed()) {

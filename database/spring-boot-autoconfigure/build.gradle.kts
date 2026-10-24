@@ -29,4 +29,5 @@ dependencies {
     testImplementation("com.zaxxer:HikariCP")
     testImplementation("org.assertj:assertj-core")
     testImplementation("com.h2database:h2")
+    testImplementation(project(":config:config-jpa-spring-boot-autoconfigure"))
 }

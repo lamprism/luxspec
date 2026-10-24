@@ -1,6 +1,8 @@
 package com.lamprism.luxspec.database.autoconfigure;
 
 import com.lamprism.luxspec.config.ConfigKey;
+import com.lamprism.luxspec.config.persistence.JpaConfigSource;
+import com.lamprism.luxspec.config.persistence.autoconfigure.LuxspecConfigJpaAutoConfiguration;
 import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
@@ -13,6 +15,7 @@ import com.lamprism.luxspec.database.DatabaseType;
 import com.lamprism.luxspec.database.jdbc.DataSourceFactory;
 import com.lamprism.luxspec.database.jdbc.SslMaterializer;
 import com.zaxxer.hikari.HikariDataSource;
+import jakarta.persistence.EntityManager;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.BeanDefinitionCustomizer;
@@ -164,6 +167,32 @@ class LuxspecDatabaseAutoConfigurationTest {
     }
 
     @Test
+    void doesNotInstantiateTheDefaultJpaSourceDuringDatabaseBootstrap() {
+        ConfigSource bootstrap = bootstrapSource(Map.of(
+                DatabaseConfigSpec.TYPE.bind().getKey(), ConfigEntry.present("h2"),
+                DatabaseConfigSpec.TARGET.bind().getKey(), ConfigEntry.present("memory"),
+                DatabaseConfigSpec.NAME.bind().getKey(), ConfigEntry.present("jpa-bootstrap-test"),
+                DatabaseConfigSpec.OPTIONS.bind().getKey(), ConfigEntry.present(List.of())
+        ));
+        ApplicationContextRunner combinedContextRunner = contextRunner
+                .withConfiguration(AutoConfigurations.of(LuxspecConfigJpaAutoConfiguration.class));
+
+        combinedContextRunner
+                .withPropertyValues("luxspec.database.enabled=true")
+                .withBean("bootstrapSource", ConfigSource.class, () -> bootstrap)
+                .withBean(EntityManager.class, LuxspecDatabaseAutoConfigurationTest::entityManagerProxy)
+                .withBean(DataSourceFactory.class, () -> settings -> new JdbcDataSource())
+                .run(context -> {
+                    assertThat(context).hasSingleBean(DatabaseConfig.class);
+                    assertThat(context).hasSingleBean(DataSource.class);
+                    assertThat(context.getBeanFactory().getBeanDefinition("configSource").isLazyInit())
+                            .isTrue();
+                    assertThat(context.getBeanFactory().containsSingleton("configSource")).isFalse();
+                    assertThat(context.getBean("configSource")).isInstanceOf(JpaConfigSource.class);
+                });
+    }
+
+    @Test
     void ordersBootstrapSourcesAtTheAssemblyBoundary() {
         ConfigSource lower = new OrderedConfigSource(ConfigSourceId.of("lower"), Map.of(
                 DatabaseConfigSpec.TYPE.bind().getKey(), ConfigEntry.present("h2"),
@@ -202,6 +231,25 @@ class LuxspecDatabaseAutoConfigurationTest {
         return DatabaseConfig.builder(DatabaseType.H2, DatabaseTarget.memory())
                 .databaseName("auto-config-test")
                 .build();
+    }
+
+    private static EntityManager entityManagerProxy() {
+        return (EntityManager) java.lang.reflect.Proxy.newProxyInstance(
+                EntityManager.class.getClassLoader(),
+                new Class<?>[]{EntityManager.class},
+                (proxy, method, arguments) -> {
+                    if (method.getName().equals("hashCode")) {
+                        return System.identityHashCode(proxy);
+                    }
+                    if (method.getName().equals("equals")) {
+                        return arguments != null && arguments.length == 1 && proxy == arguments[0];
+                    }
+                    if (method.getName().equals("toString")) {
+                        return "test-entity-manager";
+                    }
+                    return null;
+                }
+        );
     }
 
     private static final class OrderedConfigSource extends InMemoryConfigSource implements Ordered {

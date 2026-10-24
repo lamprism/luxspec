@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
@@ -130,10 +131,49 @@ class LuxspecBearerAuthenticationFilterTest {
         );
 
         assertEquals(401, malformedResponse.getStatus());
+        assertEquals("Bearer", malformedResponse.getHeader(HttpHeaders.WWW_AUTHENTICATE));
         assertFalse(malformedChainReached.get());
         assertEquals(401, rejectedResponse.getStatus());
+        assertEquals("Bearer", rejectedResponse.getHeader(HttpHeaders.WWW_AUTHENTICATE));
         assertFalse(rejectedChainReached.get());
         assertEquals(1, authenticator.getInvocationCount());
+    }
+
+    @Test
+    void restoresThePreviousSecurityContextWhenConfiguredStorageReadFails() {
+        SecurityContext previousContext = SecurityContextHolder.createEmptyContext();
+        previousContext.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "previous",
+                "unused"
+        ));
+        SecurityContextHolder.setContext(previousContext);
+        ExecutionContextStorage failingStorage = new ExecutionContextStorage() {
+            @Override
+            public java.util.Optional<com.lamprism.luxspec.context.ExecutionContext> current() {
+                throw new IllegalStateException("storage unavailable");
+            }
+
+            @Override
+            public Scope open(com.lamprism.luxspec.context.ExecutionContext context) {
+                throw new AssertionError("The context must not open after current() fails");
+            }
+        };
+        LuxspecBearerAuthenticationFilter filter = new LuxspecBearerAuthenticationFilter(
+                new TestAuthenticator(authentication(), false),
+                failingStorage
+        );
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer opaque-access-token");
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> filter.doFilter(request, new MockHttpServletResponse(), (servletRequest, response) -> {
+                    throw new AssertionError("The chain must not run after current() fails");
+                })
+        );
+
+        assertSame(previousContext, SecurityContextHolder.getContext());
+        assertEquals("previous", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
     }
 
     private static FilterChain verifyingChain(Authentication expectedAuthentication, AtomicBoolean chainReached) {

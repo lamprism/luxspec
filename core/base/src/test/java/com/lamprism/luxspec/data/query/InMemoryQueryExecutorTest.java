@@ -112,9 +112,29 @@ class InMemoryQueryExecutorTest {
                 new QueryCriteria(QueryCondition.isNotNull(OPTIONAL_VALUE), List.of()),
                 UnboundedWindow.getInstance()
         );
+        QueryResult<NullableItem> inResult = executor.query(
+                new QueryCriteria(QueryCondition.in(OPTIONAL_VALUE, List.of("value")), List.of()),
+                UnboundedWindow.getInstance()
+        );
+        QueryResult<NullableItem> notInResult = executor.query(
+                new QueryCriteria(QueryCondition.notIn(OPTIONAL_VALUE, List.of("value")), List.of()),
+                UnboundedWindow.getInstance()
+        );
+        QueryResult<NullableItem> notEqualResult = executor.query(
+                new QueryCriteria(QueryCondition.notEqual(OPTIONAL_VALUE, "value"), List.of()),
+                UnboundedWindow.getInstance()
+        );
+        QueryResult<NullableItem> negatedEqualResult = executor.query(
+                new QueryCriteria(QueryExpression.not(QueryCondition.equal(OPTIONAL_VALUE, "value")), List.of()),
+                UnboundedWindow.getInstance()
+        );
 
         assertEquals(List.of(empty), nullResult.getItems());
         assertEquals(List.of(present), nonNullResult.getItems());
+        assertEquals(List.of(present), inResult.getItems());
+        assertEquals(List.of(), notInResult.getItems());
+        assertEquals(List.of(), notEqualResult.getItems());
+        assertEquals(List.of(empty), negatedEqualResult.getItems());
     }
 
     @Test

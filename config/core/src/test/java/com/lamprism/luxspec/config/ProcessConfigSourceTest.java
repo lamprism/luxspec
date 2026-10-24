@@ -251,7 +251,7 @@ class ProcessConfigSourceTest {
     }
 
     @Test
-    void ignoresArgumentsWithInvalidConfigurationKeyNames() {
+    void ignoresArgumentsWithMalformedConfigurationKeys() {
         CommandLineConfigSource source = CommandLineConfigSource.from(
                 "--database..type=h2",
                 "--database/type=sqlite"

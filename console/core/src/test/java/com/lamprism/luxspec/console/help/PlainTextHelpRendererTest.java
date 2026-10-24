@@ -25,11 +25,11 @@ import com.lamprism.luxspec.console.OptionSpec;
 import com.lamprism.luxspec.console.ValueParser;
 import com.lamprism.luxspec.console.help.text.PlainTextHelpFormat;
 import com.lamprism.luxspec.console.help.text.PlainTextHelpRenderer;
-
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,6 +40,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author RollW
  */
 class PlainTextHelpRendererTest {
+    @Test
+    void preservesEmptyAndWhitespaceDefaultValuesInHelpEntries() {
+        HelpDocument.OptionEntry option = new HelpDocument.OptionEntry(
+                List.of("--value"),
+                "TEXT",
+                null,
+                false,
+                false,
+                false,
+                false,
+                List.of("", "  ", " surrounded ")
+        );
+        HelpDocument.ArgumentEntry argument = new HelpDocument.ArgumentEntry(
+                "value",
+                null,
+                null,
+                0,
+                1,
+                false,
+                List.of("", "  ", " surrounded ")
+        );
+
+        assertEquals(List.of("", "  ", " surrounded "), option.getDefaultValues());
+        assertEquals(List.of("", "  ", " surrounded "), argument.getDefaultValues());
+    }
+
     @Test
     void rendersConfiguredSectionsAndWrapsLongContent() {
         PlainTextHelpFormat format = PlainTextHelpFormat.builder()

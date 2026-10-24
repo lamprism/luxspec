@@ -78,7 +78,7 @@ public class JvmProcessMetricSet implements MetricSet {
 
         GaugeSpec<OperatingSystemMXBean> systemLoad = GaugeSpec
                 .builder("jvm.system.load", OperatingSystemMXBean.class)
-                .description("System CPU load")
+                .description("System load average; unavailable values are omitted and the scale is platform-dependent")
                 .reader(JvmProcessMetricSet::systemLoad)
                 .build();
         MetricRegistrationSupport.register(nonNullRegistry, systemLoad, operatingSystem);

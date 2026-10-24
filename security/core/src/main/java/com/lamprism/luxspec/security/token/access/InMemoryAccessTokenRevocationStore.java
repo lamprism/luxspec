@@ -58,7 +58,7 @@ public class InMemoryAccessTokenRevocationStore implements AccessTokenRevocation
     public void revoke(VerifiedAccessToken accessToken) {
         VerifiedAccessToken nonNullAccessToken = Objects.requireNonNull(accessToken, "accessToken");
         Instant now = now();
-        Instant expiresAt = nonNullAccessToken.getExpiresAt();
+        Instant expiresAt = nonNullAccessToken.getAcceptanceExpiresAt();
         if (!expiresAt.isAfter(now)) {
             return;
         }
@@ -78,7 +78,7 @@ public class InMemoryAccessTokenRevocationStore implements AccessTokenRevocation
         if (revokedExpiry == null) {
             return false;
         }
-        if (!nonNullAccessToken.getExpiresAt().isAfter(now)) {
+        if (!nonNullAccessToken.getAcceptanceExpiresAt().isAfter(now)) {
             if (!revokedExpiry.isAfter(now)) {
                 revokedUntil.remove(tokenId, revokedExpiry);
             }

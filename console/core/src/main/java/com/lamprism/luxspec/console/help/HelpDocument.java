@@ -316,7 +316,7 @@ public final class HelpDocument {
             this.required = required;
             this.repeatable = repeatable;
             this.hidden = hidden;
-            this.defaultValues = copyTextList(defaultValues, "Option defaults");
+            this.defaultValues = copyValues(defaultValues, "Option defaults");
         }
 
         /**
@@ -450,7 +450,7 @@ public final class HelpDocument {
             this.minimumValues = minimumValues;
             this.maximumValues = maximumValues;
             this.hidden = hidden;
-            this.defaultValues = copyTextList(defaultValues, "Argument defaults");
+            this.defaultValues = copyValues(defaultValues, "Argument defaults");
         }
 
         /**
@@ -712,6 +712,15 @@ public final class HelpDocument {
         List<String> copiedValues = new ArrayList<>(values.size());
         for (String value : values) {
             copiedValues.add(requireText(value, name + " value"));
+        }
+        return List.copyOf(copiedValues);
+    }
+
+    private static List<String> copyValues(List<String> values, String name) {
+        Objects.requireNonNull(values, name);
+        List<String> copiedValues = new ArrayList<>(values.size());
+        for (String value : values) {
+            copiedValues.add(Objects.requireNonNull(value, name + " value"));
         }
         return List.copyOf(copiedValues);
     }

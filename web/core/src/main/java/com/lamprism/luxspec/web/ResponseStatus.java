@@ -78,4 +78,18 @@ public final class ResponseStatus {
     public static ResponseStatus success() {
         return SUCCESS;
     }
+
+    /**
+     * @return the stable status code
+     */
+    public String getCode() {
+        return code;
+    }
+
+    /**
+     * @return the optional safe message
+     */
+    public @Nullable String getMessage() {
+        return message;
+    }
 }

@@ -1,14 +1,18 @@
 package com.lamprism.luxspec.config;
 
+import com.lamprism.luxspec.config.provider.CombinedConfigProvider;
+import com.lamprism.luxspec.config.resolution.ConfigResolutionException;
+import com.lamprism.luxspec.config.runtime.LayeredConfigReader;
 import com.lamprism.luxspec.config.runtime.ScopedLayeredConfigReader;
+import com.lamprism.luxspec.config.source.ConfigEntry;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
 import com.lamprism.luxspec.config.source.ConfigSourceScope;
 import com.lamprism.luxspec.config.source.InMemoryConfigSource;
-
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -39,11 +43,59 @@ class ConfigReaderAssemblyTest {
         assertEquals(ConfigSourceScope.BOOTSTRAP, reader.getSourceScope());
     }
 
+    @Test
+    void stopsCombinedReadsAtAnObservedTombstone() {
+        InMemoryConfigSource tombstone = InMemoryConfigSource.fromEntries(
+                ConfigSourceId.of("higher-tombstone"),
+                ConfigSourceScope.RUNTIME,
+                Map.of(ConfigKey.of("application.value"), ConfigEntry.tombstone())
+        );
+        AtomicInteger suppressedReads = new AtomicInteger();
+        ConfigReader failingLowerReader = new ConfigReader() {
+            @Override
+            public <T> ConfigValue<T> get(ConfigBinding<T> binding) {
+                suppressedReads.incrementAndGet();
+                throw new ConfigResolutionException();
+            }
+        };
+        CombinedConfigProvider provider = new CombinedConfigProvider(
+                List.of(new LayeredConfigReader(List.of(tombstone)), failingLowerReader),
+                noOpWriter()
+        );
+
+        ConfigValue<String> value = provider.get(VALUE);
+
+        assertEquals(false, value.hasValue());
+        assertEquals(1, ((com.lamprism.luxspec.config.resolution.LayeredConfigValue<?>) value)
+                .getLayers().size());
+        assertEquals(0, suppressedReads.get());
+    }
+
     private static InMemoryConfigSource source(String id, String value) {
         return InMemoryConfigSource.fromStrings(
                 ConfigSourceId.of(id),
                 ConfigSourceScope.BOOTSTRAP,
                 Map.of("application.value", value)
         );
+    }
+
+    private static ConfigWriter noOpWriter() {
+        return new ConfigWriter() {
+            @Override
+            public <T> void set(ConfigBinding<T> binding, T value) {
+            }
+
+            @Override
+            public <T> void set(ConfigSourceId sourceId, ConfigBinding<T> binding, T value) {
+            }
+
+            @Override
+            public void remove(ConfigBinding<?> binding) {
+            }
+
+            @Override
+            public void remove(ConfigSourceId sourceId, ConfigBinding<?> binding) {
+            }
+        };
     }
 }

@@ -77,7 +77,7 @@ final class CommandParser {
                     }
                     index = parseOption(tokens, index, current, option, optionValues, providedOptions);
                     if (current != catalog.rootNode()
-                            && current.specification.getOptions().contains(option)) {
+                            && current.specification.getOptions().stream().anyMatch(providedOptions::contains)) {
                         commandPathEnabled = false;
                     }
                     continue;

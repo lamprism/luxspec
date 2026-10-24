@@ -192,11 +192,12 @@ public class SynchronousEventDispatcher implements EventDispatcher {
         }
 
         @Override
-        public void unsubscribe() {
-            if (!active.compareAndSet(true, false)) {
+        public synchronized void unsubscribe() {
+            if (!active.get()) {
                 return;
             }
             SynchronousEventDispatcher.this.unsubscribe(eventType, registration);
+            active.set(false);
         }
     }
 }

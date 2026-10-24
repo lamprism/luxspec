@@ -19,6 +19,7 @@ package com.lamprism.luxspec.security.spring.firewall;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
 import com.lamprism.luxspec.security.firewall.IngressRequest;
 import com.lamprism.luxspec.security.firewall.SimpleFirewallRegistry;
+import com.lamprism.luxspec.security.firewall.rule.RequestPathFirewallRule;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -60,5 +61,21 @@ class LuxspecIngressFirewallFilterTest {
         assertEquals("/orders", ingressRequest.getPath());
         assertEquals("198.51.100.42", ingressRequest.getClientAddress());
         assertTrue(chainReached.get());
+    }
+
+    @Test
+    void matchesEncodedPathSegmentsAgainstSpringMvcPathSemantics() throws Exception {
+        LuxspecIngressFirewallFilter filter = new LuxspecIngressFirewallFilter(
+                new SimpleFirewallRegistry<>(List.of(RequestPathFirewallRule.denyExact(List.of("/admin"))))
+        );
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/app/%61dmin");
+        request.setContextPath("/app");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("Encoded denied path must not reach the chain");
+        });
+
+        assertEquals(403, response.getStatus());
     }
 }

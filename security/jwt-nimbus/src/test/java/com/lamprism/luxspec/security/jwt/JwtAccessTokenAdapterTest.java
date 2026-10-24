@@ -80,6 +80,49 @@ class JwtAccessTokenAdapterTest {
     }
 
     @Test
+    void includesClockSkewInTheRevocationAcceptanceWindow() {
+        SecretKey activeKey = key("01234567890123456789012345678901");
+        KeySet keySet = KeySet.withActiveKey(
+                "active",
+                List.of(new KeyEntry("active", activeKey, activeKey))
+        );
+        JwtAccessTokenAdapter adapter = new JwtAccessTokenAdapter(
+                keySetName -> keySet,
+                "access",
+                Clock.fixed(ISSUED_AT, ZoneOffset.UTC),
+                new JwtAccessTokenConfiguration(
+                        Duration.ofMinutes(5),
+                        ISSUER,
+                        Set.of(AUDIENCE),
+                        Duration.ofSeconds(30)
+                )
+        );
+        Authentication authentication = new Authentication(
+                new UserSubject(42L),
+                AuthorizationGrantSet.of(List.of(AuthorizationScope.of(SCOPE)))
+        );
+
+        VerifiedAccessToken verified = adapter.verify(
+                adapter.issue(authentication).require(AccessToken.KIND).getToken()
+        );
+
+        assertEquals(verified.getExpiresAt().plusSeconds(30L), verified.getAcceptanceExpiresAt());
+    }
+
+    @Test
+    void rejectsSubsecondTokenLifetimesThatJwtNumericDatesCannotRepresent() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new JwtAccessTokenConfiguration(
+                        Duration.ofMillis(500L),
+                        ISSUER,
+                        Set.of(),
+                        Duration.ZERO
+                )
+        );
+    }
+
+    @Test
     void issuesAndVerifiesAnAccessTokenUsingAnRsaKeyPair() throws GeneralSecurityException {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);

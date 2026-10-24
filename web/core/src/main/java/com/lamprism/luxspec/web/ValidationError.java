@@ -74,4 +74,25 @@ public final class ValidationError {
     public @Nullable String message() {
         return message;
     }
+
+    /**
+     * @return the invalid field name
+     */
+    public String getField() {
+        return field;
+    }
+
+    /**
+     * @return the stable validation error code
+     */
+    public ErrorCode getCode() {
+        return code;
+    }
+
+    /**
+     * @return the optional safe validation message
+     */
+    public @Nullable String getMessage() {
+        return message;
+    }
 }

@@ -34,7 +34,7 @@ public final class PagePagination implements CollectionPagination {
      * @param total  the exact number of matching items
      */
     public PagePagination(long offset, int limit, long total) {
-        if (offset < 0L || limit < 1 || total < offset) {
+        if (offset < 0L || limit < 1 || total < 0L) {
             throw new IllegalArgumentException("Invalid page pagination metadata");
         }
         this.offset = offset;
@@ -66,6 +66,27 @@ public final class PagePagination implements CollectionPagination {
      * @return the total count
      */
     public long total() {
+        return total;
+    }
+
+    /**
+     * @return the zero-based result offset
+     */
+    public long getOffset() {
+        return offset;
+    }
+
+    /**
+     * @return the requested page size
+     */
+    public int getLimit() {
+        return limit;
+    }
+
+    /**
+     * @return the exact matching item count
+     */
+    public long getTotal() {
         return total;
     }
 

@@ -47,7 +47,7 @@ jobs:
               printf 'Release version must not contain SNAPSHOT: %s\n' "$RELEASE_VERSION" >&2
               exit 1
               ;;
-            v*)
+            V*)
               printf 'Enter the release version without the v prefix: %s\n' "$RELEASE_VERSION" >&2
               exit 1
               ;;
@@ -92,12 +92,50 @@ jobs:
 
           gradle_user_home="${GRADLE_USER_HOME:-$HOME/.gradle}"
           mkdir -p "$gradle_user_home"
-          {
-            printf '%s\n' "luxspec.publish.username=$CENTRAL_USERNAME"
-            printf '%s\n' "luxspec.publish.password=$CENTRAL_PASSWORD"
-            printf '%s\n' "signing.gnupg.keyName=$GPG_KEY_ID"
-            printf '%s\n' "signing.gnupg.passphrase=$GPG_PASSPHRASE"
-          } >> "$gradle_user_home/gradle.properties"
+          python3 - "$gradle_user_home/gradle.properties" <<'PY'
+          import os
+          import sys
+
+          def escape(value):
+              result = []
+              for index, character in enumerate(value):
+                  codepoint = ord(character)
+                  if character == "\\":
+                      result.append("\\\\")
+                  elif character == "\t":
+                      result.append("\\t")
+                  elif character == "\n":
+                      result.append("\\n")
+                  elif character == "\r":
+                      result.append("\\r")
+                  elif character == "\f":
+                      result.append("\\f")
+                  elif character in "=:#!" or (character == " " and index == 0):
+                      result.append("\\" + character)
+                  elif codepoint < 0x20 or codepoint > 0x7e:
+                      if codepoint <= 0xffff:
+                          result.append("\\u%04x" % codepoint)
+                      else:
+                          codepoint -= 0x10000
+                          result.append("\\u%04x\\u%04x" % (
+                              0xd800 + (codepoint >> 10),
+                              0xdc00 + (codepoint & 0x3ff),
+                          ))
+                  else:
+                      result.append(character)
+              return "".join(result)
+
+          properties = (
+              ("luxspec.publish.username", "CENTRAL_USERNAME"),
+              ("luxspec.publish.password", "CENTRAL_PASSWORD"),
+              ("signing.gnupg.keyName", "GPG_KEY_ID"),
+              ("signing.gnupg.passphrase", "GPG_PASSPHRASE"),
+          )
+          with open(sys.argv[1], "a", encoding="ascii") as output:
+              for key, variable in properties:
+                  output.write(key + "=" + escape(os.environ[variable]) + "\n")
+          PY
+          chmod 600 "$gradle_user_home/gradle.properties"
           printf 'GRADLE_USER_HOME=%s\n' "$gradle_user_home" >> "$GITHUB_ENV"
 
       - name: Test and build release JARs
