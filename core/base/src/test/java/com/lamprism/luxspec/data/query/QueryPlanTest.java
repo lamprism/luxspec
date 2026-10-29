@@ -29,6 +29,10 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+/**
+ *
+ * @author RollW
+ */
 class QueryPlanTest {
     private static final QueryField<String> CATEGORY = QueryField.of("category", String.class);
     private static final QueryField<Integer> AMOUNT = QueryField.of("amount", Integer.class);

@@ -25,6 +25,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+/**
+ *
+ * @author RollW
+ */
 final class OrderedMultiLevelCache<K, V> implements MultiLevelCache<K, V> {
     private final List<Cache<K, V>> levels;
     private final Object stateLock = new Object();

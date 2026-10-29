@@ -16,20 +16,34 @@
 
 package com.lamprism.luxspec.security.token;
 
+import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.security.authentication.Authentication;
 
 /**
- * Issues authentication tokens for an already authenticated actor.
+ * Issues one kind of token for an already authenticated actor.
+ *
+ * @param <T> the token value type
  *
  * @author RollW
  */
 @FunctionalInterface
-public interface TokenIssuer {
+public interface TokenIssuer<T extends Token> {
     /**
-     * Issues the tokens configured for the current authentication flow.
+     * Issues one token for the current authentication flow.
      *
-     * @param authentication the current authenticated actor
-     * @return the token issuance
+     * @param authentication the authenticated actor
+     * @param attributes the explicit issuance attributes
+     * @return the issued token
      */
-    TokenIssuance issue(Authentication authentication);
+    IssuedToken<T> issue(Authentication authentication, ExecutionContext attributes);
+
+    /**
+     * Issues a token without additional attributes.
+     *
+     * @param authentication the authenticated actor
+     * @return the issued token
+     */
+    default IssuedToken<T> issue(Authentication authentication) {
+        return issue(authentication, ExecutionContext.empty());
+    }
 }

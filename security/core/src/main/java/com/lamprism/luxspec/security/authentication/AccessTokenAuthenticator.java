@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
+import com.lamprism.luxspec.security.token.TokenAuthenticationPolicy;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.access.AccessTokenVerifier;
 import com.lamprism.luxspec.security.token.access.VerifiedAccessToken;
@@ -34,23 +35,23 @@ public class AccessTokenAuthenticator implements Authenticator<AccessTokenCreden
             AccessTokenCredential.class
     );
     private final AccessTokenVerifier tokenVerifier;
-    private final SubjectResolver subjectResolver;
+    private final TokenAuthenticationPolicy authenticationPolicy;
     private final AccessTokenRevocationStore revocationStore;
 
     /**
-     * Creates an authenticator with an explicit access-token revocation store.
+     * Creates an authenticator with an explicit authentication and grant policy.
      *
-     * @param tokenVerifier   the authoritative Access Token verifier
-     * @param subjectResolver the current subject and state resolver
+     * @param tokenVerifier the authoritative Access Token verifier
+     * @param authenticationPolicy the policy for verified identity and issued grants
      * @param revocationStore the verified-token revocation store
      */
     public AccessTokenAuthenticator(
             AccessTokenVerifier tokenVerifier,
-            SubjectResolver subjectResolver,
+            TokenAuthenticationPolicy authenticationPolicy,
             AccessTokenRevocationStore revocationStore
     ) {
         this.tokenVerifier = Objects.requireNonNull(tokenVerifier, "tokenVerifier");
-        this.subjectResolver = Objects.requireNonNull(subjectResolver, "subjectResolver");
+        this.authenticationPolicy = Objects.requireNonNull(authenticationPolicy, "authenticationPolicy");
         this.revocationStore = Objects.requireNonNull(revocationStore, "revocationStore");
     }
 
@@ -83,7 +84,14 @@ public class AccessTokenAuthenticator implements Authenticator<AccessTokenCreden
         if (SystemSubject.TYPE.equals(subjectType)) {
             throw new AuthenticationException(AuthErrorCode.INVALID_TOKEN, "System subject tokens are not accepted");
         }
-        Subject subject = subjectResolver.resolve(subjectType, token.getSubjectId());
-        return new Authentication(subject, token.getGrants());
+        Subject subject = new SimpleSubject(subjectType, token.getSubjectId());
+        Authentication authentication = Objects.requireNonNull(
+                authenticationPolicy.resolve(subject, token.getGrants()),
+                "token authentication"
+        );
+        if (!subject.equals(SimpleSubject.from(authentication.subject()))) {
+            throw new AuthenticationException(AuthErrorCode.INVALID_TOKEN, "Token subject changed");
+        }
+        return authentication;
     }
 }

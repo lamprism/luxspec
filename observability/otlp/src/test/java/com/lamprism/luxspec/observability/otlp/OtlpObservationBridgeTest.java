@@ -50,6 +50,10 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+/**
+ *
+ * @author RollW
+ */
 class OtlpObservationBridgeTest {
     private static final ObservationAttributeSpec<String> OPERATION = ObservationAttributeSpec.string(
             "operation.name",

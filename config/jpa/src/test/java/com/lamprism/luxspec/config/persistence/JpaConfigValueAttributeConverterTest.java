@@ -25,6 +25,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+/**
+ *
+ * @author RollW
+ */
 class JpaConfigValueAttributeConverterTest {
     private final JpaConfigValueAttributeConverter converter = new JpaConfigValueAttributeConverter();
 

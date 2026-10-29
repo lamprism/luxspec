@@ -27,6 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class SessionLifetimeTest {
     private static final Instant CREATED_AT = Instant.parse("2026-07-15T00:00:00Z");
 

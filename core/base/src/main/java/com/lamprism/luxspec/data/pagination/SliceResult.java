@@ -22,6 +22,7 @@ import java.util.List;
  * Represents an offset slice without an exact total count.
  *
  * @param <T> the element type
+ *
  * @author RollW
  */
 public final class SliceResult<T> implements QueryResult<T> {

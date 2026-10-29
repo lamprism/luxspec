@@ -21,6 +21,10 @@ import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
 import org.bouncycastle.crypto.params.ECPublicKeyParameters;
 import org.bouncycastle.math.ec.ECPoint;
 
+/**
+ *
+ * @author RollW
+ */
 final class EcPublicKeyDerivationStrategy extends AbstractPublicKeyDerivationStrategy {
     @Override
     protected DerivedPublicKey deriveParameters(

@@ -41,6 +41,10 @@ import org.springframework.core.task.TaskDecorator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecStarterAutoConfigurationTest {
     private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(

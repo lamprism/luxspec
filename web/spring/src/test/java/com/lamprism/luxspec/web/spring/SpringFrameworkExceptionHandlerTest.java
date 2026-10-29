@@ -50,6 +50,10 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+/**
+ *
+ * @author RollW
+ */
 class SpringFrameworkExceptionHandlerTest {
     private final LuxspecExceptionHandler handler = new LuxspecExceptionHandler(
             new DefaultErrorHttpStatusResolver(List.of())

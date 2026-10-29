@@ -20,16 +20,17 @@ import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Applies the standard reduction semantics of a {@link TimeSeriesQueryPlan}.
+ * Applies the selected reduction semantics of a {@link TimeSeriesQueryPlan}.
  *
  * <p>Both in-memory and persistence adapters use this class after obtaining the typed source
- * values. It keeps null filtering, decimal summation, averaging, and comparable extrema
- * consistent across providers.</p>
+ * values. Standard reductions keep null filtering, decimal summation, averaging, and comparable
+ * extrema consistent across providers.</p>
  *
  * @author RollW
  */
@@ -41,7 +42,7 @@ public final class TimeSeriesAggregation {
      * Reduces values according to the plan.
      *
      * @param plan   the time-series operation embedded in a query plan
-     * @param values the source values in one time bucket
+     * @param values the source values in ascending timestamp order within one time bucket
      * @return the reduced value, or null when the bucket contains no reducible value
      */
     public static @Nullable Object reduce(
@@ -49,31 +50,30 @@ public final class TimeSeriesAggregation {
             List<?> values
     ) {
         TimeSeriesQueryPlan<?> nonNullPlan = Objects.requireNonNull(plan, "plan");
-        List<?> nonNullValues = new ArrayList<>(Objects.requireNonNull(values, "values"));
-        List<Object> presentValues = new ArrayList<>(nonNullValues.size());
-        for (Object value : nonNullValues) {
+        List<@Nullable Object> copied = new ArrayList<>(Objects.requireNonNull(values, "values"));
+        Object result = nonNullPlan.getAggregation().reduce(
+                Collections.unmodifiableList(copied), nonNullPlan.getValue() != null
+        );
+        return result == null ? null : nonNullPlan.getValueType().cast(result);
+    }
+
+    static @Nullable Object reduceStandard(
+            TimeSeriesAggregationFunction.Standard function, List<@Nullable Object> values, boolean hasValue
+    ) {
+        List<Object> presentValues = new ArrayList<>(values.size());
+        for (Object value : values) {
             if (value != null) {
                 presentValues.add(value);
             }
         }
-        Object result;
-        switch (nonNullPlan.getAggregation()) {
-            case COUNT -> result = nonNullPlan.getValue() == null
-                    ? (long) nonNullValues.size()
-                    : (long) presentValues.size();
-            case COUNT_DISTINCT -> result = (long) new LinkedHashSet<>(presentValues).size();
-            case SUM -> result = sum(presentValues);
-            case AVERAGE -> result = average(presentValues);
-            case MIN -> result = extreme(presentValues, false);
-            case MAX -> result = extreme(presentValues, true);
-            default -> throw new IllegalArgumentException(
-                    "Unsupported time-series aggregation: " + nonNullPlan.getAggregation()
-            );
-        }
-        if (result == null) {
-            return null;
-        }
-        return nonNullPlan.getValueType().cast(result);
+        return switch (function) {
+            case COUNT -> hasValue ? (long) presentValues.size() : (long) values.size();
+            case COUNT_DISTINCT -> (long) new LinkedHashSet<>(presentValues).size();
+            case SUM -> sum(presentValues);
+            case AVERAGE -> average(presentValues);
+            case MIN -> extreme(presentValues, false);
+            case MAX -> extreme(presentValues, true);
+        };
     }
 
     private static @Nullable BigDecimal sum(List<Object> values) {

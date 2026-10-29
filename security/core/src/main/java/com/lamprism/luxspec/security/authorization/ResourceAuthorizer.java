@@ -24,6 +24,7 @@ import com.lamprism.luxspec.security.authentication.Authentication;
  * Evaluates resource-instance policy after an action's baseline grant requirement passes.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public interface ResourceAuthorizer<ID> {

@@ -36,6 +36,7 @@ import java.util.function.Predicate;
  * definition API and do not select a separate template type.</p>
  *
  * @param <T> the typed value
+ *
  * @author RollW
  */
 public interface ConfigSpec<T> {

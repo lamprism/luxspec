@@ -30,6 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class InMemoryAccessTokenRevocationStoreTest {
     private static final Instant NOW = Instant.parse("2026-07-15T00:00:00Z");
 
@@ -39,7 +43,7 @@ class InMemoryAccessTokenRevocationStoreTest {
         InMemoryAccessTokenRevocationStore store = new InMemoryAccessTokenRevocationStore(clock);
         VerifiedAccessToken token = token("token-1", NOW.plusSeconds(30L));
 
-        store.revoke(token);
+        store.revoke(token, token.getExpiresAt());
 
         assertTrue(store.isRevoked(token));
         clock.setInstant(NOW.plusSeconds(30L));
@@ -55,8 +59,8 @@ class InMemoryAccessTokenRevocationStoreTest {
         VerifiedAccessToken active = token("token-1", NOW.plusSeconds(30L));
         VerifiedAccessToken expired = token("token-1", NOW);
 
-        store.revoke(active);
-        store.revoke(expired);
+        store.revoke(active, active.getExpiresAt());
+        store.revoke(expired, expired.getExpiresAt());
 
         assertTrue(store.isRevoked(active));
         assertEquals(1, store.size());
@@ -72,11 +76,10 @@ class InMemoryAccessTokenRevocationStoreTest {
                 AuthorizationGrantSet.of(List.of()),
                 "token-skew",
                 NOW.minusSeconds(60L),
-                NOW.minusSeconds(10L),
-                NOW.plusSeconds(20L)
+                NOW.minusSeconds(10L)
         );
 
-        store.revoke(token);
+        store.revoke(token, NOW.plusSeconds(20L));
 
         assertTrue(store.isRevoked(token));
         clock.setInstant(NOW.plusSeconds(20L));

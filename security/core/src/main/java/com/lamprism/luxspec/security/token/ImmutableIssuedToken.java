@@ -19,6 +19,10 @@ package com.lamprism.luxspec.security.token;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ *
+ * @author RollW
+ */
 final class ImmutableIssuedToken<T extends Token> implements IssuedToken<T> {
     private final T token;
     private final Instant issuedAt;

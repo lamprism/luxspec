@@ -30,8 +30,10 @@ import com.lamprism.luxspec.message.spring.SpringMessageResolver;
 import com.lamprism.luxspec.web.ErrorHttpStatusMapping;
 import com.lamprism.luxspec.web.ErrorHttpStatusResolver;
 import com.lamprism.luxspec.web.HttpStatusCode;
+import com.lamprism.luxspec.web.spring.LuxspecCorrelationIdResponseAdvice;
 import com.lamprism.luxspec.web.spring.LuxspecExceptionHandler;
 import com.lamprism.luxspec.web.spring.LuxspecRequestContextFilter;
+import com.lamprism.luxspec.web.spring.ServletCorrelationIdPolicy;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -49,6 +51,10 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecWebAutoConfigurationTest {
     private static final HttpStatusCode CONFLICT = new HttpStatusCode(409);
     private static final HttpStatusCode GONE = new HttpStatusCode(410);
@@ -101,6 +107,23 @@ class LuxspecWebAutoConfigurationTest {
                             }
                     );
                     assertThat(response.getHeader("X-Correlation-ID")).isEqualTo("generated-id");
+                });
+    }
+
+    @Test
+    void acceptsAnApplicationCorrelationPolicyAndOptInResponseAdvice() {
+        contextRunner
+                .withPropertyValues("luxspec.web.response.correlation-id-enabled=true")
+                .withBean(CorrelationIdGenerator.class, () -> () -> CorrelationId.of("server-id"))
+                .withBean(ServletCorrelationIdPolicy.class, ServletCorrelationIdPolicy::generated)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(LuxspecCorrelationIdResponseAdvice.class);
+                    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
+                    request.addHeader("X-Request-ID", "client-id");
+                    MockHttpServletResponse response = new MockHttpServletResponse();
+                    context.getBean(LuxspecRequestContextFilter.class).doFilter(request, response, (req, res) -> {
+                    });
+                    assertThat(response.getHeader("X-Request-ID")).isEqualTo("server-id");
                 });
     }
 

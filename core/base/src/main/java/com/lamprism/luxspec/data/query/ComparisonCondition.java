@@ -25,14 +25,15 @@ import java.util.Objects;
  * {@link QueryFieldResolver} ordering comparator.</p>
  *
  * @param <T> the comparable field value type
+ *
  * @author RollW
  */
 public final class ComparisonCondition<T extends Comparable<? super T>> implements QueryExpression {
     private final QueryField<T> field;
-    private final QueryOperator operator;
+    private final QueryOperator.Standard operator;
     private final T value;
 
-    private ComparisonCondition(QueryField<T> field, QueryOperator operator, T value) {
+    private ComparisonCondition(QueryField<T> field, QueryOperator.Standard operator, T value) {
         this.field = field;
         this.operator = operator;
         this.value = value;
@@ -100,7 +101,7 @@ public final class ComparisonCondition<T extends Comparable<? super T>> implemen
      *
      * @return the comparison operator
      */
-    public QueryOperator getOperator() {
+    public QueryOperator.Standard getOperator() {
         return operator;
     }
 
@@ -120,7 +121,7 @@ public final class ComparisonCondition<T extends Comparable<? super T>> implemen
 
     private static <T extends Comparable<? super T>> ComparisonCondition<T> create(
             QueryField<T> field,
-            QueryOperator operator,
+            QueryOperator.Standard operator,
             T value
     ) {
         QueryField<T> nonNullField = Objects.requireNonNull(field, "field");

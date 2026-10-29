@@ -30,6 +30,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class UserQuerySchemaTest {
     @Test
     void acceptsTypedFieldsSupportedByTheUserSchema() {

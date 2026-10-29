@@ -30,6 +30,7 @@ import java.util.function.Predicate;
  * normalization.
  *
  * @param <T> the value type
+ *
  * @author RollW
  */
 @FunctionalInterface

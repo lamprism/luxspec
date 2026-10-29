@@ -21,6 +21,7 @@ package com.lamprism.luxspec.security.authentication;
  * Authenticates one exact credential type.
  *
  * @param <C> the credential type
+ *
  * @author RollW
  */
 public interface Authenticator<C extends Credential> {

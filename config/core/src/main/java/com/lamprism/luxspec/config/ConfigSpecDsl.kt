@@ -18,6 +18,8 @@ package com.lamprism.luxspec.config
 
 /**
  * Kotlin entry points for receiver-style configuration definition construction.
+ *
+ * @author RollW
  */
 object ConfigSpecDsl {
     /**

@@ -34,6 +34,7 @@ public final class UserAuditEventDefinitionContributor implements AuditEventDefi
         nonNullRegistrar.register(UserRenamedAuditTranslator.definition());
         nonNullRegistrar.register(UserEmailChangedAuditTranslator.definition());
         nonNullRegistrar.register(UserRolesChangedAuditTranslator.definition());
+        nonNullRegistrar.register(UserRolesReplacedAuditTranslator.definition());
         nonNullRegistrar.register(UserStatusChangedAuditTranslator.definition());
         nonNullRegistrar.register(UserPasswordChangedAuditTranslator.definition());
     }

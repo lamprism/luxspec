@@ -31,6 +31,10 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecCacheAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(LuxspecCacheAutoConfiguration.class));

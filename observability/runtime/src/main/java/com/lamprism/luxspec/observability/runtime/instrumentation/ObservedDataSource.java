@@ -20,6 +20,8 @@ import com.lamprism.luxspec.observability.observation.Observation;
 import com.lamprism.luxspec.observability.observation.ObservationOutcome;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
 import com.lamprism.luxspec.observability.observation.ObservationSpec;
+import com.lamprism.luxspec.observability.runtime.observation.DatabaseObservationAttributes;
+import com.lamprism.luxspec.observability.runtime.observation.DatabaseObservationAttributes.Operation;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -33,6 +35,10 @@ import java.sql.Statement;
 import java.util.Objects;
 import java.util.logging.Logger;
 
+/**
+ *
+ * @author RollW
+ */
 final class ObservedDataSource implements DataSource {
     private final DataSource delegate;
     private final ObservationRegistry registry;
@@ -46,12 +52,12 @@ final class ObservedDataSource implements DataSource {
 
     @Override
     public Connection getConnection() throws SQLException {
-        return observe(() -> wrapConnection(delegate.getConnection()));
+        return observe(Operation.CONNECT, () -> wrapConnection(delegate.getConnection()));
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        return observe(() -> wrapConnection(delegate.getConnection(username, password)));
+        return observe(Operation.CONNECT, () -> wrapConnection(delegate.getConnection(username, password)));
     }
 
     @Override
@@ -115,14 +121,15 @@ final class ObservedDataSource implements DataSource {
                     if (!method.getName().startsWith("execute")) {
                         return invoke(method, target, arguments);
                     }
-                    return observe(() -> invokeStatement(method, target, arguments));
+                    return observe(statementOperation(method.getName()), () -> invokeStatement(method, target, arguments));
                 }
         );
     }
 
-    private <R> R observe(ThrowingSupplier<R> operation) throws SQLException {
+    private <R> R observe(Operation kind, ThrowingSupplier<R> operation) throws SQLException {
         Observation observation = registry.start(spec);
         try {
+            observation.put(DatabaseObservationAttributes.OPERATION, kind);
             R result = operation.get();
             observation.setOutcome(ObservationOutcome.SUCCESS);
             return result;
@@ -132,6 +139,15 @@ final class ObservedDataSource implements DataSource {
         } finally {
             observation.stop();
         }
+    }
+
+    private static Operation statementOperation(String name) {
+        return switch (name) {
+            case "executeQuery" -> Operation.QUERY;
+            case "executeUpdate", "executeLargeUpdate" -> Operation.UPDATE;
+            case "executeBatch", "executeLargeBatch" -> Operation.BATCH;
+            default -> Operation.EXECUTE;
+        };
     }
 
     private static boolean isStatementFactory(String name) {

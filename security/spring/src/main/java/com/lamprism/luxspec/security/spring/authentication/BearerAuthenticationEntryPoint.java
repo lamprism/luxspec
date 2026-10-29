@@ -26,6 +26,8 @@ import java.io.IOException;
 
 /**
  * Sends an HTTP Bearer challenge when authentication is required.
+ *
+ * @author RollW
  */
 public final class BearerAuthenticationEntryPoint implements AuthenticationEntryPoint {
     @Override

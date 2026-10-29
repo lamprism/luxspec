@@ -19,6 +19,10 @@ package com.lamprism.luxspec.security.authentication;
 import com.lamprism.luxspec.AuthErrorCode;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import com.lamprism.luxspec.security.authorization.AuthorizationScope;
+import com.lamprism.luxspec.security.authorization.AuthorizationScopeHierarchy;
+import com.lamprism.luxspec.security.token.CurrentTokenAuthenticationPolicy;
+import com.lamprism.luxspec.security.token.TokenAuthenticationPolicy;
+import com.lamprism.luxspec.security.token.TokenGrantPolicy;
 import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
 import com.lamprism.luxspec.security.token.access.AccessToken;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
@@ -38,6 +42,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class AccessTokenAuthenticatorTest {
     private static final VerifiedAccessToken VERIFIED_TOKEN = VerifiedAccessToken.of(
             "user",
@@ -54,7 +62,7 @@ class AccessTokenAuthenticatorTest {
         TrackingRevocationStore revocationStore = new TrackingRevocationStore();
         AccessTokenAuthenticator authenticator = new AccessTokenAuthenticator(
                 new TestTokenVerifier(),
-                subjectResolver,
+                TokenAuthenticationPolicy.issuedGrants(subjectResolver),
                 revocationStore
         );
 
@@ -70,10 +78,10 @@ class AccessTokenAuthenticatorTest {
     void rejectsARevokedTokenBeforeResolvingTheSubject() {
         TestSubjectResolver subjectResolver = new TestSubjectResolver();
         TrackingRevocationStore revocationStore = new TrackingRevocationStore();
-        revocationStore.revoke(VERIFIED_TOKEN);
+        revocationStore.revoke(VERIFIED_TOKEN, VERIFIED_TOKEN.getExpiresAt());
         AccessTokenAuthenticator authenticator = new AccessTokenAuthenticator(
                 new TestTokenVerifier(),
-                subjectResolver,
+                TokenAuthenticationPolicy.issuedGrants(subjectResolver),
                 revocationStore
         );
 
@@ -88,6 +96,54 @@ class AccessTokenAuthenticatorTest {
     }
 
     @Test
+    void limitsIssuedGrantsToCurrentGrants() {
+        AuthorizationGrantSet current = AuthorizationGrantSet.of(List.of(
+                AuthorizationScope.of("account:read"),
+                AuthorizationScope.of("account:write")
+        ));
+        CurrentTokenAuthenticationPolicy policy = new CurrentTokenAuthenticationPolicy(
+                subject -> new Authentication(new UserSubject(42L), current)
+        );
+        AccessTokenAuthenticator authenticator = new AccessTokenAuthenticator(
+                new TestTokenVerifier(), policy, new TrackingRevocationStore()
+        );
+
+        assertEquals(VERIFIED_TOKEN.getGrants(), authenticator.authenticate(credentials()).grants());
+        Authentication reduced = new CurrentTokenAuthenticationPolicy(
+                subject -> new Authentication(new UserSubject(42L), AuthorizationGrantSet.of(List.of()))
+        ).resolve(new UserSubject(42L), VERIFIED_TOKEN.getGrants());
+        assertEquals(AuthorizationGrantSet.of(List.of()), reduced.grants());
+    }
+
+    @Test
+    void permitsAnExplicitEmptyGrantPolicy() {
+        TokenGrantPolicy rejectEmpty = TokenGrantPolicy.expandedIntersection(
+                AuthorizationScopeHierarchy.empty(), true
+        );
+        TokenGrantPolicy allowEmpty = TokenGrantPolicy.expandedIntersection(
+                AuthorizationScopeHierarchy.empty(), false
+        );
+        AuthorizationGrantSet empty = AuthorizationGrantSet.of(List.of());
+
+        assertThrows(AuthenticationException.class, () -> rejectEmpty.apply(empty, VERIFIED_TOKEN.getGrants()));
+        assertEquals(empty, allowEmpty.apply(empty, VERIFIED_TOKEN.getGrants()));
+    }
+
+    @Test
+    void rejectsAPolicyThatReturnsAnotherSubject() {
+        AccessTokenAuthenticator authenticator = new AccessTokenAuthenticator(
+                new TestTokenVerifier(),
+                (subject, grants) -> new Authentication(new UserSubject(43L), grants),
+                new TrackingRevocationStore()
+        );
+
+        assertEquals(AuthErrorCode.INVALID_TOKEN, assertThrows(
+                AuthenticationException.class,
+                () -> authenticator.authenticate(credentials())
+        ).getErrorCode());
+    }
+
+    @Test
     void publishesAccessTokenRevocationWithoutTheTokenIdentifier() {
         List<TokenLifecycleEvent> events = new ArrayList<>();
         TrackingRevocationStore delegate = new TrackingRevocationStore();
@@ -97,7 +153,7 @@ class AccessTokenAuthenticatorTest {
                 Clock.fixed(Instant.parse("2026-08-09T00:00:00Z"), ZoneOffset.UTC)
         );
 
-        store.revoke(VERIFIED_TOKEN);
+        store.revoke(VERIFIED_TOKEN, VERIFIED_TOKEN.getExpiresAt());
 
         assertEquals(1, events.size());
         assertEquals(TokenLifecycleEvent.Operation.REVOKE, events.get(0).getOperation());
@@ -115,6 +171,11 @@ class AccessTokenAuthenticatorTest {
         public VerifiedAccessToken verify(AccessToken accessToken) {
             Objects.requireNonNull(accessToken, "accessToken");
             return VERIFIED_TOKEN;
+        }
+
+        @Override
+        public Instant getAcceptanceDeadline(VerifiedAccessToken accessToken) {
+            return Objects.requireNonNull(accessToken, "accessToken").getExpiresAt();
         }
     }
 
@@ -140,7 +201,7 @@ class AccessTokenAuthenticatorTest {
         private int checkCount;
 
         @Override
-        public void revoke(VerifiedAccessToken accessToken) {
+        public void revoke(VerifiedAccessToken accessToken, Instant acceptanceDeadline) {
             revokedTokenId = Objects.requireNonNull(accessToken, "accessToken").getTokenId();
         }
 

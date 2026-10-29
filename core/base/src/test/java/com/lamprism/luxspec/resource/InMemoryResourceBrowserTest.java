@@ -29,6 +29,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class InMemoryResourceBrowserTest {
     private static final ResourceType<Long> DOCUMENT = ResourceType.of("document", Long.class);
     private static final QueryField<String> TITLE = QueryField.of("title", String.class);

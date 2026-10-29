@@ -18,17 +18,23 @@ package com.lamprism.luxspec.data.query.inmemory;
 
 import com.lamprism.luxspec.data.query.ComparisonCondition;
 import com.lamprism.luxspec.data.query.ExistsCondition;
+import com.lamprism.luxspec.data.query.InMemoryQueryAggregate;
+import com.lamprism.luxspec.data.query.InMemoryQueryFunction;
+import com.lamprism.luxspec.data.query.InMemoryQueryOperator;
 import com.lamprism.luxspec.data.query.LikeCondition;
 import com.lamprism.luxspec.data.query.LogicalCondition;
 import com.lamprism.luxspec.data.query.LogicalOperator;
 import com.lamprism.luxspec.data.query.NegatedQueryExpression;
+import com.lamprism.luxspec.data.query.QueryAggregateDefinition;
 import com.lamprism.luxspec.data.query.QueryAggregateFunction;
 import com.lamprism.luxspec.data.query.QueryCondition;
 import com.lamprism.luxspec.data.query.QueryExpression;
 import com.lamprism.luxspec.data.query.QueryExpressionVisitor;
 import com.lamprism.luxspec.data.query.QueryField;
 import com.lamprism.luxspec.data.query.QueryFieldResolver;
+import com.lamprism.luxspec.data.query.QueryFunctionDefinition;
 import com.lamprism.luxspec.data.query.QueryOperator;
+import com.lamprism.luxspec.data.query.QueryOperatorDefinition;
 import com.lamprism.luxspec.data.query.QueryRelation;
 import com.lamprism.luxspec.data.query.QueryRelationResolver;
 import com.lamprism.luxspec.data.query.QueryValue;
@@ -38,6 +44,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -51,6 +58,7 @@ import java.util.Objects;
  * result windows belong to {@link InMemoryQueryEngine}.</p>
  *
  * @param <T> the candidate type
+ *
  * @author RollW
  */
 final class InMemoryQueryMatcher<T>
@@ -59,6 +67,9 @@ final class InMemoryQueryMatcher<T>
     private final QueryRelationResolver<T> relationResolver;
     private final Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers;
     private final Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers;
+    private final Map<QueryFunctionDefinition<?>, InMemoryQueryFunction<?>> functions;
+    private final Map<QueryOperatorDefinition<?, ?>, InMemoryQueryOperator<?, ?>> operators;
+    private final Map<QueryAggregateDefinition<?>, InMemoryQueryAggregate<?>> aggregates;
     private final @Nullable T candidate;
     private final @Nullable List<? extends T> aggregationCandidates;
 
@@ -76,6 +87,9 @@ final class InMemoryQueryMatcher<T>
             QueryRelationResolver<T> relationResolver,
             Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers,
             Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers,
+            Map<QueryFunctionDefinition<?>, InMemoryQueryFunction<?>> functions,
+            Map<QueryOperatorDefinition<?, ?>, InMemoryQueryOperator<?, ?>> operators,
+            Map<QueryAggregateDefinition<?>, InMemoryQueryAggregate<?>> aggregates,
             @Nullable T candidate
     ) {
         this(
@@ -83,6 +97,9 @@ final class InMemoryQueryMatcher<T>
                 relationResolver,
                 relatedFieldResolvers,
                 relatedRelationResolvers,
+                functions,
+                operators,
+                aggregates,
                 candidate,
                 null
         );
@@ -103,6 +120,9 @@ final class InMemoryQueryMatcher<T>
             QueryRelationResolver<T> relationResolver,
             Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers,
             Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers,
+            Map<QueryFunctionDefinition<?>, InMemoryQueryFunction<?>> functions,
+            Map<QueryOperatorDefinition<?, ?>, InMemoryQueryOperator<?, ?>> operators,
+            Map<QueryAggregateDefinition<?>, InMemoryQueryAggregate<?>> aggregates,
             @Nullable T candidate,
             @Nullable List<? extends T> aggregationCandidates
     ) {
@@ -113,6 +133,9 @@ final class InMemoryQueryMatcher<T>
                 relatedRelationResolvers,
                 "relatedRelationResolvers"
         );
+        this.functions = Objects.requireNonNull(functions, "functions");
+        this.operators = Objects.requireNonNull(operators, "operators");
+        this.aggregates = Objects.requireNonNull(aggregates, "aggregates");
         this.candidate = candidate;
         this.aggregationCandidates = aggregationCandidates;
     }
@@ -133,13 +156,13 @@ final class InMemoryQueryMatcher<T>
     }
 
     @Override
-    public <V> Boolean visitCondition(QueryCondition<V> condition) {
+    public <V, A> Boolean visitCondition(QueryCondition<V, A> condition) {
         V candidateValue = fieldResolver.resolve(candidate(), condition.getField());
         return matchesValue(condition.getOperator(), candidateValue, condition.getValues());
     }
 
     @Override
-    public <V> Boolean visitValueCondition(QueryValueCondition<V> condition) {
+    public <V, A> Boolean visitValueCondition(QueryValueCondition<V, A> condition) {
         Object candidateValue = condition.getValue().accept(this);
         return matchesValue(condition.getOperator(), candidateValue, condition.getValues());
     }
@@ -218,6 +241,9 @@ final class InMemoryQueryMatcher<T>
                 nestedRelationResolver(relatedRelationResolvers),
                 relatedFieldResolvers,
                 relatedRelationResolvers,
+                functions,
+                operators,
+                aggregates,
                 relatedCandidate
         ).matches(condition);
     }
@@ -246,6 +272,24 @@ final class InMemoryQueryMatcher<T>
     }
 
     @Override
+    public <V> Object visitCustomFunction(QueryValue.CustomFunction<V> value) {
+        InMemoryQueryFunction<?> function = functions.get(value.getDefinition());
+        if (function == null) {
+            throw new IllegalArgumentException("In-memory query function is not registered: "
+                    + value.getDefinition().getName());
+        }
+        List<@Nullable Object> arguments = new ArrayList<>(value.getArguments().size());
+        for (QueryValue<?> argument : value.getArguments()) {
+            arguments.add(evaluate(argument));
+        }
+        @Nullable Object result = function.evaluate(Collections.unmodifiableList(arguments));
+        if (result != null && !value.getValueType().isInstance(result)) {
+            throw new IllegalStateException("In-memory query function returned an incompatible value");
+        }
+        return result;
+    }
+
+    @Override
     public <V> Object visitCast(QueryValue.Cast<V> value) {
         Object operand = evaluate(value.getOperand());
         if (operand == null) {
@@ -269,10 +313,16 @@ final class InMemoryQueryMatcher<T>
         if (group == null) {
             throw new IllegalArgumentException("Aggregate values require a query plan");
         }
-        QueryValue<?> operand = value.getOperand();
-        if (value.getFunction() == QueryAggregateFunction.COUNT && operand == null) {
+        if (value.getFunction() instanceof QueryAggregateDefinition<?> definition) {
+            return customAggregate(definition, value.getArguments(), group);
+        }
+        if (!(value.getFunction() instanceof QueryAggregateFunction.Standard standard)) {
+            throw new IllegalArgumentException("Unsupported query aggregate");
+        }
+        if (standard == QueryAggregateFunction.COUNT && value.getArguments().isEmpty()) {
             return (long) group.size();
         }
+        QueryValue<?> operand = value.getArguments().get(0);
         List<Object> values = new ArrayList<>(group.size());
         for (T groupCandidate : group) {
             Object resolved = new InMemoryQueryMatcher<>(
@@ -280,19 +330,48 @@ final class InMemoryQueryMatcher<T>
                     relationResolver,
                     relatedFieldResolvers,
                     relatedRelationResolvers,
+                    functions,
+                    operators,
+                    aggregates,
                     groupCandidate,
                     group
-            ).evaluate(Objects.requireNonNull(operand, "aggregate operand"));
-            values.add(resolved);
+            ).evaluate(operand);
+            if (resolved != null) {
+                values.add(resolved);
+            }
         }
-        return switch (value.getFunction()) {
-            case COUNT, COUNT_DISTINCT -> (long) distinctValues(values, value.getFunction() ==
+        return switch (standard) {
+            case COUNT, COUNT_DISTINCT -> (long) distinctValues(values, standard ==
                     QueryAggregateFunction.COUNT_DISTINCT).size();
             case SUM -> sum(values);
             case AVERAGE -> average(values);
             case MIN -> minimum(values);
             case MAX -> maximum(values);
         };
+    }
+
+    private @Nullable Object customAggregate(
+            QueryAggregateDefinition<?> definition, List<QueryValue<?>> arguments, List<? extends T> group
+    ) {
+        InMemoryQueryAggregate<?> implementation = aggregates.get(definition);
+        if (implementation == null) {
+            throw new IllegalArgumentException("In-memory query aggregate is not registered: " + definition.getName());
+        }
+        List<List<@Nullable Object>> rows = new ArrayList<>(group.size());
+        for (T groupCandidate : group) {
+            InMemoryQueryMatcher<T> matcher = new InMemoryQueryMatcher<>(fieldResolver, relationResolver,
+                    relatedFieldResolvers, relatedRelationResolvers, functions, operators, aggregates, groupCandidate);
+            List<@Nullable Object> row = new ArrayList<>(arguments.size());
+            for (QueryValue<?> argument : arguments) {
+                row.add(matcher.evaluate(argument));
+            }
+            rows.add(Collections.unmodifiableList(row));
+        }
+        @Nullable Object result = implementation.evaluate(List.copyOf(rows));
+        if (result != null && !definition.getResultType().isInstance(result)) {
+            throw new IllegalStateException("In-memory query aggregate returned an incompatible value");
+        }
+        return result;
     }
 
     /**
@@ -406,15 +485,21 @@ final class InMemoryQueryMatcher<T>
         return comparable.compareTo(right);
     }
 
-    private static boolean matchesValue(
+    private boolean matchesValue(
             QueryOperator operator,
-            Object candidateValue,
+            @Nullable Object candidateValue,
             List<?> values
     ) {
+        if (operator instanceof QueryOperatorDefinition<?, ?> definition) {
+            return matchCustom(definition, candidateValue, values);
+        }
+        if (!(operator instanceof QueryOperator.Standard standard)) {
+            throw new IllegalArgumentException("Unsupported query operator");
+        }
         if (candidateValue == null) {
             return operator == QueryOperator.IS_NULL;
         }
-        return switch (operator) {
+        return switch (standard) {
             case EQUAL -> Objects.equals(candidateValue, values.get(0));
             case NOT_EQUAL -> !Objects.equals(candidateValue, values.get(0));
             case IN -> values.contains(candidateValue);
@@ -428,6 +513,18 @@ final class InMemoryQueryMatcher<T>
             case LESS_THAN -> compare(candidateValue, values.get(0)) < 0;
             case LESS_THAN_OR_EQUAL -> compare(candidateValue, values.get(0)) <= 0;
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private <V, A> boolean matchCustom(
+            QueryOperatorDefinition<V, A> definition, @Nullable Object operand, List<?> values
+    ) {
+        InMemoryQueryOperator<?, ?> implementation = operators.get(definition);
+        if (implementation == null) {
+            throw new IllegalArgumentException("In-memory query operator is not registered: " + definition.getName());
+        }
+        List<A> arguments = values.stream().map(definition.getArgumentType()::cast).toList();
+        return ((InMemoryQueryOperator<V, A>) implementation).test(definition.getOperandType().cast(operand), arguments);
     }
 
     private boolean matchesAll(List<QueryExpression> expressions) {

@@ -88,6 +88,9 @@ public class LuxspecIngressFirewallFilter extends OncePerRequestFilter {
                     FirewallDecision.deny(SecurityErrorCode.FIREWALL_PATH_DENIED)
             );
             return;
+        } catch (ServletIngressRequestAdapter.InvalidClientAddressException failure) {
+            decisionHandler.handle(request, response, FirewallDecision.deny(SecurityErrorCode.FIREWALL_CLIENT_ADDRESS_DENIED));
+            return;
         }
         FirewallDecision decision = firewallRegistry.filter(ingressRequest);
         if (!decision.passed()) {

@@ -34,6 +34,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class ResourceRegistryTest {
     private static final ResourceType<Long> USER = ResourceType.of("userProfile", Long.class);
     private static final ResourceType<String> FILE = ResourceType.of("file", String.class);

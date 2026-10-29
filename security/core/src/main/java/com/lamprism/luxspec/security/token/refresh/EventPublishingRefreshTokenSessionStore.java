@@ -19,8 +19,6 @@ package com.lamprism.luxspec.security.token.refresh;
 import com.lamprism.luxspec.event.EventPublisher;
 import com.lamprism.luxspec.security.token.TokenDigest;
 import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
-import com.lamprism.luxspec.security.token.TokenRotation;
-import com.lamprism.luxspec.security.token.TokenRotationResult;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -34,6 +32,7 @@ import java.util.Objects;
  * Token kind and never expose a session ID, digest, or raw Refresh Token.</p>
  *
  * @param <S> the Refresh Token Session type
+ *
  * @author RollW
  */
 public class EventPublishingRefreshTokenSessionStore<S extends RefreshTokenSession>
@@ -78,8 +77,8 @@ public class EventPublishingRefreshTokenSessionStore<S extends RefreshTokenSessi
     }
 
     @Override
-    public TokenRotationResult<S> rotate(TokenRotation<RefreshToken> rotation) {
-        return delegate.rotate(rotation);
+    public S rotate(TokenDigest<RefreshToken> presented, TokenDigest<RefreshToken> successor, Instant rotatedAt) {
+        return delegate.rotate(presented, successor, rotatedAt);
     }
 
     @Override

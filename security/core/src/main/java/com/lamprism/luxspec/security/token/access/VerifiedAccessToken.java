@@ -23,7 +23,7 @@ import com.lamprism.luxspec.security.token.TokenVerification;
 import java.time.Instant;
 
 /**
- * Contains verified provider-independent Access Token claims without the raw token body.
+ * Contains verified provider-independent Access Token claims without retaining the raw token body.
  *
  * @author RollW
  */
@@ -47,39 +47,13 @@ public interface VerifiedAccessToken extends TokenVerification<AccessToken> {
             Instant issuedAt,
             Instant expiresAt
     ) {
-        return of(subjectType, subjectId, grants, tokenId, issuedAt, expiresAt, expiresAt);
-    }
-
-    /**
-     * Creates immutable verified Access Token claims with the latest instant at which the
-     * verifier accepts the token.
-     *
-     * @param subjectType         the stable subject category
-     * @param subjectId           the stable subject identifier
-     * @param grants              the effective authorization grants
-     * @param tokenId             the stable token identifier used for optional revocation
-     * @param issuedAt            the token issuance time
-     * @param expiresAt           the exclusive token expiration time
-     * @param acceptanceExpiresAt the exclusive end of the verifier acceptance window
-     * @return the verified Access Token claims
-     */
-    static VerifiedAccessToken of(
-            String subjectType,
-            String subjectId,
-            AuthorizationGrantSet grants,
-            String tokenId,
-            Instant issuedAt,
-            Instant expiresAt,
-            Instant acceptanceExpiresAt
-    ) {
         return new ImmutableVerifiedAccessToken(
                 subjectType,
                 subjectId,
                 grants,
                 tokenId,
                 issuedAt,
-                expiresAt,
-                acceptanceExpiresAt
+                expiresAt
         );
     }
 
@@ -129,13 +103,4 @@ public interface VerifiedAccessToken extends TokenVerification<AccessToken> {
      * @return the expiration time
      */
     Instant getExpiresAt();
-
-    /**
-     * Returns the exclusive end of the token verifier's acceptance window.
-     *
-     * @return the acceptance expiration time
-     */
-    default Instant getAcceptanceExpiresAt() {
-        return getExpiresAt();
-    }
 }

@@ -26,6 +26,7 @@ import java.util.Objects;
  *
  * @param namespace the non-blank namespace owned by the message publisher
  * @param key       the message key within the namespace
+ *
  * @author RollW
  */
 public record MessageResource(String namespace, String key) {

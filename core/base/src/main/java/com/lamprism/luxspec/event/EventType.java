@@ -38,6 +38,7 @@ import java.util.Objects;
  * captured generic arguments.</p>
  *
  * @param <E> the event type carried by the channel
+ *
  * @author RollW
  */
 public abstract class EventType<E extends Event> {

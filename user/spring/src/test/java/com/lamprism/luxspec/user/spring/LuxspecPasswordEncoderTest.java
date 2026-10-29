@@ -25,6 +25,10 @@ import java.util.Objects;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecPasswordEncoderTest {
     @Test
     void delegatesSpringOperationsToTheLuxspecScheme() {

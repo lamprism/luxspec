@@ -19,9 +19,12 @@ package com.lamprism.luxspec.data.pagination;
 /**
  * Expresses the requested shape and bounds of a collection result.
  *
+ * <p>Providers may support additional window types. A provider must reject a window it does
+ * not support.</p>
+ *
  * @author RollW
  */
-public sealed interface QueryWindow permits UnboundedWindow, PageWindow, SliceWindow, KeysetWindow, TimeSeriesWindow {
+public interface QueryWindow {
     /**
      * Validates the common offset and limit range used by bounded windows and results.
      *

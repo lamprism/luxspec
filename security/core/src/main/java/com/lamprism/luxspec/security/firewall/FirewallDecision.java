@@ -34,15 +34,15 @@ public final class FirewallDecision {
      */
     public enum Case {
         /**
-         * Stop evaluation and allow the request.
+         * Allow the request under the configured combination policy.
          */
         ALLOW,
         /**
-         * Continue evaluation with the next registered firewall.
+         * Express no decision for this rule.
          */
         NEUTRAL,
         /**
-         * Stop evaluation and deny the request.
+         * Deny the request under the configured combination policy.
          */
         DENY
     }

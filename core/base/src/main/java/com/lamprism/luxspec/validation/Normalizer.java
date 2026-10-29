@@ -27,6 +27,7 @@ import java.util.function.UnaryOperator;
  * value from one explicit operation.</p>
  *
  * @param <T> the normalized value type
+ *
  * @author RollW
  */
 @FunctionalInterface

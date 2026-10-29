@@ -31,6 +31,8 @@ public enum AuditDeliveryPolicy {
      * Propagates translation or sink failures to the publisher caller.
      */
     REQUIRED,
-    /** Reports runtime failures to the configured failure handler and returns normally. */
+    /**
+     * Reports runtime failures to the configured failure handler and returns normally.
+     */
     BEST_EFFORT
 }

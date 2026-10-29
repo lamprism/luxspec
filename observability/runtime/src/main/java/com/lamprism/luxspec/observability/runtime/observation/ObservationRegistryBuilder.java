@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.observability.runtime.observation;
 
 import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.failure.FailureHandler;
 import com.lamprism.luxspec.observability.ObservabilityClock;
 import com.lamprism.luxspec.observability.SystemObservabilityClock;
 import com.lamprism.luxspec.observability.observation.ObservationActivation;
@@ -24,8 +25,11 @@ import com.lamprism.luxspec.observability.observation.ObservationFilter;
 import com.lamprism.luxspec.observability.observation.ObservationHandler;
 import com.lamprism.luxspec.observability.observation.ObservationPredicate;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
+import com.lamprism.luxspec.observability.observation.ObservationSpec;
 import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +41,12 @@ import java.util.Objects;
  * @author RollW
  */
 public final class ObservationRegistryBuilder {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ObservationRegistryBuilder.class);
     private @Nullable ExecutionContextStorage contextStorage;
     private ObservabilityClock clock = new SystemObservabilityClock();
     private ObservationActivation activation = spec -> true;
+    private FailureHandler<ObservationSpec> failureHandler = (spec, failure) ->
+            LOGGER.warn("Observation callback failed: {}", failure.getClass().getName());
     private final List<ObservationPredicate> predicates = new ArrayList<>();
     private final List<ObservationFilter> filters = new ArrayList<>();
     private final List<ObservationHandler> handlers = new ArrayList<>();
@@ -70,6 +77,17 @@ public final class ObservationRegistryBuilder {
 
     public ObservationRegistryBuilder activation(ObservationActivation activation) {
         this.activation = Objects.requireNonNull(activation, "activation");
+        return this;
+    }
+
+    /**
+     * Selects the handler for isolated observation callback failures.
+     *
+     * @param failureHandler the failure reporting policy
+     * @return this builder
+     */
+    public ObservationRegistryBuilder failureHandler(FailureHandler<ObservationSpec> failureHandler) {
+        this.failureHandler = Objects.requireNonNull(failureHandler, "failureHandler");
         return this;
     }
 
@@ -106,7 +124,8 @@ public final class ObservationRegistryBuilder {
                 activation,
                 predicates,
                 filters,
-                handlers
+                handlers,
+                failureHandler
         );
         try {
             for (ObservabilitySet set : sets) {

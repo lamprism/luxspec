@@ -22,6 +22,7 @@ import java.util.Objects;
  * Identifies one resource category and its ID type.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public final class ResourceType<ID> {

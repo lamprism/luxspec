@@ -20,6 +20,10 @@ import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 import org.bouncycastle.crypto.params.RSAKeyParameters;
 import org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters;
 
+/**
+ *
+ * @author RollW
+ */
 final class RsaPublicKeyDerivationStrategy extends AbstractPublicKeyDerivationStrategy {
     @Override
     protected DerivedPublicKey deriveParameters(

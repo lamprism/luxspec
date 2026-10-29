@@ -23,11 +23,18 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class TimeSeriesPlanTest {
     private static final QueryField<Instant> TIME = QueryField.of("time", Instant.class);
     private static final QueryField<Integer> AMOUNT = QueryField.of("amount", Integer.class);
@@ -70,6 +77,77 @@ class TimeSeriesPlanTest {
         assertEquals(true, result.hasNext());
     }
 
+    @Test
+    void supportsCalendarBucketsAndApplicationReductions() {
+        Instant january = Instant.parse("2026-01-31T12:00:00Z");
+        Instant february = Instant.parse("2026-02-02T12:00:00Z");
+        TimeSeriesBucket months = timestamp -> timestamp.atZone(ZoneOffset.UTC).toLocalDate()
+                .withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        TimeSeriesAggregationFunction squares = (values, hasValue) -> {
+            long total = 0;
+            for (Object value : values) {
+                if (value != null) {
+                    total += (long) (Integer) value * (Integer) value;
+                }
+            }
+            return total;
+        };
+        QueryPlan<TimeSeriesPoint<Long>> plan = QueryPlan.timeSeries(
+                Long.class, QueryValue.field(TIME), QueryValue.field(AMOUNT), squares, months
+        ).build();
+        QuerySchema schema = QuerySchema.builder()
+                .add(TIME, Set.of(QueryOperator.EQUAL))
+                .add(AMOUNT, Set.of(QueryOperator.EQUAL))
+                .timeSeriesAggregation(squares, Set.of(AMOUNT))
+                .build();
+        InMemoryQueryExecutor<Item> executor = InMemoryQueryExecutor.<Item>builder(
+                        () -> List.of(new Item(january, 2), new Item(february, 3))
+                )
+                .field(TIME, Item::time).field(AMOUNT, Item::amount).build();
+
+        schema.validate(plan, QueryComplexityBudget.defaults());
+        assertEquals(List.of(new TimeSeriesPoint<>(ORIGIN, 4L),
+                        new TimeSeriesPoint<>(Instant.parse("2026-02-01T00:00:00Z"), 9L)),
+                executor.query(plan, new TimeSeriesWindow(january, february, 10)).getItems());
+        QuerySchema denied = QuerySchema.builder()
+                .add(TIME, Set.of(QueryOperator.EQUAL)).add(AMOUNT, Set.of(QueryOperator.EQUAL)).build();
+        assertThrows(IllegalArgumentException.class, () -> denied.validate(plan, QueryComplexityBudget.defaults()));
+        assertThrows(IllegalArgumentException.class, () -> QueryPlan.timeSeries(
+                Long.class, QueryValue.field(TIME), QueryValue.count(), squares, months));
+    }
+
+    @Test
+    void requiresFieldAggregatePermissionForStandardTimeSeriesReductions() {
+        QueryPlan<TimeSeriesPoint<BigDecimal>> plan = QueryPlan.sum(
+                QueryValue.field(TIME), QueryValue.field(AMOUNT), TimeSeriesBucket.of(Duration.ofHours(1))
+        ).build();
+        QuerySchema denied = QuerySchema.builder()
+                .add(TIME, Set.of(QueryOperator.EQUAL)).add(AMOUNT, Set.of(QueryOperator.EQUAL)).build();
+        QuerySchema allowed = QuerySchema.builder().add(TIME, Set.of(QueryOperator.EQUAL))
+                .add(AMOUNT, Set.of(QueryOperator.EQUAL), false, Set.of(), Set.of(QueryAggregateFunction.SUM)).build();
+
+        assertThrows(IllegalArgumentException.class, () -> denied.validate(plan, QueryComplexityBudget.defaults()));
+        allowed.validate(plan, QueryComplexityBudget.defaults());
+    }
+
+    @Test
+    void reducesValuesInTimestampOrderRegardlessOfCandidateOrder() {
+        Instant early = ORIGIN.plusSeconds(60);
+        Instant late = ORIGIN.plusSeconds(120);
+        TimeSeriesAggregationFunction last = (values, hasValue) -> values.get(values.size() - 1);
+        QueryPlan<TimeSeriesPoint<Integer>> plan = QueryPlan.timeSeries(
+                Integer.class, QueryValue.field(TIME), QueryValue.field(AMOUNT), last,
+                TimeSeriesBucket.of(Duration.ofHours(1), ORIGIN)
+        ).build();
+        InMemoryQueryExecutor<Item> executor = InMemoryQueryExecutor.<Item>builder(
+                        () -> List.of(new Item(late, 9), new Item(early, 2))
+                )
+                .field(TIME, Item::time).field(AMOUNT, Item::amount).build();
+
+        assertEquals(List.of(new TimeSeriesPoint<>(ORIGIN, 9)),
+                executor.query(plan, new TimeSeriesWindow(early, late, 10)).getItems());
+    }
+
     private static InMemoryQueryExecutor<Item> executor() {
         return InMemoryQueryExecutor.<Item>builder(() -> List.of(
                         new Item(ORIGIN.plus(Duration.ofMinutes(5)), 10),
@@ -82,6 +160,21 @@ class TimeSeriesPlanTest {
                 .build();
     }
 
-    private record Item(Instant time, Integer amount) {
+    private static final class Item {
+        private final Instant time;
+        private final Integer amount;
+
+        private Item(Instant time, Integer amount) {
+            this.time = time;
+            this.amount = amount;
+        }
+
+        private Instant time() {
+            return time;
+        }
+
+        private Integer amount() {
+            return amount;
+        }
     }
 }

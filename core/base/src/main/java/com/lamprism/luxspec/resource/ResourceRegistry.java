@@ -120,13 +120,17 @@ public class ResourceRegistry {
 
     @SuppressWarnings("unchecked")
     private static <ID> ResourceProvider<ID> castProvider(ResourceProvider<?> provider) {
-        // Registration and lookup both verify the ResourceType name and ID class before this cast.
+        /*
+         * Registration and lookup both verify the ResourceType name and ID class before this cast.
+         */
         return (ResourceProvider<ID>) provider;
     }
 
     @SuppressWarnings("unchecked")
     private static <ID> ResourceBrowser<ID> castBrowser(ResourceBrowser<?> browser) {
-        // Registration and lookup both verify the ResourceType name and ID class before this cast.
+        /*
+         * Registration and lookup both verify the ResourceType name and ID class before this cast.
+         */
         return (ResourceBrowser<ID>) browser;
     }
 }

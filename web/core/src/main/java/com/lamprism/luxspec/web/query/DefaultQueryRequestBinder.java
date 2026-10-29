@@ -30,6 +30,7 @@ import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryExpression;
 import com.lamprism.luxspec.data.query.QueryField;
 import com.lamprism.luxspec.data.query.QueryOperator;
+import com.lamprism.luxspec.data.query.QueryOperatorDefinition;
 import com.lamprism.luxspec.data.query.QuerySchema;
 import com.lamprism.luxspec.web.pagination.KeysetCursorCodec;
 import org.jspecify.annotations.Nullable;
@@ -44,14 +45,17 @@ import java.util.Objects;
  * Binds a narrow, allowlisted HTTP query-parameter map to typed Luxspec query criteria.
  *
  * <p>The accepted filter form is {@code filter.<field>.<operator>}. Operators are named by this
- * class rather than parsed as Java types or expression class names. Values are converted only by
- * parsers registered for the corresponding {@link QueryField}.</p>
+ * class or explicitly registered by the application rather than parsed as Java types or
+ * expression class names. Values are converted only by registered field or operator parsers.</p>
+ *
+ * <p>A sort term uses {@code field:asc} or {@code field:desc} and may append
+ * {@code :nullsFirst} or {@code :nullsLast}.</p>
  *
  * @author RollW
  */
 public final class DefaultQueryRequestBinder implements QueryRequestBinder {
     private static final String FILTER_PREFIX = "filter.";
-    private static final Map<String, QueryOperator> OPERATORS = operators();
+    private static final Map<String, QueryOperator.Standard> OPERATORS = operators();
     private static final List<String> RESERVED_PARAMETERS = List.of(
             "offset",
             "limit",
@@ -62,6 +66,7 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
 
     private final QuerySchema schema;
     private final Map<String, FieldBinding<?>> fields;
+    private final Map<String, CustomOperatorBinding<?, ?>> customOperators;
     private final QueryComplexityBudget complexityBudget;
     private final QueryBindingLimits limits;
     private final @Nullable KeysetCursorCodec keysetCursorCodec;
@@ -69,12 +74,14 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
     private DefaultQueryRequestBinder(
             QuerySchema schema,
             Map<String, FieldBinding<?>> fields,
+            Map<String, CustomOperatorBinding<?, ?>> customOperators,
             QueryComplexityBudget complexityBudget,
             QueryBindingLimits limits,
             @Nullable KeysetCursorCodec keysetCursorCodec
     ) {
         this.schema = schema;
         this.fields = Map.copyOf(fields);
+        this.customOperators = Map.copyOf(customOperators);
         this.complexityBudget = complexityBudget;
         this.limits = limits;
         this.keysetCursorCodec = keysetCursorCodec;
@@ -91,22 +98,14 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
     }
 
     /**
-     * Binds decoded HTTP parameters.
+     * Binds decoded HTTP parameters to validated query criteria.
      *
      * @param parameters parameter names mapped to decoded repeated values
-     * @return the validated typed query request
+     * @return the validated query criteria
      */
     @Override
-    public QueryRequest bind(Map<String, ? extends List<String>> parameters) {
-        Map<String, List<String>> copiedParameters = copyParameters(parameters);
-        if (copiedParameters.size() > limits.getMaximumParameters()) {
-            throw failure("query", "Query parameter count exceeds the configured limit");
-        }
-        int valueCount = copiedParameters.values().stream().mapToInt(List::size).sum();
-        if (valueCount > limits.getMaximumValues()) {
-            throw failure("query", "Query value count exceeds the configured limit");
-        }
-
+    public QueryCriteria bindCriteria(Map<String, ? extends List<String>> parameters) {
+        Map<String, List<String>> copiedParameters = boundedParameters(parameters);
         List<QueryExpression> expressions = new ArrayList<>();
         List<OrderBy<?>> orders = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : copiedParameters.entrySet()) {
@@ -115,19 +114,45 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
                 expressions.add(bindFilter(parameter, entry.getValue()));
             } else if ("sort".equals(parameter)) {
                 bindSort(entry.getValue(), orders);
-            } else if (!RESERVED_PARAMETERS.contains(parameter)) {
-                throw failure(parameter, "Unknown query parameter");
             }
         }
 
-        QueryExpression expression = combineExpressions(expressions);
-        QueryCriteria criteria = new QueryCriteria(expression, orders);
+        QueryCriteria criteria = new QueryCriteria(combineExpressions(expressions), orders);
+        validateCriteria(criteria);
+        return criteria;
+    }
+
+    @Override
+    public QueryWindow bindWindow(Map<String, ? extends List<String>> parameters, QueryCriteria criteria) {
+        Map<String, List<String>> copiedParameters = boundedParameters(parameters);
+        QueryCriteria nonNullCriteria = Objects.requireNonNull(criteria, "criteria");
+        validateCriteria(nonNullCriteria);
+        return bindWindow(copiedParameters, nonNullCriteria.getOrders());
+    }
+
+    private Map<String, List<String>> boundedParameters(Map<String, ? extends List<String>> parameters) {
+        Map<String, List<String>> copiedParameters = copyParameters(parameters);
+        if (copiedParameters.size() > limits.getMaximumParameters()) {
+            throw failure("query", "Query parameter count exceeds the configured limit");
+        }
+        int valueCount = copiedParameters.values().stream().mapToInt(List::size).sum();
+        if (valueCount > limits.getMaximumValues()) {
+            throw failure("query", "Query value count exceeds the configured limit");
+        }
+        for (String parameter : copiedParameters.keySet()) {
+            if (!parameter.startsWith(FILTER_PREFIX) && !RESERVED_PARAMETERS.contains(parameter)) {
+                throw failure(parameter, "Unknown query parameter");
+            }
+        }
+        return copiedParameters;
+    }
+
+    private void validateCriteria(QueryCriteria criteria) {
         try {
             schema.validate(criteria, complexityBudget);
         } catch (IllegalArgumentException exception) {
             throw failure("query", "Query is not permitted by the configured schema");
         }
-        return new QueryRequest(criteria, bindWindow(copiedParameters, orders));
     }
 
     private static QueryExpression combineExpressions(List<QueryExpression> expressions) {
@@ -146,6 +171,7 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
     public static final class Builder {
         private final QuerySchema schema;
         private final Map<String, FieldBinding<?>> fields = new LinkedHashMap<>();
+        private final Map<String, CustomOperatorBinding<?, ?>> customOperators = new LinkedHashMap<>();
         private QueryComplexityBudget complexityBudget = QueryComplexityBudget.defaults();
         private QueryBindingLimits limits = QueryBindingLimits.defaults();
         private @Nullable KeysetCursorCodec keysetCursorCodec;
@@ -171,6 +197,34 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
             );
             if (previous != null) {
                 throw new IllegalArgumentException("Query field parser is already registered: " + nonNullField.getName());
+            }
+            return this;
+        }
+
+        /**
+         * Binds an explicit external name to an application-defined query operator.
+         * The schema still decides which fields may use the operator.
+         *
+         * @param name     the external operator name, without dots or whitespace
+         * @param operator the typed operation definition
+         * @param parser   the argument value parser
+         * @param <T>      the operated value type
+         * @param <A>      the argument type
+         * @return this builder
+         */
+        public <T, A> Builder operator(
+                String name, QueryOperatorDefinition<T, A> operator, QueryParameterParser<A> parser
+        ) {
+            String key = Objects.requireNonNull(name, "name");
+            if (key.isBlank() || key.indexOf('.') >= 0 || key.chars().anyMatch(Character::isWhitespace)
+                    || key.chars().anyMatch(Character::isISOControl) || OPERATORS.containsKey(key)) {
+                throw new IllegalArgumentException("Invalid or reserved query operator name");
+            }
+            CustomOperatorBinding<T, A> binding = new CustomOperatorBinding<>(
+                    Objects.requireNonNull(operator, "operator"), Objects.requireNonNull(parser, "parser")
+            );
+            if (customOperators.putIfAbsent(key, binding) != null) {
+                throw new IllegalArgumentException("Query operator name is already registered: " + key);
             }
             return this;
         }
@@ -220,6 +274,7 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
             return new DefaultQueryRequestBinder(
                     schema,
                     fields,
+                    customOperators,
                     complexityBudget,
                     limits,
                     keysetCursorCodec
@@ -238,11 +293,15 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
         if (binding == null) {
             throw failure(parameter, "Unknown query field");
         }
-        QueryOperator operator = OPERATORS.get(operatorName);
-        if (operator == null) {
-            throw failure(parameter, "Unknown query operator");
+        QueryOperator.Standard operator = OPERATORS.get(operatorName);
+        if (operator != null) {
+            return binding.condition(operator, rawValues, parameter);
         }
-        return binding.condition(operator, rawValues, parameter);
+        CustomOperatorBinding<?, ?> custom = customOperators.get(operatorName);
+        if (custom != null) {
+            return custom.condition(binding.field, rawValues, parameter);
+        }
+        throw failure(parameter, "Unknown query operator");
     }
 
     private void bindSort(List<String> rawValues, List<OrderBy<?>> orders) {
@@ -250,20 +309,32 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
             throw failure("sort", "Sort must contain at least one field");
         }
         for (String rawValue : rawValues) {
-            int separator = rawValue.lastIndexOf(':');
-            if (separator <= 0 || separator == rawValue.length() - 1) {
-                throw failure("sort", "Sort must use field:asc or field:desc");
+            String term = rawValue;
+            int separator = term.lastIndexOf(':');
+            if (separator <= 0 || separator == term.length() - 1) {
+                throw failure("sort", "Sort must use field:asc or field:desc with optional null placement");
             }
-            String fieldName = rawValue.substring(0, separator);
+            OrderBy.NullPlacement nullPlacement = null;
+            String suffix = term.substring(separator + 1);
+            if ("nullsFirst".equals(suffix) || "nullsLast".equals(suffix)) {
+                nullPlacement = "nullsFirst".equals(suffix)
+                        ? OrderBy.NullPlacement.FIRST : OrderBy.NullPlacement.LAST;
+                term = term.substring(0, separator);
+                separator = term.lastIndexOf(':');
+                if (separator <= 0 || separator == term.length() - 1) {
+                    throw failure("sort", "Sort must include a field and direction");
+                }
+            }
+            String fieldName = term.substring(0, separator);
             FieldBinding<?> binding = fields.get(fieldName);
             if (binding == null) {
                 throw failure("sort", "Unknown query field");
             }
-            String direction = rawValue.substring(separator + 1);
+            String direction = term.substring(separator + 1);
             if ("asc".equals(direction)) {
-                orders.add(binding.ascending());
+                orders.add(nullPlacement == null ? binding.ascending() : binding.ascending(nullPlacement));
             } else if ("desc".equals(direction)) {
-                orders.add(binding.descending());
+                orders.add(nullPlacement == null ? binding.descending() : binding.descending(nullPlacement));
             } else {
                 throw failure("sort", "Sort direction must be asc or desc");
             }
@@ -380,8 +451,8 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
         return new QueryBindingException(parameter, message);
     }
 
-    private static Map<String, QueryOperator> operators() {
-        Map<String, QueryOperator> operators = new LinkedHashMap<>();
+    private static Map<String, QueryOperator.Standard> operators() {
+        Map<String, QueryOperator.Standard> operators = new LinkedHashMap<>();
         operators.put("eq", QueryOperator.EQUAL);
         operators.put("neq", QueryOperator.NOT_EQUAL);
         operators.put("gt", QueryOperator.GREATER_THAN);
@@ -405,7 +476,7 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
             this.parser = parser;
         }
 
-        private QueryExpression condition(QueryOperator operator, List<String> rawValues, String parameter) {
+        private QueryExpression condition(QueryOperator.Standard operator, List<String> rawValues, String parameter) {
             return switch (operator) {
                 case EQUAL -> QueryCondition.equal(field, parseSingle(rawValues, parameter));
                 case NOT_EQUAL -> QueryCondition.notEqual(field, parseSingle(rawValues, parameter));
@@ -423,8 +494,16 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
             return OrderBy.ascending(field);
         }
 
+        private OrderBy<?> ascending(OrderBy.NullPlacement nullPlacement) {
+            return OrderBy.ascending(field, nullPlacement);
+        }
+
         private OrderBy<?> descending() {
             return OrderBy.descending(field);
+        }
+
+        private OrderBy<?> descending(OrderBy.NullPlacement nullPlacement) {
+            return OrderBy.descending(field, nullPlacement);
         }
 
         private T parseSingle(List<String> rawValues, String parameter) {
@@ -463,7 +542,7 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})
-        private QueryExpression ordered(QueryOperator operator, T value, String parameter) {
+        private QueryExpression ordered(QueryOperator.Standard operator, T value, String parameter) {
             if (!Comparable.class.isAssignableFrom(field.getValueType())) {
                 throw failure(parameter, "Ordered operator requires a Comparable query field");
             }
@@ -485,6 +564,36 @@ public final class DefaultQueryRequestBinder implements QueryRequestBinder {
                 return Objects.requireNonNull(value, "parser result");
             } catch (RuntimeException exception) {
                 throw failure(parameter, "Query value has an invalid format");
+            }
+        }
+    }
+
+    private static final class CustomOperatorBinding<T, A> {
+        private final QueryOperatorDefinition<T, A> operator;
+        private final QueryParameterParser<A> parser;
+
+        private CustomOperatorBinding(QueryOperatorDefinition<T, A> operator, QueryParameterParser<A> parser) {
+            this.operator = operator;
+            this.parser = parser;
+        }
+
+        @SuppressWarnings("unchecked")
+        private QueryExpression condition(QueryField<?> field, List<String> rawValues, String parameter) {
+            if (!operator.getOperandType().isAssignableFrom(field.getValueType())) {
+                throw failure(parameter, "Query operator does not accept this field type");
+            }
+            List<A> arguments = new ArrayList<>(rawValues.size());
+            for (String raw : rawValues) {
+                try {
+                    arguments.add(Objects.requireNonNull(parser.parse(raw), "parser result"));
+                } catch (RuntimeException exception) {
+                    throw failure(parameter, "Query value has an invalid format");
+                }
+            }
+            try {
+                return QueryCondition.of((QueryField<T>) field, operator, arguments);
+            } catch (IllegalArgumentException exception) {
+                throw failure(parameter, "Query operator arguments are invalid");
             }
         }
     }

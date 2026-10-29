@@ -33,6 +33,7 @@ import java.util.Objects;
  * validation checks remain in the single {@link DefaultConfigSpec} construction path.</p>
  *
  * @param <T> the typed value
+ *
  * @author RollW
  */
 public final class ConfigSpecBuilder<T> {

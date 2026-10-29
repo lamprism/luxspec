@@ -24,6 +24,10 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class ValidatorTest {
     @Test
     void composesTextRulesWithoutNormalizingTheValue() {

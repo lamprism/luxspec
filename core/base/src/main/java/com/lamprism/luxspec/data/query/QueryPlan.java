@@ -25,16 +25,15 @@ import java.time.Instant;
 /**
  * Unified provider-neutral query plan contract.
  *
- * <p>The concrete plan type owns the fields and invariants for its operation shape. Executors
- * still accept this one contract, then dispatch to the concrete projection or time-series plan.
- * This keeps the public execution boundary unified without representing unrelated operations as
- * nullable fields on one mutable-looking envelope.</p>
+ * <p>Plan types own the invariants of their operation shape. Applications may define additional
+ * plan types for their own executors and validation; standard executors support projection and
+ * time-series plans.</p>
  *
  * @param <R> the result item type
+ *
  * @author RollW
  */
-public sealed interface QueryPlan<R>
-        permits ProjectionQueryPlan, TimeSeriesQueryPlan {
+public interface QueryPlan<R> {
 
     /**
      * Returns the source criteria shared by all plan shapes.

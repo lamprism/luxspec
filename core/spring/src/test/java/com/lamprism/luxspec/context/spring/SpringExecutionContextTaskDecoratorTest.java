@@ -29,6 +29,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ *
+ * @author RollW
+ */
 class SpringExecutionContextTaskDecoratorTest {
     @Test
     void propagatesTheCapturedContextThroughSelectedStorage() throws Exception {

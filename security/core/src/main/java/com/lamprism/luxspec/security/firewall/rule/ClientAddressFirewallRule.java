@@ -16,12 +16,15 @@
 
 package com.lamprism.luxspec.security.firewall.rule;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
+import com.lamprism.luxspec.network.ip.IpAddressSet;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.firewall.Firewall;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
 import com.lamprism.luxspec.security.firewall.FirewallRequest;
 
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -31,7 +34,7 @@ import java.util.Set;
  * @author RollW
  */
 public class ClientAddressFirewallRule implements Firewall<FirewallRequest> {
-    private final Set<String> addresses;
+    private final Set<IpAddressSet> addresses;
     private final boolean allowMatch;
 
     /**
@@ -40,8 +43,13 @@ public class ClientAddressFirewallRule implements Firewall<FirewallRequest> {
      * @param addresses  the normalized client addresses to match
      * @param allowMatch whether matching addresses pass the rule
      */
-    protected ClientAddressFirewallRule(Collection<String> addresses, boolean allowMatch) {
-        this.addresses = FirewallRuleSupport.copyTextValues(addresses, "addresses");
+    protected ClientAddressFirewallRule(Collection<? extends IpAddressSet> addresses, boolean allowMatch) {
+        Collection<? extends IpAddressSet> values = Objects.requireNonNull(addresses, "addresses");
+        Set<IpAddressSet> unique = new LinkedHashSet<>(values);
+        if (unique.isEmpty() || unique.size() != values.size()) {
+            throw new IllegalArgumentException("addresses must not be empty or contain duplicates");
+        }
+        this.addresses = Set.copyOf(unique);
         this.allowMatch = allowMatch;
     }
 
@@ -51,7 +59,7 @@ public class ClientAddressFirewallRule implements Firewall<FirewallRequest> {
      * @param addresses the allowed normalized client addresses
      * @return the allow-list rule
      */
-    public static ClientAddressFirewallRule allowOnly(Collection<String> addresses) {
+    public static ClientAddressFirewallRule allowOnly(Collection<? extends IpAddressSet> addresses) {
         return new ClientAddressFirewallRule(addresses, true);
     }
 
@@ -61,16 +69,16 @@ public class ClientAddressFirewallRule implements Firewall<FirewallRequest> {
      * @param addresses the denied normalized client addresses
      * @return the deny-list rule
      */
-    public static ClientAddressFirewallRule deny(Collection<String> addresses) {
+    public static ClientAddressFirewallRule deny(Collection<? extends IpAddressSet> addresses) {
         return new ClientAddressFirewallRule(addresses, false);
     }
 
     @Override
     public FirewallDecision verifyRequest(FirewallRequest request) {
         FirewallRequest nonNullRequest = Objects.requireNonNull(request, "request");
-        String clientAddress = nonNullRequest.getClientAddress();
+        IpAddress clientAddress = nonNullRequest.getClientAddress();
         return FirewallRuleSupport.decide(
-                clientAddress != null && addresses.contains(clientAddress),
+                clientAddress != null && addresses.stream().anyMatch(address -> address.contains(clientAddress)),
                 allowMatch,
                 SecurityErrorCode.FIREWALL_CLIENT_ADDRESS_DENIED
         );

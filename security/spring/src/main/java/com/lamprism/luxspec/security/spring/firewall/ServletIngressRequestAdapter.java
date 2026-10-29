@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
 import com.lamprism.luxspec.security.firewall.IngressRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.server.PathContainer;
@@ -51,11 +52,14 @@ final class ServletIngressRequestAdapter {
                 clientAddressResolver,
                 "clientAddressResolver"
         );
-        return new IngressRequest(
-                nonNullRequest.getMethod(),
-                canonicalPath(nonNullRequest),
-                nonNullResolver.resolve(nonNullRequest)
-        );
+        String path = canonicalPath(nonNullRequest);
+        IpAddress clientAddress;
+        try {
+            clientAddress = nonNullResolver.resolve(nonNullRequest);
+        } catch (IllegalArgumentException failure) {
+            throw new InvalidClientAddressException();
+        }
+        return new IngressRequest(nonNullRequest.getMethod(), path, clientAddress);
     }
 
     private static String canonicalPath(HttpServletRequest request) {
@@ -81,6 +85,12 @@ final class ServletIngressRequestAdapter {
     static final class InvalidRequestPathException extends RuntimeException {
         private InvalidRequestPathException() {
             super("Request path is invalid");
+        }
+    }
+
+    static final class InvalidClientAddressException extends RuntimeException {
+        private InvalidClientAddressException() {
+            super("Client address is invalid");
         }
     }
 }

@@ -51,13 +51,21 @@ public final class AuditActor {
          * A human user acting through an application boundary.
          */
         public static final Kind USER = of("USER");
-        /** A service or workload identity acting without a human session. */
+        /**
+         * A service or workload identity acting without a human session.
+         */
         public static final Kind SERVICE = of("SERVICE");
-        /** The application or platform performing an internal operation. */
+        /**
+         * The application or platform performing an internal operation.
+         */
         public static final Kind SYSTEM = of("SYSTEM");
-        /** An unauthenticated actor whose absence of identity is known. */
+        /**
+         * An unauthenticated actor whose absence of identity is known.
+         */
         public static final Kind ANONYMOUS = of("ANONYMOUS");
-        /** An actor whose classification could not be established. */
+        /**
+         * An actor whose classification could not be established.
+         */
         public static final Kind UNKNOWN = of("UNKNOWN");
 
         private final String value;
@@ -104,7 +112,9 @@ public final class AuditActor {
         }
     }
 
-    /** The canonical actor used when neither classification nor identity is available. */
+    /**
+     * The canonical actor used when neither classification nor identity is available.
+     */
     public static final AuditActor UNKNOWN = new AuditActor(Kind.UNKNOWN, null);
 
     private static final Validator<String> ID_VALIDATOR = Validator.nonBlank("Audit actor ID");

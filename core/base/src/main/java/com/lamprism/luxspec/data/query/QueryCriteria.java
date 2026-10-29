@@ -38,6 +38,9 @@ public final class QueryCriteria {
      */
     public QueryCriteria(QueryExpression condition, List<? extends OrderBy<?>> orders) {
         this.condition = Objects.requireNonNull(condition, "condition");
+        if (QueryExpression.containsAggregate(condition)) {
+            throw new IllegalArgumentException("Aggregate values are not allowed in source conditions");
+        }
         this.orders = List.copyOf(Objects.requireNonNull(orders, "orders"));
     }
 

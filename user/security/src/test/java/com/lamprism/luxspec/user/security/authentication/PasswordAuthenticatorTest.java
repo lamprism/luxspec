@@ -18,6 +18,8 @@ package com.lamprism.luxspec.user.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
 import com.lamprism.luxspec.resource.ResourceException;
+import com.lamprism.luxspec.resource.ResourceNotFoundException;
+import com.lamprism.luxspec.resource.ResourceProviderNotRegisteredException;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
 import com.lamprism.luxspec.security.authentication.Authentication;
@@ -33,8 +35,10 @@ import com.lamprism.luxspec.user.security.authorization.AuthorizationProfile;
 import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolver;
 import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolverImpl;
 import com.lamprism.luxspec.user.security.password.EncodedPassword;
+import com.lamprism.luxspec.user.security.password.PasswordReplacementPurpose;
 import com.lamprism.luxspec.user.security.password.PasswordScheme;
 import com.lamprism.luxspec.user.security.password.UserPasswordStore;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -46,9 +50,14 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class PasswordAuthenticatorTest {
     private static final Instant TIME = Instant.parse("2026-07-16T00:00:00Z");
 
@@ -72,6 +81,7 @@ class PasswordAuthenticatorTest {
         assertEquals(42L, subject.userId());
         assertEquals("old", store.replacedCurrent.getValue());
         assertEquals("new", store.replacedValue.getValue());
+        assertEquals(PasswordReplacementPurpose.REHASH, store.purpose);
         assertEquals(AuthorizationGrantSet.of(Set.of()), authentication.grants());
     }
 
@@ -111,6 +121,31 @@ class PasswordAuthenticatorTest {
     }
 
     @Test
+    void distinguishesMissingUsersFromProviderFailures() {
+        UserSubjectResolver missing = new UserSubjectResolver(new FixedUserProvider((User) null));
+        AuthenticationException absent = assertThrows(AuthenticationException.class, () -> missing.resolve("user", "42"));
+        assertEquals(AuthErrorCode.SUBJECT_NOT_FOUND, absent.getErrorCode());
+
+        ResourceNotFoundException customMissing = new ResourceNotFoundException("User was not found") {
+        };
+        PasswordAuthenticator customMissingPassword = new PasswordAuthenticator(
+                new FixedUserProvider(customMissing), new RecordingPasswordStore(null),
+                new RecordingPasswordScheme(), grantResolver()
+        );
+        assertError(AuthErrorCode.INVALID_CREDENTIALS, customMissingPassword);
+
+        ResourceException failure = new ResourceProviderNotRegisteredException(User.RESOURCE_TYPE);
+        UserProvider broken = new FixedUserProvider(failure);
+        PasswordAuthenticator password = new PasswordAuthenticator(
+                broken, new RecordingPasswordStore(null), new RecordingPasswordScheme(), grantResolver()
+        );
+        UserSubjectResolver subject = new UserSubjectResolver(broken);
+        assertSame(failure, assertThrows(ResourceException.class,
+                () -> password.authenticate(new UsernamePasswordCredential("ada", "secret"))));
+        assertSame(failure, assertThrows(ResourceException.class, () -> subject.resolve("user", "42")));
+    }
+
+    @Test
     void redactsRawPasswordsFromCredentialStrings() {
         UsernamePasswordCredential credentials = new UsernamePasswordCredential("ada", "secret");
 
@@ -119,7 +154,7 @@ class PasswordAuthenticatorTest {
     }
 
     private static PasswordAuthenticator authenticator(
-            User user,
+            @Nullable User user,
             UserPasswordStore store,
             PasswordScheme scheme
     ) {
@@ -152,10 +187,17 @@ class PasswordAuthenticatorTest {
     }
 
     private static final class FixedUserProvider implements UserProvider {
-        private final User user;
+        private final @Nullable User user;
+        private final @Nullable ResourceException failure;
 
-        private FixedUserProvider(User user) {
+        private FixedUserProvider(@Nullable User user) {
             this.user = user;
+            this.failure = null;
+        }
+
+        private FixedUserProvider(ResourceException failure) {
+            this.user = null;
+            this.failure = failure;
         }
 
         @Override
@@ -179,8 +221,11 @@ class PasswordAuthenticatorTest {
         }
 
         private User requireUser() {
+            if (failure != null) {
+                throw failure;
+            }
             if (user == null) {
-                throw new ResourceException("User was not found");
+                throw new ResourceNotFoundException("User was not found");
             }
             return user;
         }
@@ -190,6 +235,7 @@ class PasswordAuthenticatorTest {
         private final EncodedPassword currentPassword;
         private EncodedPassword replacedCurrent;
         private EncodedPassword replacedValue;
+        private PasswordReplacementPurpose purpose;
 
         private RecordingPasswordStore(EncodedPassword currentPassword) {
             this.currentPassword = currentPassword;
@@ -201,14 +247,26 @@ class PasswordAuthenticatorTest {
         }
 
         @Override
+        public boolean initialize(long userId, EncodedPassword password) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public boolean replace(
                 long userId,
                 EncodedPassword currentPassword,
-                EncodedPassword replacementPassword
+                EncodedPassword replacementPassword,
+                PasswordReplacementPurpose purpose
         ) {
             replacedCurrent = currentPassword;
             replacedValue = replacementPassword;
+            this.purpose = purpose;
             return true;
+        }
+
+        @Override
+        public boolean reset(long userId, EncodedPassword password) {
+            throw new UnsupportedOperationException();
         }
     }
 

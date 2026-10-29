@@ -20,6 +20,7 @@ package com.lamprism.luxspec.resource;
  * Generates identifiers for one typed resource ID family.
  *
  * @param <ID> the generated resource ID type
+ *
  * @author RollW
  */
 public interface ResourceIdGenerator<ID> {

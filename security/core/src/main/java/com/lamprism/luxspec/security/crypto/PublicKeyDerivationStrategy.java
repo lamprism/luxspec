@@ -19,6 +19,10 @@ package com.lamprism.luxspec.security.crypto;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
+/**
+ *
+ * @author RollW
+ */
 interface PublicKeyDerivationStrategy {
     PublicKey derivePublicKey(PrivateKey privateKey, String algorithm);
 }

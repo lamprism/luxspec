@@ -16,13 +16,15 @@
 
 package com.lamprism.luxspec.user.autoconfigure;
 
+import com.lamprism.luxspec.security.authentication.AuthenticationResolver;
 import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.authorization.AuthorizationScopeHierarchy;
 import com.lamprism.luxspec.user.query.UserBrowser;
 import com.lamprism.luxspec.user.resource.InMemoryUserStore;
+import com.lamprism.luxspec.user.resource.UserAccountWriter;
 import com.lamprism.luxspec.user.resource.UserProvider;
-import com.lamprism.luxspec.user.resource.UserRegistry;
 import com.lamprism.luxspec.user.security.authentication.PasswordAuthenticator;
+import com.lamprism.luxspec.user.security.authentication.UserAuthenticationResolver;
 import com.lamprism.luxspec.user.security.authentication.UserSubjectResolver;
 import com.lamprism.luxspec.user.security.authorization.AuthorizationProfile;
 import com.lamprism.luxspec.user.security.authorization.AuthorizationProfileContributor;
@@ -58,14 +60,14 @@ public class LuxspecUserAutoConfiguration {
      * Creates the opt-in aggregate in-memory user service.
      *
      * <p>The store is not enabled by default because its state is process-local and volatile. One
-     * bean supplies the registry, provider, and browser roles together.</p>
+     * bean supplies the account writer, provider, and browser roles together.</p>
      *
      * @param clocks optional application clock
      * @return the in-memory user service
      */
     @Bean
     @ConditionalOnProperty(prefix = "luxspec.user.memory", name = "enabled", havingValue = "true")
-    @ConditionalOnMissingBean({UserRegistry.class, UserProvider.class, UserBrowser.class})
+    @ConditionalOnMissingBean({UserAccountWriter.class, UserProvider.class, UserBrowser.class})
     public InMemoryUserStore inMemoryUserStore(ObjectProvider<Clock> clocks) {
         return new InMemoryUserStore(clocks.getIfAvailable(Clock::systemUTC));
     }
@@ -152,6 +154,23 @@ public class LuxspecUserAutoConfiguration {
     @ConditionalOnMissingBean(SubjectResolver.class)
     public UserSubjectResolver userSubjectResolver(UserProvider userProvider) {
         return new UserSubjectResolver(userProvider);
+    }
+
+    /**
+     * Creates a resolver for current user status and effective grants.
+     *
+     * @param userProvider  the configured user provider
+     * @param grantResolver the configured role grant resolver
+     * @return the current authentication resolver
+     */
+    @Bean
+    @ConditionalOnBean({UserProvider.class, UserRoleGrantResolver.class})
+    @ConditionalOnMissingBean(AuthenticationResolver.class)
+    public UserAuthenticationResolver userAuthenticationResolver(
+            UserProvider userProvider,
+            UserRoleGrantResolver grantResolver
+    ) {
+        return new UserAuthenticationResolver(userProvider, grantResolver);
     }
 
     /**

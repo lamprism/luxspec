@@ -22,6 +22,7 @@ import java.util.Objects;
  * Identifies one functional token kind and its exact Java value type.
  *
  * @param <T> the token value type
+ *
  * @author RollW
  */
 public final class TokenKind<T extends Token> {

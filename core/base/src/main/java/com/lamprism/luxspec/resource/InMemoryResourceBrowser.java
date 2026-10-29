@@ -43,6 +43,7 @@ import java.util.function.Supplier;
  *
  * @param <ID> the resource ID type
  * @param <R>  the loaded resource type
+ *
  * @author RollW
  */
 public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements ResourceBrowser<ID> {
@@ -175,7 +176,7 @@ public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements Reso
         Snapshot<ID, R> snapshot = snapshot();
         R resource = snapshot.resourcesByReference.get(nonNullReference);
         if (resource == null) {
-            throw new ResourceException("Resource was not found");
+            throw new ResourceNotFoundException("Resource was not found");
         }
         return resource;
     }
@@ -197,7 +198,7 @@ public class InMemoryResourceBrowser<ID, R extends Resource<ID>> implements Reso
             ResourceReference<ID> nonNullReference = requireMatchingReference(reference);
             R resource = snapshot.resourcesByReference.get(nonNullReference);
             if (resource == null) {
-                throw new ResourceException("Resource was not found");
+                throw new ResourceNotFoundException("Resource was not found");
             }
             resources.add(resource);
         }

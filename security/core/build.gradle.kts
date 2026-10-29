@@ -24,5 +24,4 @@ dependencies {
     api(project(":core:core-base"))
     api(project(":config:config-core"))
     implementation("org.bouncycastle:bcprov-jdk18on")
-    implementation("com.github.seancfoley:ipaddress")
 }

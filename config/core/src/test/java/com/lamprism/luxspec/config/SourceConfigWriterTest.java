@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.config;
 
 import com.lamprism.luxspec.cache.CachePlan;
@@ -39,7 +55,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class SourceConfigWriterTest {
     @Test
     void repairsOrRemovesAnEntryWhenEffectiveStateCannotCurrentlyBeResolved() {
@@ -69,6 +90,27 @@ class SourceConfigWriterTest {
         assertEquals(2, events.size());
         assertEquals(ConfigSourceChangeType.SET, ((ConfigSourceChangedEvent) events.get(0)).getChangeType());
         assertEquals(ConfigSourceChangeType.REMOVE, ((ConfigSourceChangedEvent) events.get(1)).getChangeType());
+    }
+
+    @Test
+    void doesNotMutateWhenEffectiveStateFailsForAnUnrelatedReason() {
+        MutableSource source = new MutableSource();
+        List<Object> events = new ArrayList<>();
+        ConfigReader failingReader = new ConfigReader() {
+            @Override
+            public <T> ConfigValue<T> get(ConfigBinding<T> binding) {
+                throw new IllegalStateException("Source is unavailable");
+            }
+        };
+        SourceConfigWriter writer = new SourceConfigWriter(
+                List.of(source), source.getId(), events::add, failingReader, key -> {
+        }
+        );
+        ConfigSpec<String> spec = ConfigSpec.of("sample.value", ConfigCodec.string(), null, false);
+
+        assertThrows(IllegalStateException.class, () -> writer.set(spec, "value"));
+        assertNull(source.value);
+        assertTrue(events.isEmpty());
     }
 
     @Test

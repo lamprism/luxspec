@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
+import com.lamprism.luxspec.network.ip.IpNetwork;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -24,6 +26,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class TrustedProxyClientAddressResolverTest {
     @Test
     void resolvesTheFirstUntrustedAddressFromForwardedChain() {
@@ -31,7 +37,7 @@ class TrustedProxyClientAddressResolverTest {
         MockHttpServletRequest request = request("10.0.0.10");
         request.addHeader("Forwarded", "for=203.0.113.42;proto=https, for=10.0.0.11");
 
-        assertEquals("203.0.113.42", resolver.resolve(request));
+        assertEquals(IpAddress.parse("203.0.113.42"), resolver.resolve(request));
     }
 
     @Test
@@ -40,7 +46,7 @@ class TrustedProxyClientAddressResolverTest {
         MockHttpServletRequest request = request("10.0.0.10");
         request.addHeader("X-Forwarded-For", "203.0.113.42, 10.0.0.11");
 
-        assertEquals("203.0.113.42", resolver.resolve(request));
+        assertEquals(IpAddress.parse("203.0.113.42"), resolver.resolve(request));
     }
 
     @Test
@@ -49,7 +55,25 @@ class TrustedProxyClientAddressResolverTest {
         MockHttpServletRequest request = request("198.51.100.10");
         request.addHeader("X-Forwarded-For", "203.0.113.42");
 
-        assertEquals("198.51.100.10", resolver.resolve(request));
+        assertEquals(IpAddress.parse("198.51.100.10"), resolver.resolve(request));
+    }
+
+    @Test
+    void neverTrustsAnAmbiguousPeerOrAnAddressRangeInAForwardedHeader() {
+        TrustedProxyClientAddressResolver resolver = resolver("10.0.0.0/8");
+        MockHttpServletRequest ambiguous = request("010.0.0.1");
+        ambiguous.addHeader("X-Forwarded-For", "203.0.113.42");
+        assertThrows(IllegalArgumentException.class, () -> resolver.resolve(ambiguous));
+
+        MockHttpServletRequest trusted = request("10.0.0.1");
+        trusted.addHeader("X-Forwarded-For", "203.0.113.0/24");
+        assertEquals(IpAddress.parse("10.0.0.1"), resolver.resolve(trusted));
+    }
+
+    @Test
+    void rejectsWildcardOrRangeEntriesAsTrustedProxyNetworks() {
+        assertThrows(IllegalArgumentException.class, () -> resolver("10.0.*.*"));
+        assertThrows(IllegalArgumentException.class, () -> resolver("10.0.0.1-10.0.0.10"));
     }
 
     @Test
@@ -59,7 +83,7 @@ class TrustedProxyClientAddressResolverTest {
         request.addHeader("Forwarded", "for=203.0.113.42");
         request.addHeader("X-Forwarded-For", "198.51.100.42");
 
-        assertEquals("203.0.113.42", resolver.resolve(request));
+        assertEquals(IpAddress.parse("203.0.113.42"), resolver.resolve(request));
     }
 
     @Test
@@ -68,7 +92,7 @@ class TrustedProxyClientAddressResolverTest {
         MockHttpServletRequest request = request("10.0.0.10");
         request.addHeader("X-Forwarded-For", "unknown");
 
-        assertEquals("10.0.0.10", resolver.resolve(request));
+        assertEquals(IpAddress.parse("10.0.0.10"), resolver.resolve(request));
     }
 
     @Test
@@ -77,7 +101,7 @@ class TrustedProxyClientAddressResolverTest {
         MockHttpServletRequest request = request("2001:db8:1::10");
         request.addHeader("Forwarded", "for=\"[2001:db8::42]:8443\"");
 
-        assertEquals("2001:db8:0:0:0:0:0:42", resolver.resolve(request));
+        assertEquals(IpAddress.parse("2001:db8::42"), resolver.resolve(request));
     }
 
     @Test
@@ -89,7 +113,7 @@ class TrustedProxyClientAddressResolverTest {
     }
 
     private static TrustedProxyClientAddressResolver resolver(String network) {
-        return new TrustedProxyClientAddressResolver(List.of(network));
+        return new TrustedProxyClientAddressResolver(List.of(IpNetwork.parse(network)));
     }
 
     private static MockHttpServletRequest request(String remoteAddress) {

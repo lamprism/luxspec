@@ -23,9 +23,6 @@ import com.lamprism.luxspec.audit.publish.AuditMetadataProvider;
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.security.authentication.Authentication;
-import com.lamprism.luxspec.security.authentication.Subject;
-
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -38,6 +35,7 @@ import java.util.Objects;
  */
 public final class ExecutionContextAuditMetadataProvider implements AuditMetadataProvider {
     private final ExecutionContextStorage storage;
+    private final AuditActorMapper actorMapper;
 
     /**
      * Creates a provider backed by one configured context storage.
@@ -45,14 +43,26 @@ public final class ExecutionContextAuditMetadataProvider implements AuditMetadat
      * @param storage the context storage used for metadata capture
      */
     public ExecutionContextAuditMetadataProvider(ExecutionContextStorage storage) {
+        this(storage, AuditActorMapper.standard());
+    }
+
+    /**
+     * Creates a provider with an application-selected subject mapping.
+     *
+     * @param storage     the context storage used for metadata capture
+     * @param actorMapper the authenticated subject mapping
+     */
+    public ExecutionContextAuditMetadataProvider(ExecutionContextStorage storage, AuditActorMapper actorMapper) {
         this.storage = Objects.requireNonNull(storage, "storage");
+        this.actorMapper = Objects.requireNonNull(actorMapper, "actorMapper");
     }
 
     @Override
     public AuditMetadata capture() {
         ExecutionContext context = storage.current().orElseGet(ExecutionContext::empty);
         Authentication authentication = context.get(Authentication.CONTEXT_KEY).orElse(null);
-        AuditActor actor = authentication == null ? AuditActor.unknown() : actor(authentication);
+        AuditActor actor = authentication == null ? AuditActor.unknown()
+                : Objects.requireNonNull(actorMapper.map(authentication.subject()), "audit actor");
         return new AuditMetadata(
                 actor,
                 context.get(ExecutionContext.CORRELATION_ID).orElse(null),
@@ -60,18 +70,4 @@ public final class ExecutionContextAuditMetadataProvider implements AuditMetadat
         );
     }
 
-    private static AuditActor actor(Authentication authentication) {
-        Subject subject = authentication.subject();
-        return AuditActor.of(kind(subject.getType()), subject.getId());
-    }
-
-    private static AuditActor.Kind kind(String subjectType) {
-        return switch (subjectType.toLowerCase(Locale.ROOT)) {
-            case "user" -> AuditActor.Kind.USER;
-            case "service" -> AuditActor.Kind.SERVICE;
-            case "system" -> AuditActor.Kind.SYSTEM;
-            case "anonymous" -> AuditActor.Kind.ANONYMOUS;
-            default -> AuditActor.Kind.UNKNOWN;
-        };
-    }
 }

@@ -23,6 +23,7 @@ import java.util.List;
  * Resolves loaded resources from typed references.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public interface ResourceProvider<ID> {
@@ -38,6 +39,7 @@ public interface ResourceProvider<ID> {
      *
      * @param reference the reference to resolve
      * @return the resolved non-null resource
+     * @throws ResourceNotFoundException when the referenced resource does not exist
      */
     Resource<ID> provide(ResourceReference<ID> reference);
 
@@ -46,6 +48,7 @@ public interface ResourceProvider<ID> {
      *
      * @param references the references to resolve
      * @return immutable resolved resources preserving input order and duplicate positions
+     * @throws ResourceNotFoundException when any referenced resource does not exist
      */
     List<? extends Resource<ID>> provide(Collection<ResourceReference<ID>> references);
 }

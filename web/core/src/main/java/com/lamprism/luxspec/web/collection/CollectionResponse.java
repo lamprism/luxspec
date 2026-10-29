@@ -31,6 +31,7 @@ import java.util.Objects;
  * Gives Web collection consumers one items field and explicit pagination metadata.
  *
  * @param <T> the item type
+ *
  * @author RollW
  */
 public final class CollectionResponse<T> {

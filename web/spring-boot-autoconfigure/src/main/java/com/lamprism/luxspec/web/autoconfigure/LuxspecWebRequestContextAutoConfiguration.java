@@ -23,11 +23,14 @@ import com.lamprism.luxspec.context.CorrelationIdGenerator;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.UuidCorrelationIdGenerator;
 import com.lamprism.luxspec.web.WebConfigSpec;
+import com.lamprism.luxspec.web.spring.LuxspecCorrelationIdResponseAdvice;
 import com.lamprism.luxspec.web.spring.LuxspecRequestContextFilter;
+import com.lamprism.luxspec.web.spring.ServletCorrelationIdPolicy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.context.annotation.Bean;
@@ -62,6 +65,7 @@ public class LuxspecWebRequestContextAutoConfiguration {
      * @param configReaders the optional Luxspec configuration reader
      * @param generators    the optional configured correlation ID generator
      * @param storage       the optional configured context storage
+     * @param policies      the optional correlation ID trust policy
      * @return the request filter
      */
     @Bean
@@ -69,7 +73,8 @@ public class LuxspecWebRequestContextAutoConfiguration {
     public LuxspecRequestContextFilter luxspecRequestContextFilter(
             ObjectProvider<ConfigReader> configReaders,
             ObjectProvider<CorrelationIdGenerator> generators,
-            ObjectProvider<ExecutionContextStorage> storage
+            ObjectProvider<ExecutionContextStorage> storage,
+            ObjectProvider<ServletCorrelationIdPolicy> policies
     ) {
         CorrelationIdGenerator generator = generators.getIfAvailable(
                 UuidCorrelationIdGenerator::new
@@ -77,8 +82,21 @@ public class LuxspecWebRequestContextAutoConfiguration {
         return new LuxspecRequestContextFilter(
                 correlationIdHeader(configReaders),
                 generator,
-                storage.getIfAvailable()
+                storage.getIfAvailable(),
+                policies.getIfAvailable(ServletCorrelationIdPolicy::incomingOrGenerated)
         );
+    }
+
+    /**
+     * Installs opt-in correlation-ID completion for MVC response envelopes.
+     *
+     * @return the response advice
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "luxspec.web.response", name = "correlation-id-enabled", havingValue = "true")
+    @ConditionalOnMissingBean(LuxspecCorrelationIdResponseAdvice.class)
+    public LuxspecCorrelationIdResponseAdvice luxspecCorrelationIdResponseAdvice() {
+        return new LuxspecCorrelationIdResponseAdvice();
     }
 
     private static String correlationIdHeader(ObjectProvider<ConfigReader> configReaders) {

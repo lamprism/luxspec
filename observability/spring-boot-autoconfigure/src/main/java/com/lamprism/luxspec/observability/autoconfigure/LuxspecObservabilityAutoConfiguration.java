@@ -16,9 +16,12 @@
 
 package com.lamprism.luxspec.observability.autoconfigure;
 
+import com.lamprism.luxspec.failure.FailureHandler;
+import com.lamprism.luxspec.observability.health.HealthAggregationPolicy;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
+import com.lamprism.luxspec.observability.observation.ObservationSpec;
 import com.lamprism.luxspec.observability.runtime.ObservabilitySet;
 import com.lamprism.luxspec.observability.runtime.health.HealthRegistryBuilder;
 import com.lamprism.luxspec.observability.runtime.health.JvmHealthSet;
@@ -62,8 +65,15 @@ public class LuxspecObservabilityAutoConfiguration {
 
     @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean(ObservationRegistry.class)
-    public ObservationRegistry luxspecObservationRegistry(ObjectProvider<ObservabilitySet> sets) {
+    public ObservationRegistry luxspecObservationRegistry(
+            ObjectProvider<ObservabilitySet> sets,
+            ObjectProvider<FailureHandler<ObservationSpec>> failureHandlers
+    ) {
         ObservationRegistryBuilder builder = ObservationRegistryBuilder.builder();
+        FailureHandler<ObservationSpec> failureHandler = failureHandlers.getIfAvailable();
+        if (failureHandler != null) {
+            builder.failureHandler(failureHandler);
+        }
         sets.orderedStream().forEach(builder::set);
         return builder.build();
     }
@@ -86,9 +96,14 @@ public class LuxspecObservabilityAutoConfiguration {
     @ConditionalOnSingleCandidate(Executor.class)
     public HealthRegistry luxspecHealthRegistry(
             Executor executor,
-            ObjectProvider<ObservabilitySet> sets
+            ObjectProvider<ObservabilitySet> sets,
+            ObjectProvider<HealthAggregationPolicy> aggregationPolicies
     ) {
         HealthRegistryBuilder builder = HealthRegistryBuilder.builder(executor);
+        HealthAggregationPolicy aggregationPolicy = aggregationPolicies.getIfAvailable();
+        if (aggregationPolicy != null) {
+            builder.aggregationPolicy(aggregationPolicy);
+        }
         sets.orderedStream().forEach(builder::set);
         return builder.build();
     }
@@ -170,10 +185,11 @@ public class LuxspecObservabilityAutoConfiguration {
     @ConditionalOnMissingBean(LuxspecHttpMetricsFilter.class)
     public LuxspecHttpMetricsFilter luxspecHttpMetricsFilter(
             MetricRegistry metricRegistry,
-            HttpServerMetricSet metricSet
+            HttpServerMetricSet metricSet,
+            ObjectProvider<HttpMetricOutcomePolicy> outcomePolicies
     ) {
         metricSet.register(metricRegistry);
-        return new LuxspecHttpMetricsFilter(metricRegistry);
+        return new LuxspecHttpMetricsFilter(metricRegistry, outcomePolicies.getIfAvailable(HttpMetricOutcomePolicy::statusClass));
     }
 
     /**
@@ -192,9 +208,12 @@ public class LuxspecObservabilityAutoConfiguration {
     @ConditionalOnBean(StandardObservationSet.class)
     @ConditionalOnMissingBean(LuxspecHttpObservationFilter.class)
     public LuxspecHttpObservationFilter luxspecHttpObservationFilter(
-            ObservationRegistry observationRegistry
+            ObservationRegistry observationRegistry,
+            ObjectProvider<HttpObservationOutcomePolicy> outcomePolicies
     ) {
-        return new LuxspecHttpObservationFilter(observationRegistry);
+        return new LuxspecHttpObservationFilter(
+                observationRegistry, outcomePolicies.getIfAvailable(HttpObservationOutcomePolicy::exceptionsOnly)
+        );
     }
 
     @Bean

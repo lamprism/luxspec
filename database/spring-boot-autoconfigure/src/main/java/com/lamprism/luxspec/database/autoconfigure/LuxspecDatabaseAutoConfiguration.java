@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.database.autoconfigure;
 
 import com.lamprism.luxspec.config.catalog.ConfigSpecContributor;
@@ -28,6 +44,8 @@ import java.util.List;
 
 /**
  * Creates the default database assembly only when an application supplies database settings.
+ *
+ * @author RollW
  */
 @AutoConfiguration(beforeName = "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
 @ConditionalOnClass({DataSource.class, HikariDataSourceFactory.class})
@@ -55,8 +73,12 @@ public class LuxspecDatabaseAutoConfiguration {
     ) {
         List<ConfigSource> sources = new ArrayList<>();
         for (String beanName : beanFactory.getBeanNamesForType(ConfigSource.class, true, false)) {
-            // A lazy source may depend on the database being assembled. Do not initialize it while
-            // discovering the eager bootstrap sources.
+            /*
+             * A lazy source may depend on the database being assembled. Do not initialize it while
+             */
+            /*
+             * discovering the eager bootstrap sources.
+             */
             if (beanFactory.getBeanDefinition(beanName).isLazyInit()) {
                 continue;
             }

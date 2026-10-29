@@ -28,6 +28,10 @@ import org.springframework.context.annotation.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecDataJpaAutoConfigurationTest {
     @Test
     void createsCriteriaTranslator() {

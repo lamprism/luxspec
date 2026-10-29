@@ -48,6 +48,7 @@ import java.util.function.Supplier;
  * like any other query field when time-series windows are used.</p>
  *
  * @param <T> the queried candidate type
+ *
  * @author RollW
  */
 public class InMemoryQueryExecutor<T>
@@ -117,12 +118,29 @@ public class InMemoryQueryExecutor<T>
             Map<? extends QueryRelation<?>, ? extends QueryFieldResolver<?>> relatedFieldResolvers,
             Map<? extends QueryRelation<?>, ? extends QueryRelationResolver<?>> relatedRelationResolvers
     ) {
+        this(candidateSupplier, fieldResolver, relationResolver, relatedFieldResolvers, relatedRelationResolvers,
+                Map.of(), Map.of(), Map.of());
+    }
+
+    private InMemoryQueryExecutor(
+            Supplier<? extends Collection<? extends T>> candidateSupplier,
+            QueryFieldResolver<T> fieldResolver,
+            QueryRelationResolver<T> relationResolver,
+            Map<? extends QueryRelation<?>, ? extends QueryFieldResolver<?>> relatedFieldResolvers,
+            Map<? extends QueryRelation<?>, ? extends QueryRelationResolver<?>> relatedRelationResolvers,
+            Map<QueryFunctionDefinition<?>, InMemoryQueryFunction<?>> functions,
+            Map<QueryOperatorDefinition<?, ?>, InMemoryQueryOperator<?, ?>> operators,
+            Map<QueryAggregateDefinition<?>, InMemoryQueryAggregate<?>> aggregates
+    ) {
         this.engine = new InMemoryQueryEngine<>(
                 candidateSupplier,
                 fieldResolver,
                 relationResolver,
                 copy(relatedFieldResolvers),
-                copy(relatedRelationResolvers)
+                copy(relatedRelationResolvers),
+                functions,
+                operators,
+                aggregates
         );
     }
 
@@ -185,6 +203,9 @@ public class InMemoryQueryExecutor<T>
         private final Map<QueryRelation<?>, RelationBinding<T, ?>> relationBindings = new LinkedHashMap<>();
         private final Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers = new LinkedHashMap<>();
         private final Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers = new LinkedHashMap<>();
+        private final Map<QueryFunctionDefinition<?>, InMemoryQueryFunction<?>> functions = new LinkedHashMap<>();
+        private final Map<QueryOperatorDefinition<?, ?>, InMemoryQueryOperator<?, ?>> operators = new LinkedHashMap<>();
+        private final Map<QueryAggregateDefinition<?>, InMemoryQueryAggregate<?>> aggregates = new LinkedHashMap<>();
 
         private Builder(
                 Supplier<? extends Collection<? extends T>> candidateSupplier
@@ -205,6 +226,61 @@ public class InMemoryQueryExecutor<T>
                 Function<? super T, ? extends @Nullable V> accessor
         ) {
             fieldResolverBuilder.field(field, accessor);
+            return this;
+        }
+
+        /**
+         * Registers the in-memory implementation of an application query function.
+         *
+         * @param definition     the typed function identity
+         * @param implementation the application-owned evaluator
+         * @param <V>            the function result type
+         * @return this builder
+         */
+        public <V> Builder<T> function(
+                QueryFunctionDefinition<V> definition, InMemoryQueryFunction<V> implementation
+        ) {
+            QueryFunctionDefinition<V> key = Objects.requireNonNull(definition, "definition");
+            if (functions.putIfAbsent(key, Objects.requireNonNull(implementation, "implementation")) != null) {
+                throw new IllegalArgumentException("Query function is already registered: " + key.getName());
+            }
+            return this;
+        }
+
+        /**
+         * Registers an application-defined query operator.
+         *
+         * @param definition     the typed operation definition
+         * @param implementation the in-memory evaluator
+         * @param <V>            the operand type
+         * @param <A>            the argument type
+         * @return this builder
+         */
+        public <V, A> Builder<T> operator(
+                QueryOperatorDefinition<V, A> definition, InMemoryQueryOperator<V, A> implementation
+        ) {
+            QueryOperatorDefinition<V, A> key = Objects.requireNonNull(definition, "definition");
+            if (operators.putIfAbsent(key, Objects.requireNonNull(implementation, "implementation")) != null) {
+                throw new IllegalArgumentException("Query operator is already registered: " + key.getName());
+            }
+            return this;
+        }
+
+        /**
+         * Registers an application-defined group aggregate.
+         *
+         * @param definition     the typed aggregate identity
+         * @param implementation the in-memory reduction
+         * @param <V>            the result type
+         * @return this builder
+         */
+        public <V> Builder<T> aggregate(
+                QueryAggregateDefinition<V> definition, InMemoryQueryAggregate<V> implementation
+        ) {
+            QueryAggregateDefinition<V> key = Objects.requireNonNull(definition, "definition");
+            if (aggregates.putIfAbsent(key, Objects.requireNonNull(implementation, "implementation")) != null) {
+                throw new IllegalArgumentException("Query aggregate is already registered: " + key.getName());
+            }
             return this;
         }
 
@@ -307,7 +383,10 @@ public class InMemoryQueryExecutor<T>
                     fieldResolverBuilder.build(),
                     relationResolver,
                     resolvers,
-                    relatedRelationResolvers
+                    relatedRelationResolvers,
+                    functions,
+                    operators,
+                    aggregates
             );
         }
 
@@ -324,10 +403,20 @@ public class InMemoryQueryExecutor<T>
         }
     }
 
-    private record RelationBinding<T, R>(
-            Function<? super T, ? extends Iterable<? extends R>> accessor,
-            QueryFieldResolver<R> fieldResolver
-    ) {
+    private static final class RelationBinding<T, R> {
+        private final Function<? super T, ? extends Iterable<? extends R>> accessor;
+        private final QueryFieldResolver<R> fieldResolver;
+
+        private RelationBinding(Function<? super T, ? extends Iterable<? extends R>> accessor,
+                                QueryFieldResolver<R> fieldResolver) {
+            this.accessor = accessor;
+            this.fieldResolver = fieldResolver;
+        }
+
+        private QueryFieldResolver<R> fieldResolver() {
+            return fieldResolver;
+        }
+
         private Iterable<? extends R> resolve(T candidate) {
             return accessor.apply(Objects.requireNonNull(candidate, "candidate"));
         }

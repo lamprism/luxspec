@@ -27,5 +27,6 @@ dependencies {
     implementation("tools.jackson.dataformat:jackson-dataformat-cbor")
     implementation("org.slf4j:slf4j-api")
     testImplementation("org.hibernate.orm:hibernate-core")
+    testImplementation(project(":observability:observability-runtime"))
     testRuntimeOnly("com.h2database:h2")
 }

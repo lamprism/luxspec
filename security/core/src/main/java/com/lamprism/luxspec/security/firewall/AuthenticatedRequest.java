@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.security.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.Subject;
 
@@ -76,7 +77,7 @@ public final class AuthenticatedRequest implements FirewallRequest {
     }
 
     @Override
-    public String getClientAddress() {
+    public IpAddress getClientAddress() {
         return ingressRequest.getClientAddress();
     }
 }

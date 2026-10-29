@@ -46,9 +46,11 @@ import java.util.Objects;
  */
 public class LuxspecRequestContextFilter extends OncePerRequestFilter implements Ordered {
     private static final String DEFAULT_CORRELATION_ID_HEADER = "X-Request-ID";
+    static final String CORRELATION_ID_ATTRIBUTE = LuxspecRequestContextFilter.class.getName() + ".correlationId";
 
     private final String correlationIdHeader;
     private final CorrelationIdGenerator correlationIdGenerator;
+    private final ServletCorrelationIdPolicy correlationIdPolicy;
     private final @Nullable ExecutionContextStorage storage;
 
     /**
@@ -83,12 +85,30 @@ public class LuxspecRequestContextFilter extends OncePerRequestFilter implements
             CorrelationIdGenerator correlationIdGenerator,
             @Nullable ExecutionContextStorage storage
     ) {
+        this(correlationIdHeader, correlationIdGenerator, storage, ServletCorrelationIdPolicy.incomingOrGenerated());
+    }
+
+    /**
+     * Creates a filter with an explicit correlation-ID trust policy.
+     *
+     * @param correlationIdHeader    the request and response header name
+     * @param correlationIdGenerator the configured ID generator
+     * @param storage                the optional context storage
+     * @param correlationIdPolicy    the request ID selection policy
+     */
+    public LuxspecRequestContextFilter(
+            String correlationIdHeader,
+            CorrelationIdGenerator correlationIdGenerator,
+            @Nullable ExecutionContextStorage storage,
+            ServletCorrelationIdPolicy correlationIdPolicy
+    ) {
         this.correlationIdHeader = requireHeaderName(correlationIdHeader);
         this.correlationIdGenerator = Objects.requireNonNull(
                 correlationIdGenerator,
                 "correlationIdGenerator"
         );
         this.storage = storage;
+        this.correlationIdPolicy = Objects.requireNonNull(correlationIdPolicy, "correlationIdPolicy");
     }
 
     /**
@@ -108,7 +128,10 @@ public class LuxspecRequestContextFilter extends OncePerRequestFilter implements
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        CorrelationId correlationId = resolveCorrelationId(request.getHeader(correlationIdHeader));
+        CorrelationId correlationId = Objects.requireNonNull(
+                correlationIdPolicy.resolve(request, correlationIdHeader, correlationIdGenerator), "correlationId"
+        );
+        request.setAttribute(CORRELATION_ID_ATTRIBUTE, correlationId);
         response.setHeader(correlationIdHeader, correlationId.value());
         ExecutionContext context = ExecutionContext.empty()
                 .with(WebRequestContext.KEY, new WebRequestContext(
@@ -125,24 +148,6 @@ public class LuxspecRequestContextFilter extends OncePerRequestFilter implements
              Slf4jMdcScope mdcScope = Slf4jMdcScope.open(context)) {
             filterChain.doFilter(request, response);
         }
-    }
-
-    private CorrelationId resolveCorrelationId(@Nullable String headerValue) {
-        if (headerValue == null) {
-            return generatedCorrelationId();
-        }
-        try {
-            return CorrelationId.of(headerValue);
-        } catch (IllegalArgumentException exception) {
-            return generatedCorrelationId();
-        }
-    }
-
-    private CorrelationId generatedCorrelationId() {
-        return Objects.requireNonNull(
-                correlationIdGenerator.generate(),
-                "generated correlationId"
-        );
     }
 
     private static String requireHeaderName(String value) {

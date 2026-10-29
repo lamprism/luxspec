@@ -23,15 +23,21 @@ import com.lamprism.luxspec.audit.AuditEventId;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditMetadata;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.retention.AuditRetentionPolicy;
 import com.lamprism.luxspec.context.CorrelationId;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class InMemoryAuditStoreTest {
     private static final Instant OCCURRED_AT = Instant.parse("2026-07-15T00:00:00Z");
     private static final Instant PUBLISHED_AT = OCCURRED_AT.plusSeconds(1L);
@@ -56,12 +62,54 @@ class InMemoryAuditStoreTest {
         assertThrows(IllegalStateException.class, () -> store.accept(entry("user.disabled")));
     }
 
+    @Test
+    void removesOnlySelectedEntriesInBoundedBatches() {
+        InMemoryAuditStore store = new InMemoryAuditStore();
+        AuditEntry first = entry("event-1", "user.registered", PUBLISHED_AT);
+        AuditEntry held = entry("event-2", "user.held", PUBLISHED_AT);
+        AuditEntry second = entry("event-3", "user.registered", PUBLISHED_AT.plusSeconds(1));
+        store.accept(first);
+        store.accept(held);
+        store.accept(second);
+        AuditRetentionPolicy age = AuditRetentionPolicy.afterPublication(Duration.ofDays(30));
+        AuditRetentionPolicy policy = (entry, now) -> !entry.eventName().equals("user.held")
+                && age.shouldRemove(entry, now);
+
+        assertEquals(1, store.remove(policy, PUBLISHED_AT.plus(Duration.ofDays(30)).plusSeconds(1), 1));
+        assertEquals(List.of(held, second), store.entries());
+        assertEquals(1, store.remove(policy, PUBLISHED_AT.plus(Duration.ofDays(30)).plusSeconds(1), 10));
+        assertEquals(List.of(held), store.entries());
+        assertThrows(IllegalArgumentException.class, () -> store.remove(policy, PUBLISHED_AT, 0));
+    }
+
+    @Test
+    void doesNotRemoveAnyEntriesWhenPolicyEvaluationFails() {
+        InMemoryAuditStore store = new InMemoryAuditStore();
+        AuditEntry first = entry("event-1", "user.registered", PUBLISHED_AT);
+        AuditEntry second = entry("event-2", "user.disabled", PUBLISHED_AT);
+        store.accept(first);
+        store.accept(second);
+
+        assertThrows(IllegalStateException.class, () -> store.remove((entry, now) -> {
+            if (entry.id().equals(second.id())) {
+                throw new IllegalStateException("Retention policy failed");
+            }
+            return true;
+        }, PUBLISHED_AT, 10));
+
+        assertEquals(List.of(first, second), store.entries());
+    }
+
     private static AuditEntry entry(String eventName) {
+        return entry("event-1", eventName, PUBLISHED_AT);
+    }
+
+    private static AuditEntry entry(String id, String eventName, Instant publishedAt) {
         return new AuditEntry(
-                AuditEventId.of("event-1"),
+                AuditEventId.of(id),
                 eventName,
                 OCCURRED_AT,
-                PUBLISHED_AT,
+                publishedAt,
                 new AuditMetadata(
                         AuditActor.of(AuditActor.Kind.USER, "42"),
                         CorrelationId.of("request-1"),

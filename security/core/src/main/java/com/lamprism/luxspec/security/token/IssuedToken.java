@@ -22,6 +22,7 @@ import java.time.Instant;
  * Describes one newly issued token and its exact lifetime.
  *
  * @param <T> the token value type
+ *
  * @author RollW
  */
 public interface IssuedToken<T extends Token> {

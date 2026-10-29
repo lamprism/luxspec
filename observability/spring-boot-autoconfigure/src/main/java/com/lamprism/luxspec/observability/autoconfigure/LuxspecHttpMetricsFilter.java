@@ -52,6 +52,7 @@ import java.util.function.LongSupplier;
  */
 public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Ordered {
     private final MetricRegistry registry;
+    private final HttpMetricOutcomePolicy outcomePolicy;
     private final AtomicLong activeRequests = new AtomicLong();
     private final LongSupplier activeRequestReader = activeRequests::get;
 
@@ -62,7 +63,18 @@ public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Or
      *                 HTTP metric definitions
      */
     public LuxspecHttpMetricsFilter(MetricRegistry registry) {
+        this(registry, HttpMetricOutcomePolicy.statusClass());
+    }
+
+    /**
+     * Creates a request metrics filter with an explicit bounded outcome policy.
+     *
+     * @param registry      the metric registry
+     * @param outcomePolicy the request outcome policy
+     */
+    public LuxspecHttpMetricsFilter(MetricRegistry registry, HttpMetricOutcomePolicy outcomePolicy) {
         this.registry = Objects.requireNonNull(registry, "registry");
+        this.outcomePolicy = Objects.requireNonNull(outcomePolicy, "outcomePolicy");
         registry.obtain(HttpServerMetricSet.ACTIVE_REQUESTS.bind(
                 MetricDimensionSet.empty(),
                 activeRequestReader
@@ -137,28 +149,6 @@ public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Or
         return Integer.toString(value);
     }
 
-    private static String outcome(int status) {
-        if (status < 100 || status > 999) {
-            return HttpServerMetricSet.UNKNOWN;
-        }
-        if (status >= 100 && status < 200) {
-            return "INFORMATIONAL";
-        }
-        if (status < 300) {
-            return "SUCCESS";
-        }
-        if (status < 400) {
-            return "REDIRECTION";
-        }
-        if (status < 500) {
-            return "CLIENT_ERROR";
-        }
-        if (status < 600) {
-            return "SERVER_ERROR";
-        }
-        return HttpServerMetricSet.UNKNOWN;
-    }
-
     private static int effectiveStatus(int responseStatus, boolean failed) {
         if (failed && (responseStatus < 500 || responseStatus > 599)) {
             return HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
@@ -178,6 +168,7 @@ public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Or
         private final HttpServletResponse response;
         private final long startedAtNanos;
         private final AtomicBoolean completed = new AtomicBoolean();
+        private final AtomicBoolean asyncFailure = new AtomicBoolean();
 
         private RequestCompletion(
                 HttpServletRequest request,
@@ -216,15 +207,18 @@ public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Or
             activeRequests.decrementAndGet();
             int responseStatus = effectiveStatus(response.getStatus(), failure != null || forcedFailure);
             try {
-                recordRequest(request, responseStatus, elapsed());
+                recordRequest(request, responseStatus, failure != null || forcedFailure || asyncFailure.get(), elapsed());
             } catch (RuntimeException ignored) {
-                // Metrics must not change the outcome of the application request.
+                /*
+                 * Metrics must not change the outcome of the application request.
+                 */
             }
         }
 
         private void recordRequest(
                 HttpServletRequest request,
                 int responseStatus,
+                boolean failure,
                 Duration duration
         ) {
             Timer timer = registry.obtain(HttpServerMetricSet.REQUESTS.bind(
@@ -232,7 +226,8 @@ public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Or
                             .put(HttpServerMetricSet.METHOD, method(request.getMethod()))
                             .put(HttpServerMetricSet.ROUTE, route(request))
                             .put(HttpServerMetricSet.STATUS, status(responseStatus))
-                            .put(HttpServerMetricSet.OUTCOME, outcome(responseStatus))
+                            .put(HttpServerMetricSet.OUTCOME,
+                                    Objects.requireNonNull(outcomePolicy.resolve(responseStatus, failure), "metric outcome").name())
                             .build()
             ));
             timer.record(duration);
@@ -250,10 +245,12 @@ public class LuxspecHttpMetricsFilter extends OncePerRequestFilter implements Or
 
         @Override
         public void onTimeout(AsyncEvent event) {
+            asyncFailure.set(true);
         }
 
         @Override
         public void onError(AsyncEvent event) {
+            asyncFailure.set(true);
         }
 
         @Override

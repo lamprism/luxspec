@@ -46,6 +46,7 @@ import java.util.function.Predicate;
  * Applies ordering, continuation, and result-window semantics for the in-memory executor.
  *
  * @param <T> the queried candidate type
+ *
  * @author RollW
  */
 final class InMemoryQueryWindow<T> {
@@ -53,6 +54,14 @@ final class InMemoryQueryWindow<T> {
 
     InMemoryQueryWindow(QueryFieldResolver<T> fieldResolver) {
         this.fieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
+    }
+
+    void requireSupported(QueryWindow window) {
+        if (!(window instanceof UnboundedWindow) && !(window instanceof PageWindow)
+                && !(window instanceof SliceWindow) && !(window instanceof KeysetWindow)
+                && !(window instanceof TimeSeriesWindow)) {
+            throw new IllegalArgumentException("Unsupported query window: " + window.getClass().getName());
+        }
     }
 
     QueryCriteria effectiveCriteria(QueryCriteria criteria, QueryWindow window) {
@@ -112,7 +121,10 @@ final class InMemoryQueryWindow<T> {
         if (window instanceof KeysetWindow keysetWindow) {
             return keyset(candidates, keysetWindow, orders);
         }
-        return timeSeries(candidates, (TimeSeriesWindow) window);
+        if (window instanceof TimeSeriesWindow timeSeriesWindow) {
+            return timeSeries(candidates, timeSeriesWindow);
+        }
+        throw new IllegalArgumentException("Unsupported query window: " + window.getClass().getName());
     }
 
     private Instant timestamp(T candidate) {
@@ -126,10 +138,24 @@ final class InMemoryQueryWindow<T> {
 
     private <V> Comparator<T> comparator(OrderBy<V> order) {
         OrderBy<V> nonNullOrder = Objects.requireNonNull(order, "order");
-        if (nonNullOrder.getDirection() == OrderBy.Direction.ASCENDING) {
-            return (left, right) -> fieldResolver.compare(left, right, nonNullOrder.getField());
+        return (left, right) -> {
+            V leftValue = fieldResolver.resolve(left, nonNullOrder.getField());
+            V rightValue = fieldResolver.resolve(right, nonNullOrder.getField());
+            if (leftValue == null || rightValue == null) {
+                return compareNulls(leftValue, rightValue, nonNullOrder.getNullPlacement());
+            }
+            return nonNullOrder.getDirection() == OrderBy.Direction.ASCENDING
+                    ? fieldResolver.compare(left, right, nonNullOrder.getField())
+                    : fieldResolver.compare(right, left, nonNullOrder.getField());
+        };
+    }
+
+    private static int compareNulls(@Nullable Object left, @Nullable Object right, OrderBy.NullPlacement placement) {
+        if (left == null && right == null) {
+            return 0;
         }
-        return (left, right) -> fieldResolver.compare(right, left, nonNullOrder.getField());
+        int nullFirst = left == null ? -1 : 1;
+        return placement == OrderBy.NullPlacement.FIRST ? nullFirst : -nullFirst;
     }
 
     private PageResult<T> page(List<T> candidates, PageWindow window) {
@@ -179,7 +205,7 @@ final class InMemoryQueryWindow<T> {
     }
 
     KeysetPosition position(T item, List<OrderBy<?>> orders) {
-        List<Object> values = new ArrayList<>(orders.size());
+        List<@Nullable Object> values = new ArrayList<>(orders.size());
         for (OrderBy<?> order : orders) {
             values.add(value(item, order));
         }
@@ -187,15 +213,9 @@ final class InMemoryQueryWindow<T> {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private Object value(T item, OrderBy<?> order) {
+    private @Nullable Object value(T item, OrderBy<?> order) {
         QueryField field = order.getField();
-        Object value = fieldResolver.resolve(item, field);
-        if (value == null) {
-            throw new IllegalStateException(
-                    "Keyset order field must not resolve to null: " + field.getName()
-            );
-        }
-        return value;
+        return fieldResolver.resolve(item, field);
     }
 
     private boolean after(
@@ -206,7 +226,7 @@ final class InMemoryQueryWindow<T> {
         if (position == null) {
             return true;
         }
-        List<Object> values = position.values();
+        List<@Nullable Object> values = position.values();
         if (values.size() != orders.size()) {
             throw new IllegalArgumentException("Keyset position does not match query ordering");
         }
@@ -216,27 +236,39 @@ final class InMemoryQueryWindow<T> {
             if (comparison == 0) {
                 continue;
             }
-            if (order.getDirection() == OrderBy.Direction.DESCENDING) {
-                comparison = -comparison;
-            }
             return comparison > 0;
         }
         return false;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private int compare(T candidate, OrderBy<?> order, Object positionValue) {
+    private int compare(T candidate, OrderBy<?> order, @Nullable Object positionValue) {
         QueryField field = order.getField();
         Object candidateValue = fieldResolver.resolve(candidate, field);
-        return fieldResolver.compareValues(candidateValue, positionValue, field);
+        if (candidateValue == null || positionValue == null) {
+            return compareNulls(candidateValue, positionValue, order.getNullPlacement());
+        }
+        return order.getDirection() == OrderBy.Direction.ASCENDING
+                ? fieldResolver.compareValues(candidateValue, positionValue, field)
+                : fieldResolver.compareValues(positionValue, candidateValue, field);
     }
 
     private static void requireKeysetOrdering(QueryCriteria criteria, KeysetWindow window) {
         if (criteria.getOrders().isEmpty()) {
             throw new IllegalArgumentException("Keyset windows require explicit query ordering");
         }
-        if (window.after() != null && window.after().values().size() != criteria.getOrders().size()) {
+        KeysetPosition position = window.after();
+        if (position == null) {
+            return;
+        }
+        if (position.values().size() != criteria.getOrders().size()) {
             throw new IllegalArgumentException("Keyset position does not match query ordering");
+        }
+        for (int index = 0; index < criteria.getOrders().size(); index++) {
+            Object value = position.values().get(index);
+            if (value != null && !criteria.getOrders().get(index).getField().getValueType().isInstance(value)) {
+                throw new IllegalArgumentException("Keyset value does not match query field type");
+            }
         }
     }
 

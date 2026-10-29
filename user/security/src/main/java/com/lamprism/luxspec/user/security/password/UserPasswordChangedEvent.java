@@ -29,7 +29,18 @@ import java.util.Objects;
  * @author RollW
  */
 public final class UserPasswordChangedEvent implements Event {
+    /**
+     * The completed password representation mutation.
+     */
+    public enum ChangeType {
+        INITIALIZED,
+        CHANGED,
+        RESET,
+        REHASHED
+    }
+
     private final long userId;
+    private final ChangeType changeType;
     private final Instant occurredAt;
 
     /**
@@ -39,10 +50,22 @@ public final class UserPasswordChangedEvent implements Event {
      * @param occurredAt the replacement completion time
      */
     public UserPasswordChangedEvent(long userId, Instant occurredAt) {
+        this(userId, ChangeType.CHANGED, occurredAt);
+    }
+
+    /**
+     * Creates a typed password mutation event.
+     *
+     * @param userId     the affected positive user identifier
+     * @param changeType the completed mutation
+     * @param occurredAt the completion time
+     */
+    public UserPasswordChangedEvent(long userId, ChangeType changeType, Instant occurredAt) {
         if (userId < 1L) {
             throw new IllegalArgumentException("userId must be positive");
         }
         this.userId = userId;
+        this.changeType = Objects.requireNonNull(changeType, "changeType");
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
     }
 
@@ -53,6 +76,15 @@ public final class UserPasswordChangedEvent implements Event {
      */
     public long getUserId() {
         return userId;
+    }
+
+    /**
+     * Returns the semantic password mutation type.
+     *
+     * @return the mutation type
+     */
+    public ChangeType getChangeType() {
+        return changeType;
     }
 
     /**

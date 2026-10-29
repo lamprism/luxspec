@@ -29,6 +29,10 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 
+/**
+ *
+ * @author RollW
+ */
 abstract class AbstractPublicKeyDerivationStrategy implements PublicKeyDerivationStrategy {
     private static final Provider BOUNCY_CASTLE_PROVIDER = new BouncyCastleProvider();
 

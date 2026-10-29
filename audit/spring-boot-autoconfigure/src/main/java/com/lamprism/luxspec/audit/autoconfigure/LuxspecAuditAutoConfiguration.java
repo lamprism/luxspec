@@ -19,6 +19,7 @@ package com.lamprism.luxspec.audit.autoconfigure;
 import com.lamprism.luxspec.audit.AuditActor;
 import com.lamprism.luxspec.audit.AuditFieldSet;
 import com.lamprism.luxspec.audit.AuditMetadata;
+import com.lamprism.luxspec.audit.integration.AuditActorMapper;
 import com.lamprism.luxspec.audit.integration.ExecutionContextAuditMetadataProvider;
 import com.lamprism.luxspec.audit.integration.config.ConfigAuditEventDefinitionContributor;
 import com.lamprism.luxspec.audit.integration.security.SecurityAuditEventDefinitionContributor;
@@ -145,13 +146,17 @@ public class LuxspecAuditAutoConfiguration {
      * context storage.
      *
      * @param storage the configured context storage
+     * @param actorMappers the optional subject-to-actor mapping policy
      * @return the context-backed metadata provider
      */
     @Bean
     @ConditionalOnBean({AuditSink.class, ExecutionContextStorage.class})
     @ConditionalOnMissingBean(AuditMetadataProvider.class)
-    public AuditMetadataProvider luxspecAuditMetadataProvider(ExecutionContextStorage storage) {
-        return new ExecutionContextAuditMetadataProvider(storage);
+    public AuditMetadataProvider luxspecAuditMetadataProvider(
+            ExecutionContextStorage storage,
+            ObjectProvider<AuditActorMapper> actorMappers
+    ) {
+        return new ExecutionContextAuditMetadataProvider(storage, actorMappers.getIfAvailable(AuditActorMapper::standard));
     }
 
     /**

@@ -22,6 +22,7 @@ import java.util.Objects;
  * Invalidates one entry in a cache owned by another component.
  *
  * @param <K> the cache key type
+ *
  * @author RollW
  */
 @FunctionalInterface

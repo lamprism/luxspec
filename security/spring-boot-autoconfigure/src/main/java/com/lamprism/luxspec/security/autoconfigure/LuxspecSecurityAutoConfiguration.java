@@ -22,12 +22,15 @@ import com.lamprism.luxspec.security.authentication.SubjectResolver;
 import com.lamprism.luxspec.security.spring.LuxspecSecurityExceptionHandler;
 import com.lamprism.luxspec.security.spring.authentication.AuthorizationHeaderBearerTokenResolver;
 import com.lamprism.luxspec.security.spring.authentication.BearerAuthenticationEntryPoint;
+import com.lamprism.luxspec.security.spring.authentication.BearerTokenResolver;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecAccessTokenAuthenticationProvider;
 import com.lamprism.luxspec.security.spring.authentication.LuxspecBearerAuthenticationFilter;
+import com.lamprism.luxspec.security.token.TokenAuthenticationPolicy;
 import com.lamprism.luxspec.security.token.access.AccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.access.AccessTokenVerifier;
 import com.lamprism.luxspec.security.token.access.InMemoryAccessTokenRevocationStore;
 import com.lamprism.luxspec.security.token.refresh.InMemoryRefreshTokenSessionStore;
+import com.lamprism.luxspec.security.token.refresh.RefreshTokenSession;
 import com.lamprism.luxspec.security.token.refresh.RefreshTokenSessionStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -104,10 +107,10 @@ public class LuxspecSecurityAutoConfiguration {
             havingValue = "true"
     )
     @ConditionalOnMissingBean(RefreshTokenSessionStore.class)
-    public InMemoryRefreshTokenSessionStore inMemoryRefreshTokenSessionStore(
+    public InMemoryRefreshTokenSessionStore<RefreshTokenSession> inMemoryRefreshTokenSessionStore(
             ObjectProvider<Clock> clocks
     ) {
-        return new InMemoryRefreshTokenSessionStore(clocks.getIfAvailable(Clock::systemUTC));
+        return InMemoryRefreshTokenSessionStore.standard(clocks.getIfAvailable(Clock::systemUTC));
     }
 
     /**
@@ -121,13 +124,34 @@ public class LuxspecSecurityAutoConfiguration {
      */
     @Bean
     @ConditionalOnBean({AccessTokenVerifier.class, SubjectResolver.class, AccessTokenRevocationStore.class})
-    @ConditionalOnMissingBean(AccessTokenAuthenticator.class)
+    @ConditionalOnMissingBean({AccessTokenAuthenticator.class, TokenAuthenticationPolicy.class})
     public AccessTokenAuthenticator accessTokenAuthenticator(
             AccessTokenVerifier tokenVerifier,
             SubjectResolver subjectResolver,
             AccessTokenRevocationStore revocationStore
     ) {
-        return new AccessTokenAuthenticator(tokenVerifier, subjectResolver, revocationStore);
+        return new AccessTokenAuthenticator(
+                tokenVerifier, TokenAuthenticationPolicy.issuedGrants(subjectResolver), revocationStore
+        );
+    }
+
+    /**
+     * Creates the authenticator using an application-selected token authentication policy.
+     *
+     * @param tokenVerifier        the access-token verifier
+     * @param authenticationPolicy the configured token authentication policy
+     * @param revocationStore      the verified-token revocation store
+     * @return the access-token authenticator
+     */
+    @Bean
+    @ConditionalOnBean({AccessTokenVerifier.class, TokenAuthenticationPolicy.class, AccessTokenRevocationStore.class})
+    @ConditionalOnMissingBean(AccessTokenAuthenticator.class)
+    public AccessTokenAuthenticator policyAccessTokenAuthenticator(
+            AccessTokenVerifier tokenVerifier,
+            TokenAuthenticationPolicy authenticationPolicy,
+            AccessTokenRevocationStore revocationStore
+    ) {
+        return new AccessTokenAuthenticator(tokenVerifier, authenticationPolicy, revocationStore);
     }
 
     /**
@@ -173,6 +197,8 @@ public class LuxspecSecurityAutoConfiguration {
          * @param httpSecurity          the servlet security builder
          * @param authenticationManager the configured Spring authentication manager
          * @param storage               the optional configured context storage
+         * @param tokenResolvers        the optional request token resolver
+         * @param entryPoints           the optional authentication failure handler
          * @return the stateless protected filter chain
          */
         @ConditionalOnBean(AccessTokenAuthenticator.class)
@@ -181,9 +207,12 @@ public class LuxspecSecurityAutoConfiguration {
         public SecurityFilterChain luxspecSecurityFilterChain(
                 HttpSecurity httpSecurity,
                 AuthenticationManager authenticationManager,
-                ObjectProvider<ExecutionContextStorage> storage
+                ObjectProvider<ExecutionContextStorage> storage,
+                ObjectProvider<BearerTokenResolver> tokenResolvers,
+                ObjectProvider<AuthenticationEntryPoint> entryPoints
         ) {
-            AuthenticationEntryPoint unauthorized = new BearerAuthenticationEntryPoint();
+            AuthenticationEntryPoint unauthorized = entryPoints.getIfAvailable(BearerAuthenticationEntryPoint::new);
+            BearerTokenResolver tokenResolver = tokenResolvers.getIfAvailable(AuthorizationHeaderBearerTokenResolver::new);
             httpSecurity
                     .csrf(AbstractHttpConfigurer::disable)
                     .formLogin(AbstractHttpConfigurer::disable)
@@ -196,7 +225,7 @@ public class LuxspecSecurityAutoConfiguration {
                     .addFilterAfter(
                             new LuxspecBearerAuthenticationFilter(
                                     authenticationManager,
-                                    new AuthorizationHeaderBearerTokenResolver(),
+                                    tokenResolver,
                                     unauthorized,
                                     storage.getIfAvailable()
                             ),

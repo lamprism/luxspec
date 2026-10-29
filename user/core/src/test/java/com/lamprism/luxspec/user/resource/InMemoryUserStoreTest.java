@@ -29,6 +29,10 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class InMemoryUserStoreTest {
     private static final Clock CLOCK = Clock.fixed(
             Instant.parse("2026-01-01T00:00:00Z"),
@@ -54,7 +58,7 @@ class InMemoryUserStoreTest {
 
         store.rename(user.id(), "bob");
         store.grantRole(user.id(), Role.ADMIN);
-        store.disable(user.id());
+        store.changeStatus(user.id(), UserStatus.DISABLED);
 
         assertThrows(ResourceException.class, () -> store.provideByUsername("alice"));
         assertEquals("bob", store.provideByUsername("bob").username());
@@ -70,5 +74,17 @@ class InMemoryUserStoreTest {
                 IllegalArgumentException.class,
                 () -> store.register("alice", null, Set.of())
         );
+    }
+
+    @Test
+    void usesTheRequestedInitialStatusAndAtomicallyReplacesRoles() {
+        InMemoryUserStore store = new InMemoryUserStore(CLOCK);
+        var user = store.register("alice", null, Set.of(Role.USER), UserStatus.DISABLED);
+        assertEquals(UserStatus.DISABLED, user.status());
+
+        store.replaceRoles(user.id(), Set.of(Role.ADMIN));
+        assertEquals(Set.of(Role.ADMIN), store.find(user.id()).orElseThrow().roles());
+        assertThrows(IllegalArgumentException.class, () -> store.replaceRoles(user.id(), Set.of()));
+        assertEquals(Set.of(Role.ADMIN), store.find(user.id()).orElseThrow().roles());
     }
 }

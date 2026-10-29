@@ -17,8 +17,10 @@
 package com.lamprism.luxspec.security.jwt;
 
 import com.lamprism.luxspec.AuthErrorCode;
+import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
+import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.authentication.Subject;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import com.lamprism.luxspec.security.authorization.AuthorizationScope;
@@ -26,7 +28,6 @@ import com.lamprism.luxspec.security.crypto.KeyEntry;
 import com.lamprism.luxspec.security.crypto.KeySet;
 import com.lamprism.luxspec.security.crypto.KeySetProvider;
 import com.lamprism.luxspec.security.token.IssuedToken;
-import com.lamprism.luxspec.security.token.TokenIssuance;
 import com.lamprism.luxspec.security.token.TokenIssuer;
 import com.lamprism.luxspec.security.token.access.AccessToken;
 import com.lamprism.luxspec.security.token.access.AccessTokenVerifier;
@@ -66,10 +67,15 @@ import java.security.spec.NamedParameterSpec;
 import java.text.ParseException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -79,16 +85,22 @@ import java.util.UUID;
  *
  * @author RollW
  */
-public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
+public class JwtAccessTokenAdapter implements TokenIssuer<AccessToken>, AccessTokenVerifier {
     private static final String SUBJECT_TYPE = "subject_type";
     private static final String SCOPES = "scopes";
     private static final String TOKEN_PURPOSE = "token_purpose";
+    private static final Set<String> RESERVED_CLAIMS = Set.of(
+            "iss", "sub", "aud", "exp", "nbf", "iat", "jti", SUBJECT_TYPE, SCOPES, TOKEN_PURPOSE
+    );
     private static final int MAX_SCOPE_COUNT = 256;
     private static final int MAX_SCOPE_NAME_LENGTH = 256;
     private final KeySetProvider keySetProvider;
     private final String keySetName;
     private final Clock clock;
     private final JwtAccessTokenConfiguration configuration;
+    private final List<JwtAccessTokenClaimsPolicy> claimsPolicies;
+    private final JwtAccessTokenMissingScopesPolicy missingScopesPolicy;
+    private final JwtAlgorithmPolicy algorithmPolicy;
 
     /**
      * Creates a JWT access-token adapter with trusted key and format collaborators.
@@ -104,15 +116,83 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
             Clock clock,
             JwtAccessTokenConfiguration configuration
     ) {
+        this(keySetProvider, keySetName, clock, configuration, List.of());
+    }
+
+    /**
+     * Creates an adapter with application-selected additional claim policies.
+     *
+     * @param keySetProvider the provider of named atomic key-set snapshots
+     * @param keySetName     the provider-owned key-set name
+     * @param clock          the token issuance clock
+     * @param configuration  the trusted JWT format and validation configuration
+     * @param claimsPolicies the policies applied in iteration order
+     */
+    public JwtAccessTokenAdapter(
+            KeySetProvider keySetProvider,
+            String keySetName,
+            Clock clock,
+            JwtAccessTokenConfiguration configuration,
+            Collection<? extends JwtAccessTokenClaimsPolicy> claimsPolicies
+    ) {
+        this(keySetProvider, keySetName, clock, configuration, claimsPolicies, JwtAccessTokenMissingScopesPolicy.reject());
+    }
+
+    /**
+     * Creates an adapter with additional claim and missing-scope policies.
+     *
+     * @param keySetProvider      the provider of named atomic key-set snapshots
+     * @param keySetName          the provider-owned key-set name
+     * @param clock               the token issuance clock
+     * @param configuration       the trusted JWT format and validation configuration
+     * @param claimsPolicies      the policies applied in iteration order
+     * @param missingScopesPolicy the policy for a missing scopes claim
+     */
+    public JwtAccessTokenAdapter(
+            KeySetProvider keySetProvider,
+            String keySetName,
+            Clock clock,
+            JwtAccessTokenConfiguration configuration,
+            Collection<? extends JwtAccessTokenClaimsPolicy> claimsPolicies,
+            JwtAccessTokenMissingScopesPolicy missingScopesPolicy
+    ) {
+        this(keySetProvider, keySetName, clock, configuration, claimsPolicies, missingScopesPolicy,
+                JwtAlgorithmPolicy.standard());
+    }
+
+    /**
+     * Creates an adapter with explicit claim, scope, and algorithm policies.
+     *
+     * @param keySetProvider      the named key-set provider
+     * @param keySetName          the provider-owned key-set name
+     * @param clock               the token issuance clock
+     * @param configuration       the trusted JWT configuration
+     * @param claimsPolicies      the ordered additional claim policies
+     * @param missingScopesPolicy the missing scopes policy
+     * @param algorithmPolicy     the signing and trusted verification algorithm policy
+     */
+    public JwtAccessTokenAdapter(
+            KeySetProvider keySetProvider,
+            String keySetName,
+            Clock clock,
+            JwtAccessTokenConfiguration configuration,
+            Collection<? extends JwtAccessTokenClaimsPolicy> claimsPolicies,
+            JwtAccessTokenMissingScopesPolicy missingScopesPolicy,
+            JwtAlgorithmPolicy algorithmPolicy
+    ) {
         this.keySetProvider = Objects.requireNonNull(keySetProvider, "keySetProvider");
         this.keySetName = Objects.requireNonNull(keySetName, "keySetName");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.configuration = Objects.requireNonNull(configuration, "configuration");
+        this.claimsPolicies = List.copyOf(claimsPolicies);
+        this.missingScopesPolicy = Objects.requireNonNull(missingScopesPolicy, "missingScopesPolicy");
+        this.algorithmPolicy = Objects.requireNonNull(algorithmPolicy, "algorithmPolicy");
     }
 
     @Override
-    public TokenIssuance issue(Authentication authentication) {
+    public IssuedToken<AccessToken> issue(Authentication authentication, ExecutionContext attributes) {
         Authentication nonNullAuthentication = Objects.requireNonNull(authentication, "authentication");
+        ExecutionContext nonNullAttributes = Objects.requireNonNull(attributes, "attributes");
         KeySet keySet = keySet();
         KeyEntry activeKey = keySet.getActiveKey();
         if (activeKey == null) {
@@ -125,20 +205,29 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         Instant issuedAt = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         Instant expiresAt = issuedAt.plus(configuration.getLifetime());
         List<String> scopes = scopeNames(nonNullAuthentication);
-        JWSAlgorithm algorithm = signingAlgorithm(signingKey);
+        JWSAlgorithm algorithm = Objects.requireNonNull(
+                algorithmPolicy.signingAlgorithm(signingKey, signingAlgorithm(signingKey)), "signing algorithm"
+        );
+        Key activeVerificationKey = activeKey.getVerificationKey();
+        if (!isCompatibleVerificationAlgorithm(activeVerificationKey, algorithm)
+                || !algorithmPolicy.permitsVerification(activeVerificationKey, algorithm)) {
+            throw new IllegalArgumentException("Signing algorithm is not trusted for the active verification key");
+        }
         Subject subject = nonNullAuthentication.subject();
+        String tokenId = UUID.randomUUID().toString();
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                 .subject(subject.getId())
                 .claim(SUBJECT_TYPE, subject.getType())
                 .claim(SCOPES, scopes)
                 .claim(TOKEN_PURPOSE, AccessToken.KIND.getName())
-                .jwtID(UUID.randomUUID().toString())
+                .jwtID(tokenId)
                 .issueTime(Date.from(issuedAt))
                 .expirationTime(Date.from(expiresAt))
                 .issuer(configuration.getIssuer());
         if (!configuration.getAudiences().isEmpty()) {
             claims.audience(configuration.getAudiences().stream().toList());
         }
+        contributeClaims(claims, nonNullAuthentication, nonNullAttributes, tokenId, issuedAt, expiresAt);
         SignedJWT signedJwt = new SignedJWT(
                 new JWSHeader.Builder(algorithm).keyID(activeKey.getId()).build(),
                 claims.build()
@@ -149,11 +238,11 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
             throw new IllegalStateException("Unable to sign access token", exception);
         }
         String token = signedJwt.serialize();
-        return TokenIssuance.of(List.of(IssuedToken.of(
+        return IssuedToken.of(
                 new AccessToken(token),
                 issuedAt,
                 expiresAt
-        )));
+        );
     }
 
     @Override
@@ -166,18 +255,80 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
             String keyId = requireKeyId(signedJwt.getHeader().getKeyID());
             Key verificationKey = verificationKey(keySet, keyId);
             JWSAlgorithm algorithm = signedJwt.getHeader().getAlgorithm();
-            if (!isCompatibleVerificationAlgorithm(verificationKey, algorithm)) {
+            if (!isCompatibleVerificationAlgorithm(verificationKey, algorithm)
+                    || !algorithmPolicy.permitsVerification(verificationKey, algorithm)) {
                 throw new IllegalArgumentException("JWT algorithm is not compatible with the verification key");
             }
             if (!signedJwt.verify(verifier(verificationKey, algorithm))) {
                 throw new IllegalArgumentException("JWT signature is invalid");
             }
-            return verifiedToken(signedJwt.getJWTClaimsSet());
+            JWTClaimsSet claims = signedJwt.getJWTClaimsSet();
+            VerifiedAccessToken verified = verifiedToken(claims);
+            for (JwtAccessTokenClaimsPolicy policy : claimsPolicies) {
+                policy.validate(verified, copyClaims(claims.getClaims()));
+            }
+            return verified;
         } catch (AuthenticationException exception) {
             throw exception;
         } catch (ParseException | JOSEException | RuntimeException exception) {
             throw new AuthenticationException(AuthErrorCode.INVALID_TOKEN, "Access token is invalid", exception);
         }
+    }
+
+    @Override
+    public Instant getAcceptanceDeadline(VerifiedAccessToken accessToken) {
+        VerifiedAccessToken nonNullAccessToken = Objects.requireNonNull(accessToken, "accessToken");
+        return acceptanceDeadline(nonNullAccessToken.getExpiresAt());
+    }
+
+    private void contributeClaims(
+            JWTClaimsSet.Builder builder,
+            Authentication authentication,
+            ExecutionContext attributes,
+            String tokenId,
+            Instant issuedAt,
+            Instant expiresAt
+    ) {
+        Map<String, Object> contributed = new LinkedHashMap<>();
+        for (JwtAccessTokenClaimsPolicy policy : claimsPolicies) {
+            Map<String, ?> claims = Objects.requireNonNull(policy.contribute(
+                    authentication, attributes, tokenId, issuedAt, expiresAt,
+                    configuration.getIssuer(), configuration.getAudiences()
+            ), "contributed claims");
+            for (Map.Entry<String, ?> entry : claims.entrySet()) {
+                String name = Objects.requireNonNull(entry.getKey(), "claim name");
+                if (name.isBlank() || RESERVED_CLAIMS.contains(name) || contributed.containsKey(name)) {
+                    throw new IllegalArgumentException("Claim name is reserved, empty, or duplicated: " + name);
+                }
+                contributed.put(name, entry.getValue());
+            }
+        }
+        contributed.forEach(builder::claim);
+    }
+
+    private static Map<String, @Nullable Object> copyClaims(Map<String, Object> claims) {
+        Map<String, @Nullable Object> copy = new LinkedHashMap<>();
+        claims.forEach((name, value) -> copy.put(name, copyClaimValue(value)));
+        return Collections.unmodifiableMap(copy);
+    }
+
+    private static @Nullable Object copyClaimValue(@Nullable Object value) {
+        if (value instanceof Date date) {
+            return new Date(date.getTime());
+        }
+        if (value instanceof List<?> list) {
+            List<@Nullable Object> copy = new ArrayList<>(list.size());
+            for (Object element : list) {
+                copy.add(copyClaimValue(element));
+            }
+            return Collections.unmodifiableList(copy);
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<Object, @Nullable Object> copy = new LinkedHashMap<>();
+            map.forEach((key, nested) -> copy.put(key, copyClaimValue(nested)));
+            return Collections.unmodifiableMap(copy);
+        }
+        return value;
     }
 
     private KeySet keySet() {
@@ -195,29 +346,14 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
             throw new IllegalArgumentException("JWT token purpose is not accepted");
         }
         requireAudience(claims.getAudience());
-        List<?> rawScopes = claims.getListClaim(SCOPES);
-        if (rawScopes == null) {
-            throw new IllegalArgumentException("JWT claims are missing scopes");
-        }
-        requireScopeCount(rawScopes.size());
-        LinkedHashSet<AuthorizationScope> scopes = new LinkedHashSet<>();
-        for (Object rawScope : rawScopes) {
-            if (!(rawScope instanceof String scopeName)) {
-                throw new IllegalArgumentException("JWT scope claim contains an invalid value");
-            }
-            requireScopeNameLength(scopeName);
-            if (!scopes.add(AuthorizationScope.of(scopeName))) {
-                throw new IllegalArgumentException("JWT scope claim contains a duplicate value");
-            }
-        }
         String subjectType = requireText(claims.getStringClaim(SUBJECT_TYPE), SUBJECT_TYPE);
         String subjectId = requireText(claims.getSubject(), "sub");
         String tokenId = requireText(claims.getJWTID(), "jti");
         Instant issuedAt = requireInstant(claims.getIssueTime(), "iat");
         Instant expiresAt = requireInstant(claims.getExpirationTime(), "exp");
         Instant now = clock.instant();
-        Instant skewedExpiration = expiresAt.plus(configuration.getClockSkew());
-        if (!skewedExpiration.isAfter(now)) {
+        Instant acceptanceDeadline = acceptanceDeadline(expiresAt);
+        if (!acceptanceDeadline.isAfter(now)) {
             throw new IllegalArgumentException("JWT has expired");
         }
         if (issuedAt.minus(configuration.getClockSkew()).isAfter(now)) {
@@ -236,12 +372,37 @@ public class JwtAccessTokenAdapter implements TokenIssuer, AccessTokenVerifier {
         return VerifiedAccessToken.of(
                 subjectType,
                 subjectId,
-                AuthorizationGrantSet.of(scopes),
+                resolveGrants(claims, new SimpleSubject(subjectType, subjectId)),
                 tokenId,
                 issuedAt,
-                expiresAt,
-                skewedExpiration
+                expiresAt
         );
+    }
+
+    private AuthorizationGrantSet resolveGrants(JWTClaimsSet claims, Subject subject) throws ParseException {
+        if (!claims.getClaims().containsKey(SCOPES)) {
+            return Objects.requireNonNull(missingScopesPolicy.resolve(subject), "missing scopes grants");
+        }
+        List<?> rawScopes = claims.getListClaim(SCOPES);
+        if (rawScopes == null) {
+            throw new IllegalArgumentException("JWT scope claim is invalid");
+        }
+        requireScopeCount(rawScopes.size());
+        LinkedHashSet<AuthorizationScope> scopes = new LinkedHashSet<>();
+        for (Object rawScope : rawScopes) {
+            if (!(rawScope instanceof String scopeName)) {
+                throw new IllegalArgumentException("JWT scope claim contains an invalid value");
+            }
+            requireScopeNameLength(scopeName);
+            if (!scopes.add(AuthorizationScope.of(scopeName))) {
+                throw new IllegalArgumentException("JWT scope claim contains a duplicate value");
+            }
+        }
+        return AuthorizationGrantSet.of(scopes);
+    }
+
+    private Instant acceptanceDeadline(Instant expiresAt) {
+        return Objects.requireNonNull(expiresAt, "expiresAt").plus(configuration.getClockSkew());
     }
 
     private List<String> scopeNames(Authentication authentication) {

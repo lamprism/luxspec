@@ -23,6 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class Argon2idPasswordSchemeTest {
     private static final Argon2idPasswordConfiguration TEST_PARAMETERS = new Argon2idPasswordConfiguration(
             8_192,

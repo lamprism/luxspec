@@ -32,6 +32,7 @@ import java.util.Objects;
  * a tombstone origin.</p>
  *
  * @param <T> the typed value
+ *
  * @author RollW
  */
 public interface ConfigValue<T> {

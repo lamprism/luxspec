@@ -25,6 +25,7 @@ import java.util.Objects;
  * translate this expression to an EXISTS subquery or an equivalent join.</p>
  *
  * @param <T> the related candidate type
+ *
  * @author RollW
  */
 public final class ExistsCondition<T> implements QueryExpression {

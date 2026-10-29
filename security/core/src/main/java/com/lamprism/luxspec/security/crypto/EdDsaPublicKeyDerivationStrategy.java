@@ -20,6 +20,10 @@ import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
 import org.bouncycastle.crypto.params.Ed448PrivateKeyParameters;
 
+/**
+ *
+ * @author RollW
+ */
 final class EdDsaPublicKeyDerivationStrategy extends AbstractPublicKeyDerivationStrategy {
     @Override
     protected DerivedPublicKey deriveParameters(

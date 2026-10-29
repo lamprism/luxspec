@@ -19,6 +19,10 @@ package com.lamprism.luxspec.observability.metric;
 import com.lamprism.luxspec.validation.Normalizer;
 import com.lamprism.luxspec.validation.Validator;
 
+/**
+ *
+ * @author RollW
+ */
 final class MetricTextNormalizer implements Normalizer<String> {
     static final MetricTextNormalizer INSTANCE = new MetricTextNormalizer();
     private static final Normalizer<String> DELEGATE = Normalizer.of(String::trim)

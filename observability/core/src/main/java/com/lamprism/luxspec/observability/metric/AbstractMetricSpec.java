@@ -28,6 +28,7 @@ import java.util.Objects;
  * Stores common metadata and binding validation for concrete metric specs.
  *
  * @param <M> the runtime metric type
+ *
  * @author RollW
  */
 abstract class AbstractMetricSpec<M extends Metric> implements MetricSpec<M> {

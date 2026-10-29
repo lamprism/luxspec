@@ -16,29 +16,51 @@
 
 package com.lamprism.luxspec.data.jpa;
 
+import com.lamprism.luxspec.data.pagination.KeysetPosition;
 import com.lamprism.luxspec.data.pagination.KeysetResult;
 import com.lamprism.luxspec.data.pagination.KeysetWindow;
 import com.lamprism.luxspec.data.pagination.PageResult;
 import com.lamprism.luxspec.data.pagination.PageWindow;
 import com.lamprism.luxspec.data.pagination.QueryResult;
+import com.lamprism.luxspec.data.pagination.QueryWindow;
 import com.lamprism.luxspec.data.pagination.SliceResult;
 import com.lamprism.luxspec.data.pagination.SliceWindow;
 import com.lamprism.luxspec.data.pagination.TimeSeriesWindow;
 import com.lamprism.luxspec.data.pagination.UnboundedWindow;
 import com.lamprism.luxspec.data.query.ComparisonCondition;
+import com.lamprism.luxspec.data.query.ExistsCondition;
 import com.lamprism.luxspec.data.query.LikeCondition;
 import com.lamprism.luxspec.data.query.OrderBy;
+import com.lamprism.luxspec.data.query.QueryAggregateDefinition;
+import com.lamprism.luxspec.data.query.QueryAggregateFunction;
+import com.lamprism.luxspec.data.query.QueryComplexityBudget;
 import com.lamprism.luxspec.data.query.QueryCondition;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryExpression;
+import com.lamprism.luxspec.data.query.QueryExpressionVisitor;
 import com.lamprism.luxspec.data.query.QueryField;
+import com.lamprism.luxspec.data.query.QueryFunction;
+import com.lamprism.luxspec.data.query.QueryFunctionDefinition;
+import com.lamprism.luxspec.data.query.QueryOperator;
+import com.lamprism.luxspec.data.query.QueryOperatorDefinition;
 import com.lamprism.luxspec.data.query.QueryPlan;
 import com.lamprism.luxspec.data.query.QueryProjection;
+import com.lamprism.luxspec.data.query.QueryRelation;
+import com.lamprism.luxspec.data.query.QuerySchema;
 import com.lamprism.luxspec.data.query.QueryValue;
 import com.lamprism.luxspec.data.query.QueryValueCondition;
+import com.lamprism.luxspec.data.query.QueryValueVisitor;
+import com.lamprism.luxspec.data.query.TimeSeriesAggregationFunction;
 import com.lamprism.luxspec.data.query.TimeSeriesBucket;
 import com.lamprism.luxspec.data.query.TimeSeriesPoint;
 import com.lamprism.luxspec.naming.CaseFormat;
+import com.lamprism.luxspec.observability.observation.ObservationHandler;
+import com.lamprism.luxspec.observability.observation.ObservationRegistry;
+import com.lamprism.luxspec.observability.observation.ObservationView;
+import com.lamprism.luxspec.observability.runtime.instrumentation.ObservabilityInstrumentation;
+import com.lamprism.luxspec.observability.runtime.observation.DatabaseObservationAttributes;
+import com.lamprism.luxspec.observability.runtime.observation.ObservationRegistryBuilder;
+import com.lamprism.luxspec.observability.runtime.observation.StandardObservationSet;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
@@ -54,18 +76,28 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class JpaCriteriaTranslatorIntegrationTest {
     private static final QueryField<String> NAME = QueryField.of("name", String.class);
+    private static final QueryField<Integer> NAME_LENGTH = QueryField.of("nameLength", Integer.class);
     private static final QueryField<String> CATEGORY = QueryField.of("category", String.class);
     private static final QueryField<Integer> SCORE = QueryField.of("score", Integer.class);
     private static final QueryField<String> OPTIONAL_VALUE = QueryField.of("optionalValue", String.class);
@@ -74,6 +106,27 @@ class JpaCriteriaTranslatorIntegrationTest {
 
     private EntityManagerFactory entityManagerFactory;
     private EntityManager entityManager;
+
+    @Test
+    void observesJpaQueryExecutionUsingBoundedAttributes() {
+        persistItems(new QueryableItemEntity("alpha", "active", 10));
+        AtomicReference<ObservationView> stopped = new AtomicReference<>();
+        ObservationHandler handler = new ObservationHandler() {
+            @Override
+            public void onStop(ObservationView view) {
+                stopped.set(view);
+            }
+        };
+        try (ObservationRegistry registry = ObservationRegistryBuilder.builder()
+                .set(StandardObservationSet.builder().domain(StandardObservationSet.Domain.DATABASE).build())
+                .handler(handler).build()) {
+            var observed = ObservabilityInstrumentation.queryExecutor(executor(), registry);
+            assertEquals(1, observed.query(QueryCriteria.empty(), UnboundedWindow.getInstance()).getItems().size());
+        }
+        assertEquals(DatabaseObservationAttributes.Operation.QUERY,
+                stopped.get().attributes().get(DatabaseObservationAttributes.OPERATION).orElseThrow());
+        assertEquals(1, stopped.get().attributes().values().size());
+    }
 
     @BeforeEach
     void openPersistenceContext() {
@@ -111,6 +164,25 @@ class JpaCriteriaTranslatorIntegrationTest {
         List<String> names = query(criteria).stream().map(QueryableItemEntity::name).toList();
 
         assertEquals(List.of("alicia", "adam"), names);
+    }
+
+    @Test
+    void resolvesAnApplicationDefinedDerivedFieldThroughCriteria() {
+        persistItems(new QueryableItemEntity("alpha", "active", 1), new QueryableItemEntity("beta", "active", 2));
+        QueryCriteria criteria = new QueryCriteria(QueryCondition.equal(NAME_LENGTH, 5), List.of());
+        QuerySchema.builder().add(NAME_LENGTH, Set.of(QueryOperator.EQUAL)).build()
+                .validate(criteria, QueryComplexityBudget.defaults());
+        JpaQueryFieldResolver<QueryableItemEntity> resolver = new JpaQueryFieldResolver<>() {
+            @Override
+            public <V> Expression<V> resolve(Root<QueryableItemEntity> root, QueryField<V> field) {
+                if (NAME_LENGTH.equals(field)) {
+                    return entityManager.getCriteriaBuilder().length(root.get("name")).as(field.getValueType());
+                }
+                return JpaQueryFieldResolver.<QueryableItemEntity>byAttributeName().resolve(root, field);
+            }
+        };
+
+        assertEquals(List.of("alpha"), query(criteria, resolver).stream().map(QueryableItemEntity::name).toList());
     }
 
     @Test
@@ -177,6 +249,133 @@ class JpaCriteriaTranslatorIntegrationTest {
         assertEquals(List.of(), notEqualNames);
         assertEquals(List.of(), notInNames);
         assertEquals(List.of("empty"), negatedEqualNames);
+    }
+
+    @Test
+    void appliesRegisteredCustomOperatorsInsideJpaExists() {
+        QueryableItemEntity matching = new QueryableItemEntity("alpha", "active", 1);
+        matching.addTag("administrator");
+        QueryableItemEntity nonMatching = new QueryableItemEntity("beta", "active", 2);
+        nonMatching.addTag("staff");
+        persistItems(matching, nonMatching);
+        QueryField<String> label = QueryField.of("label", String.class);
+        QueryRelation<QueryableTagEntity> tags = QueryRelation.toMany("tags", QueryableTagEntity.class);
+        QueryOperatorDefinition<String, Integer> minimum = QueryOperatorDefinition.of(
+                "minimumLength", String.class, Integer.class, 1, 1
+        );
+        QueryCriteria criteria = new QueryCriteria(
+                ExistsCondition.of(tags, QueryCondition.of(label, minimum, List.of(8))), List.of()
+        );
+        QuerySchema.builder().relation(tags, QuerySchema.builder().add(label, Set.of(minimum)).build())
+                .build().validate(criteria, QueryComplexityBudget.defaults());
+        JpaCriteriaTranslator translator = JpaCriteriaTranslator.builder()
+                .operator(minimum, (builder, value, arguments) -> builder.and(builder.isNotNull(value),
+                        builder.greaterThanOrEqualTo(builder.length(value), arguments.get(0))))
+                .build();
+        JpaQueryExecutor<QueryableItemEntity> executor = new JpaQueryExecutor<>(
+                entityManager, QueryableItemEntity.class, translator, JpaQueryFieldResolver.byAttributeName()
+        );
+
+        assertEquals(List.of("alpha"), executor.query(criteria, UnboundedWindow.getInstance())
+                .getItems().stream().map(QueryableItemEntity::name).toList());
+        assertThrows(IllegalArgumentException.class,
+                () -> executor().query(criteria, UnboundedWindow.getInstance()));
+    }
+
+    @Test
+    void executesRegisteredCustomOperatorsAgainstJpa() {
+        persistItems(new QueryableItemEntity("alpha", "active", 1, (String) null),
+                new QueryableItemEntity("be", "active", 2, "present"));
+        QueryOperatorDefinition<String, Integer> minimum = QueryOperatorDefinition.of(
+                "minimumLength", String.class, Integer.class, 1, 1
+        );
+        QueryOperatorDefinition<String, Void> absent = QueryOperatorDefinition.of("absent", String.class, Void.class, 0, 0);
+        QuerySchema schema = QuerySchema.builder()
+                .add(NAME, Set.of(minimum), false, Set.of(QueryFunction.LOWER))
+                .add(OPTIONAL_VALUE, Set.of(absent, minimum))
+                .build();
+        JpaCriteriaTranslator translator = JpaCriteriaTranslator.builder()
+                .operator(minimum, (builder, value, arguments) ->
+                        builder.and(builder.isNotNull(value),
+                                builder.greaterThanOrEqualTo(builder.length(value), arguments.get(0))))
+                .operator(absent, (builder, value, arguments) -> builder.isNull(value))
+                .build();
+        JpaQueryExecutor<QueryableItemEntity> executor = new JpaQueryExecutor<>(
+                entityManager, QueryableItemEntity.class, translator, JpaQueryFieldResolver.byAttributeName()
+        );
+        QueryCriteria criteria = new QueryCriteria(QueryExpression.and(List.of(
+                QueryValueCondition.of(QueryValue.lower(NAME), minimum, List.of(4)),
+                QueryCondition.of(OPTIONAL_VALUE, absent, List.of())
+        )), List.of());
+
+        schema.validate(criteria, QueryComplexityBudget.defaults());
+        assertEquals(List.of("alpha"), executor.query(criteria, UnboundedWindow.getInstance())
+                .getItems().stream().map(QueryableItemEntity::name).toList());
+        assertThrows(IllegalArgumentException.class,
+                () -> executor().query(criteria, UnboundedWindow.getInstance()));
+        QueryCriteria negated = new QueryCriteria(
+                QueryExpression.not(QueryCondition.of(OPTIONAL_VALUE, minimum, List.of(4))), List.of()
+        );
+        schema.validate(negated, QueryComplexityBudget.defaults());
+        assertEquals(List.of("alpha"), executor.query(negated, UnboundedWindow.getInstance())
+                .getItems().stream().map(QueryableItemEntity::name).toList());
+
+        QueryOperatorDefinition<Long, Long> minimumCount = QueryOperatorDefinition.of(
+                "minimumCount", Long.class, Long.class, 1, 1
+        );
+        JpaQueryExecutor<QueryableItemEntity> aggregateExecutor = new JpaQueryExecutor<>(
+                entityManager, QueryableItemEntity.class,
+                JpaCriteriaTranslator.builder().operator(minimumCount,
+                        (builder, value, arguments) -> builder.greaterThanOrEqualTo(value, arguments.get(0))).build(),
+                JpaQueryFieldResolver.byAttributeName()
+        );
+        QueryPlan<Long> plan = QueryPlan.builder(QueryValue.count())
+                .having(QueryValueCondition.of(QueryValue.count(), minimumCount, List.of(2L))).build();
+        QuerySchema.builder().operator(minimumCount).build().validate(plan, QueryComplexityBudget.defaults());
+        assertEquals(List.of(2L), aggregateExecutor.query(plan, UnboundedWindow.getInstance()).getItems());
+    }
+
+    @Test
+    void translatesRegisteredNestedFunctionsAndRejectsMissingImplementations() {
+        persistItems(new QueryableItemEntity("  alpha ", "active", 1),
+                new QueryableItemEntity("beta", "active", 2));
+        QueryFunctionDefinition<String> trim = QueryFunctionDefinition.of("trim", String.class, String.class);
+        QueryValue<String> normalized = QueryValue.upper(QueryValue.function(trim, QueryValue.field(NAME)));
+        QueryCriteria criteria = new QueryCriteria(QueryValueCondition.equal(normalized, "ALPHA"), List.of());
+        QuerySchema.builder()
+                .add(NAME, Set.of(QueryOperator.EQUAL), false, Set.of(QueryFunction.UPPER))
+                .function(trim, Set.of(NAME))
+                .build()
+                .validate(criteria, QueryComplexityBudget.defaults());
+        JpaCriteriaTranslator translator = JpaCriteriaTranslator.builder()
+                .function(trim, (builder, arguments) -> builder.trim(arguments.get(0).as(String.class)))
+                .build();
+        JpaQueryExecutor<QueryableItemEntity> customExecutor = new JpaQueryExecutor<>(
+                entityManager, QueryableItemEntity.class, translator, JpaQueryFieldResolver.byAttributeName()
+        );
+
+        assertEquals(List.of("  alpha "), customExecutor.query(criteria, UnboundedWindow.getInstance())
+                .getItems().stream().map(QueryableItemEntity::name).toList());
+        assertThrows(IllegalArgumentException.class,
+                () -> executor().query(criteria, UnboundedWindow.getInstance()));
+
+        QueryPlan<Long> aggregate = QueryPlan.builder(QueryValue.count(QueryValue.function(trim, QueryValue.field(NAME))))
+                .build();
+        QuerySchema.builder()
+                .add(NAME, Set.of(QueryOperator.EQUAL), false, Set.of(), Set.of(QueryAggregateFunction.COUNT))
+                .function(trim, Set.of(NAME)).build().validate(aggregate, QueryComplexityBudget.defaults());
+        assertEquals(List.of(2L), customExecutor.query(aggregate, UnboundedWindow.getInstance()).getItems());
+
+        QueryFunctionDefinition<Long> identity = QueryFunctionDefinition.of("identity", Long.class, Long.class);
+        JpaCriteriaTranslator aggregateTranslator = JpaCriteriaTranslator.builder()
+                .function(identity, (builder, arguments) -> arguments.get(0).as(Long.class)).build();
+        JpaQueryExecutor<QueryableItemEntity> aggregateExecutor = new JpaQueryExecutor<>(
+                entityManager, QueryableItemEntity.class, aggregateTranslator, JpaQueryFieldResolver.byAttributeName()
+        );
+        QueryPlan<Long> wrappedAggregate = QueryPlan.builder(QueryValue.function(identity, QueryValue.count())).build();
+        QuerySchema.builder().function(identity, Set.of()).build()
+                .validate(wrappedAggregate, QueryComplexityBudget.defaults());
+        assertEquals(List.of(2L), aggregateExecutor.query(wrappedAggregate, UnboundedWindow.getInstance()).getItems());
     }
 
     @Test
@@ -259,6 +458,74 @@ class JpaCriteriaTranslatorIntegrationTest {
         assertTrue(first.hasNext());
         assertFalse(second.hasNext());
         assertEquals(List.of(2, "bravo"), first.nextPosition().values());
+    }
+
+    @Test
+    void ordersNullsConsistentlyWithTheInMemoryExecutor() {
+        persistItems(new QueryableItemEntity("null2", "active", 1),
+                new QueryableItemEntity("b", "active", 1, "b"),
+                new QueryableItemEntity("null1", "active", 1),
+                new QueryableItemEntity("a", "active", 1, "a"));
+        QueryCriteria criteria = new QueryCriteria(QueryExpression.all(),
+                List.of(OrderBy.ascending(OPTIONAL_VALUE), OrderBy.ascending(NAME)));
+
+        assertEquals(List.of("a", "b", "null1", "null2"), names(executor().query(criteria, UnboundedWindow.getInstance())));
+    }
+
+    @Test
+    void continuesKeysetsAcrossNullOrderValues() {
+        persistItems(new QueryableItemEntity("null2", "active", 1),
+                new QueryableItemEntity("b", "active", 1, "b"),
+                new QueryableItemEntity("null1", "active", 1),
+                new QueryableItemEntity("a", "active", 1, "a"));
+        QueryCriteria criteria = new QueryCriteria(QueryExpression.all(),
+                List.of(OrderBy.ascending(OPTIONAL_VALUE), OrderBy.ascending(NAME)));
+        KeysetResult<QueryableItemEntity> first = (KeysetResult<QueryableItemEntity>) executor().query(criteria, new KeysetWindow(2));
+        KeysetResult<QueryableItemEntity> second = (KeysetResult<QueryableItemEntity>) executor().query(criteria, new KeysetWindow(1, first.nextPosition()));
+        KeysetResult<QueryableItemEntity> third = (KeysetResult<QueryableItemEntity>) executor().query(criteria, new KeysetWindow(1, second.nextPosition()));
+
+        assertEquals(List.of("a", "b"), names(first));
+        assertEquals(List.of("null1"), names(second));
+        assertEquals(List.of("null2"), names(third));
+        assertNull(third.nextPosition());
+    }
+
+    @Test
+    void appliesEachNullPlacementToOrderingAndKeysetProjections() {
+        persistItems(new QueryableItemEntity("null2", "active", 1),
+                new QueryableItemEntity("b", "active", 1, "b"),
+                new QueryableItemEntity("null1", "active", 1),
+                new QueryableItemEntity("a", "active", 1, "a"));
+        for (OrderBy.Direction direction : OrderBy.Direction.values()) {
+            for (OrderBy.NullPlacement placement : OrderBy.NullPlacement.values()) {
+                QueryCriteria criteria = new QueryCriteria(QueryExpression.all(),
+                        List.of(new OrderBy<>(OPTIONAL_VALUE, direction, placement), OrderBy.ascending(NAME)));
+                List<String> nonNull = direction == OrderBy.Direction.ASCENDING ? List.of("a", "b") : List.of("b", "a");
+                List<String> expected = new ArrayList<>();
+                if (placement == OrderBy.NullPlacement.FIRST) {
+                    expected.addAll(List.of("null1", "null2"));
+                }
+                expected.addAll(nonNull);
+                if (placement == OrderBy.NullPlacement.LAST) {
+                    expected.addAll(List.of("null1", "null2"));
+                }
+                assertEquals(expected, names(executor().query(criteria, UnboundedWindow.getInstance())));
+                QueryPlan<String> plan = QueryPlan.builder(QueryValue.field(NAME)).criteria(criteria).build();
+                List<String> paged = new ArrayList<>();
+                KeysetPosition position = null;
+                for (int index = 0; index < expected.size(); index++) {
+                    KeysetResult<String> page = (KeysetResult<String>) executor().query(plan, new KeysetWindow(1, position));
+                    paged.addAll(page.getItems());
+                    position = page.nextPosition();
+                    if (index < expected.size() - 1) {
+                        assertNotNull(position);
+                    } else {
+                        assertNull(position);
+                    }
+                }
+                assertEquals(expected, paged);
+            }
+        }
     }
 
     @Test
@@ -396,6 +663,74 @@ class JpaCriteriaTranslatorIntegrationTest {
     }
 
     @Test
+    void preservesNullableProjectionValuesAndSqlAggregateSemantics() {
+        persistItems(new QueryableItemEntity("alpha", "active", 1, (String) null),
+                new QueryableItemEntity("beta", "active", 2, "same"),
+                new QueryableItemEntity("gamma", "active", 3, "same"));
+        QueryPlan<List<Object>> aggregate = QueryPlan.builder(QueryProjection.of(List.of(
+                QueryValue.count(QueryValue.field(OPTIONAL_VALUE)),
+                QueryValue.countDistinct(QueryValue.field(OPTIONAL_VALUE))
+        ), List::copyOf)).build();
+        QueryPlan<String> projection = QueryPlan.builder(QueryProjection.of(List.of(QueryValue.field(OPTIONAL_VALUE)),
+                        values -> values.get(0) == null ? "absent" : values.get(0).toString()))
+                .criteria(new QueryCriteria(QueryExpression.all(), List.of(OrderBy.ascending(NAME))))
+                .build();
+
+        assertEquals(List.of(List.of(2L, 1L)), executor().query(aggregate, UnboundedWindow.getInstance()).getItems());
+        assertEquals(List.of("absent", "same", "same"),
+                executor().query(projection, UnboundedWindow.getInstance()).getItems());
+        QueryPlan<Optional<String>> optional = QueryPlan.builder(
+                        QueryProjection.optional(QueryValue.field(OPTIONAL_VALUE)))
+                .criteria(new QueryCriteria(QueryExpression.all(), List.of(OrderBy.ascending(NAME))))
+                .build();
+        assertEquals(List.of(Optional.empty(), Optional.of("same"), Optional.of("same")),
+                executor().query(optional, UnboundedWindow.getInstance()).getItems());
+        QueryPlan<Optional<BigDecimal>> emptySum = QueryPlan.builder(
+                        QueryProjection.optional(QueryValue.sum(QueryValue.field(SCORE))))
+                .criteria(new QueryCriteria(QueryCondition.equal(NAME, "none"), List.of())).build();
+        assertEquals(List.of(Optional.empty()), executor().query(emptySum, UnboundedWindow.getInstance()).getItems());
+    }
+
+    @Test
+    void executesApplicationAggregatesWithTypedOperandsAndHaving() {
+        persistItems(new QueryableItemEntity("alpha", "active", 2),
+                new QueryableItemEntity("beta", "active", 3));
+        QueryAggregateDefinition<Long> squares = QueryAggregateDefinition.of(
+                "sumSquares", Long.class, Integer.class, Integer.class
+        );
+        QueryValue<Long> value = QueryValue.aggregate(squares, QueryValue.field(SCORE), QueryValue.field(SCORE));
+        QueryPlan<Long> plan = QueryPlan.builder(value).having(QueryValueCondition.greaterThan(value, 10L)).build();
+        QuerySchema.builder().add(SCORE, Set.of(QueryOperator.GREATER_THAN), false, Set.of(), Set.of(squares))
+                .build().validate(plan, QueryComplexityBudget.defaults());
+        JpaCriteriaTranslator translator = JpaCriteriaTranslator.builder().aggregate(squares,
+                (builder, source, arguments) -> builder.sum(builder.prod(
+                        arguments.get(0).as(Long.class), arguments.get(1).as(Long.class)
+                ))).build();
+        JpaQueryExecutor<QueryableItemEntity> custom = new JpaQueryExecutor<>(
+                entityManager, QueryableItemEntity.class, translator, JpaQueryFieldResolver.byAttributeName()
+        );
+
+        assertEquals(List.of(13L), custom.query(plan, UnboundedWindow.getInstance()).getItems());
+        assertThrows(IllegalArgumentException.class, () -> executor().query(plan, UnboundedWindow.getInstance()));
+    }
+
+    @Test
+    void rejectsApplicationOwnedShapesWithoutACustomJpaExecutor() {
+        assertThrows(IllegalArgumentException.class, () -> executor().query(QueryCriteria.empty(), new CustomWindow()));
+        assertThrows(IllegalArgumentException.class,
+                () -> executor().query(new CustomPlan(), UnboundedWindow.getInstance()));
+    }
+
+    @Test
+    void rejectsApplicationNodesEvenWhenTheyDispatchAsBuiltInNodes() {
+        QueryCriteria criteria = new QueryCriteria(new CustomExpression(), List.of());
+        QueryPlan<Integer> plan = QueryPlan.builder(new CustomValue()).build();
+
+        assertThrows(IllegalArgumentException.class, () -> executor().query(criteria, UnboundedWindow.getInstance()));
+        assertThrows(IllegalArgumentException.class, () -> executor().query(plan, UnboundedWindow.getInstance()));
+    }
+
+    @Test
     void executesTimeSeriesAggregationAndResamplingThroughJpa() {
         Instant first = Instant.parse("2026-01-01T00:00:00Z");
         persistItems(
@@ -424,8 +759,81 @@ class JpaCriteriaTranslatorIntegrationTest {
         );
     }
 
+    @Test
+    void executesApplicationTimeSeriesStrategiesAgainstJpa() {
+        Instant january = Instant.parse("2026-01-31T12:00:00Z");
+        Instant february = Instant.parse("2026-02-02T12:00:00Z");
+        persistItems(new QueryableItemEntity("alpha", "active", 2, january),
+                new QueryableItemEntity("beta", "active", 3, february));
+        TimeSeriesBucket months = timestamp -> timestamp.atZone(ZoneOffset.UTC).toLocalDate()
+                .withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        TimeSeriesAggregationFunction squares = (values, hasValue) -> {
+            long total = 0;
+            for (Object value : values) {
+                if (value != null) {
+                    total += (long) (Integer) value * (Integer) value;
+                }
+            }
+            return total;
+        };
+        QueryPlan<TimeSeriesPoint<Long>> plan = QueryPlan.timeSeries(
+                Long.class, QueryValue.field(TimeSeriesPoint.TIMESTAMP), QueryValue.field(SCORE), squares, months
+        ).build();
+        QuerySchema.builder().add(TimeSeriesPoint.TIMESTAMP, Set.of(QueryOperator.EQUAL))
+                .add(SCORE, Set.of(QueryOperator.EQUAL)).timeSeriesAggregation(squares, Set.of(SCORE))
+                .build().validate(plan, QueryComplexityBudget.defaults());
+
+        assertEquals(List.of(new TimeSeriesPoint<>(Instant.parse("2026-01-01T00:00:00Z"), 4L),
+                        new TimeSeriesPoint<>(Instant.parse("2026-02-01T00:00:00Z"), 9L)),
+                executor().query(plan, new TimeSeriesWindow(january, february, 10)).getItems());
+    }
+
+    @Test
+    void reducesTimeSeriesValuesInTimestampOrder() {
+        Instant start = Instant.parse("2026-01-01T00:00:00Z");
+        persistItems(new QueryableItemEntity("late", "active", 9, start.plusSeconds(120)),
+                new QueryableItemEntity("early", "active", 2, start.plusSeconds(60)));
+        TimeSeriesAggregationFunction last = (values, hasValue) -> values.get(values.size() - 1);
+        QueryPlan<TimeSeriesPoint<Integer>> plan = QueryPlan.timeSeries(
+                Integer.class, QueryValue.field(TimeSeriesPoint.TIMESTAMP), QueryValue.field(SCORE), last,
+                TimeSeriesBucket.of(Duration.ofHours(1), start)
+        ).build();
+
+        assertEquals(List.of(new TimeSeriesPoint<>(start, 9)),
+                executor().query(plan, new TimeSeriesWindow(start, start.plusSeconds(3_600), 10)).getItems());
+    }
+
     private List<QueryableItemEntity> query(QueryCriteria criteria) {
         return executor().query(criteria, UnboundedWindow.getInstance()).getItems();
+    }
+
+    private static final class CustomWindow implements QueryWindow {
+    }
+
+    private static final class CustomExpression implements QueryExpression {
+        @Override
+        public <R> R accept(QueryExpressionVisitor<R> visitor) {
+            return visitor.visitMatchAll();
+        }
+    }
+
+    private static final class CustomValue implements QueryValue<Integer> {
+        @Override
+        public Class<Integer> getValueType() {
+            return Integer.class;
+        }
+
+        @Override
+        public <R> R accept(QueryValueVisitor<R> visitor) {
+            return QueryValue.literal(1).accept(visitor);
+        }
+    }
+
+    private static final class CustomPlan implements QueryPlan<String> {
+        @Override
+        public QueryCriteria getCriteria() {
+            return QueryCriteria.empty();
+        }
     }
 
     private List<QueryableItemEntity> query(
@@ -462,7 +870,29 @@ class JpaCriteriaTranslatorIntegrationTest {
         entityManager.clear();
     }
 
-    private record GroupSummary(String category, long count, BigDecimal totalScore) {
+    private static final class GroupSummary {
+        private final String category;
+        private final long count;
+        private final BigDecimal totalScore;
+
+        private GroupSummary(String category, long count, BigDecimal totalScore) {
+            this.category = category;
+            this.count = count;
+            this.totalScore = totalScore;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof GroupSummary summary)) {
+                return false;
+            }
+            return count == summary.count && category.equals(summary.category) && totalScore.equals(summary.totalScore);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(category, count, totalScore);
+        }
     }
 
     private static final class ItemFieldResolver implements JpaQueryFieldResolver<QueryableItemEntity> {

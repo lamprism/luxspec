@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.security.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
 import com.lamprism.luxspec.security.authentication.Subject;
 import org.jspecify.annotations.Nullable;
 
@@ -53,7 +54,7 @@ public interface FirewallRequest {
      *
      * @return the normalized client address
      */
-    default @Nullable String getClientAddress() {
+    default @Nullable IpAddress getClientAddress() {
         return null;
     }
 

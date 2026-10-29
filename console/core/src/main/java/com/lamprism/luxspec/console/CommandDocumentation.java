@@ -132,8 +132,6 @@ public final class CommandDocumentation {
 
     /**
      * One Help example and its optional explanation.
-     *
-     * @author RollW
      */
     public static final class Example {
         private final String invocation;

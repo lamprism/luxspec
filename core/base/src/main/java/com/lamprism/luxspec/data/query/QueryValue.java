@@ -19,21 +19,29 @@ package com.lamprism.luxspec.data.query;
 import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A typed value expression that may be used by a {@link QueryValueCondition}.
  *
- * <p>Only fields, literals, the closed {@link QueryFunction} set, and typed casts can be
- * represented. This keeps provider adapters in control of their expression mapping without
- * accepting arbitrary function names or SQL fragments from a caller.</p>
+ * <p>Application functions use typed {@link QueryFunctionDefinition} identities. Query schemas and
+ * executors separately authorize and implement those identities; a function name is never an SQL
+ * fragment.</p>
+ *
+ * <p>Application-owned executors may interpret additional value nodes. The standard schema and
+ * executors reject nodes outside the built-in model.</p>
  *
  * @param <T> the expression result type
+ *
  * @author RollW
  */
-public sealed interface QueryValue<T>
-        permits QueryValue.Field, QueryValue.Literal, QueryValue.Function, QueryValue.Cast, QueryValue.Aggregate {
+public interface QueryValue<T> {
     /**
      * Wraps a typed query field.
      *
@@ -117,6 +125,18 @@ public sealed interface QueryValue<T>
     }
 
     /**
+     * Applies an application-owned typed function definition.
+     *
+     * @param definition the function identity and signature
+     * @param arguments  the ordered argument expressions
+     * @param <T>        the result type
+     * @return the function value expression
+     */
+    static <T> QueryValue<T> function(QueryFunctionDefinition<T> definition, QueryValue<?>... arguments) {
+        return new CustomFunction<>(definition, List.of(Objects.requireNonNull(arguments, "arguments")));
+    }
+
+    /**
      * Creates a two-value first-non-null expression.
      *
      * @param value    the primary expression
@@ -189,7 +209,21 @@ public sealed interface QueryValue<T>
      * @return the count aggregate
      */
     static QueryValue<Long> count() {
-        return new Aggregate<>(QueryAggregateFunction.COUNT, Long.class, null);
+        return aggregate(QueryAggregateFunction.COUNT, Long.class, null);
+    }
+
+    /**
+     * Creates an application-defined aggregate over the supplied scalar expressions.
+     *
+     * @param definition the typed aggregate identity
+     * @param arguments  the ordered per-row operand expressions
+     * @param <T>        the aggregate result type
+     * @return the aggregate value
+     */
+    static <T> QueryValue<T> aggregate(QueryAggregateDefinition<T> definition, QueryValue<?>... arguments) {
+        QueryAggregateDefinition<T> nonNullDefinition = Objects.requireNonNull(definition, "definition");
+        return new Aggregate<>(nonNullDefinition, nonNullDefinition.getResultType(),
+                List.of(Objects.requireNonNull(arguments, "arguments")));
     }
 
     /**
@@ -200,7 +234,7 @@ public sealed interface QueryValue<T>
      * @return the count aggregate
      */
     static <T> QueryValue<Long> count(QueryValue<T> value) {
-        return aggregate(QueryAggregateFunction.COUNT, Long.class, value);
+        return aggregate(QueryAggregateFunction.COUNT, Long.class, Objects.requireNonNull(value, "value"));
     }
 
     /**
@@ -266,37 +300,62 @@ public sealed interface QueryValue<T>
     Class<T> getValueType();
 
     /**
-     * Reports whether this expression contains an aggregate node.
+     * Reports whether a built-in value expression contains an aggregate node.
+     *
+     * <p>Application-owned nodes are not traversed and require their own validation.</p>
      *
      * @param value the value expression to inspect
-     * @return true when the expression contains an aggregate
+     * @return true when a built-in node contains an aggregate
      */
     static boolean containsAggregate(QueryValue<?> value) {
-        QueryValue<?> nonNullValue = Objects.requireNonNull(value, "value");
-        if (nonNullValue instanceof QueryValue.Aggregate<?>) {
-            return true;
-        }
-        if (nonNullValue instanceof QueryValue.Function<?> function) {
-            for (QueryValue<?> argument : function.getArguments()) {
-                if (containsAggregate(argument)) {
-                    return true;
-                }
+        Deque<QueryValue<?>> pending = new ArrayDeque<>();
+        Set<QueryValue<?>> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        pending.push(Objects.requireNonNull(value, "value"));
+        while (!pending.isEmpty()) {
+            QueryValue<?> current = pending.pop();
+            if (!visited.add(current)) {
+                continue;
             }
-        }
-        if (nonNullValue instanceof QueryValue.Cast<?> cast) {
-            return containsAggregate(cast.getOperand());
+            if (current instanceof QueryValue.Aggregate<?>) {
+                return true;
+            }
+            if (current instanceof QueryValue.Function<?> function) {
+                pending.addAll(function.getArguments());
+            } else if (current instanceof QueryValue.CustomFunction<?> function) {
+                pending.addAll(function.getArguments());
+            } else if (current instanceof QueryValue.Cast<?> cast) {
+                pending.push(cast.getOperand());
+            }
         }
         return false;
     }
 
     /**
+     * Reports whether a node belongs to the standard value model.
+     *
+     * @param value the value node to inspect
+     * @return true for a built-in node
+     */
+    static boolean isBuiltIn(QueryValue<?> value) {
+        QueryValue<?> node = Objects.requireNonNull(value, "value");
+        return node instanceof Field<?> || node instanceof Literal<?> || node instanceof Function<?>
+                || node instanceof CustomFunction<?> || node instanceof Cast<?> || node instanceof Aggregate<?>;
+    }
+
+    /**
      * Dispatches this value to a typed visitor.
+     *
+     * <p>Application-owned nodes may use their own dispatch protocol. The default rejects the
+     * built-in visitor because it does not define application-specific operations.</p>
      *
      * @param visitor the value visitor
      * @param <R>     the visitor result type
      * @return the visitor result
      */
-    <R> R accept(QueryValueVisitor<R> visitor);
+    default <R> R accept(QueryValueVisitor<R> visitor) {
+        Objects.requireNonNull(visitor, "visitor");
+        throw new UnsupportedOperationException("Application query value does not support the standard visitor");
+    }
 
     private static <T> Class<T> requireReferenceType(Class<T> type, String name) {
         Class<T> nonNullType = Objects.requireNonNull(type, name);
@@ -315,11 +374,11 @@ public sealed interface QueryValue<T>
     }
 
     private static <T> QueryValue<T> aggregate(
-            QueryAggregateFunction function,
+            QueryAggregateFunction.Standard function,
             Class<T> valueType,
             @Nullable QueryValue<?> value
     ) {
-        return new Aggregate<>(function, valueType, value);
+        return new Aggregate<>(function, valueType, value == null ? List.of() : List.of(value));
     }
 
     /**
@@ -461,6 +520,54 @@ public sealed interface QueryValue<T>
     }
 
     /**
+     * A value produced by an application-owned function definition.
+     *
+     * @param <T> the result type
+     */
+    final class CustomFunction<T> implements QueryValue<T> {
+        private final QueryFunctionDefinition<T> definition;
+        private final List<QueryValue<?>> arguments;
+
+        private CustomFunction(QueryFunctionDefinition<T> definition, List<QueryValue<?>> arguments) {
+            this.definition = Objects.requireNonNull(definition, "definition");
+            this.arguments = List.copyOf(arguments);
+            List<Class<?>> types = definition.getArgumentTypes();
+            if (types.size() != this.arguments.size()) {
+                throw new IllegalArgumentException("Query function argument count does not match its signature");
+            }
+            for (int index = 0; index < types.size(); index++) {
+                if (!types.get(index).isAssignableFrom(this.arguments.get(index).getValueType())) {
+                    throw new IllegalArgumentException("Query function argument type does not match its signature");
+                }
+            }
+        }
+
+        /**
+         * @return the registered function definition
+         */
+        public QueryFunctionDefinition<T> getDefinition() {
+            return definition;
+        }
+
+        /**
+         * @return the immutable ordered argument expressions
+         */
+        public List<QueryValue<?>> getArguments() {
+            return arguments;
+        }
+
+        @Override
+        public Class<T> getValueType() {
+            return definition.getResultType();
+        }
+
+        @Override
+        public <R> R accept(QueryValueVisitor<R> visitor) {
+            return Objects.requireNonNull(visitor, "visitor").visitCustomFunction(this);
+        }
+    }
+
+    /**
      * A typed cast of another value expression.
      *
      * @param <T> the target type
@@ -504,26 +611,46 @@ public sealed interface QueryValue<T>
     }
 
     /**
-     * An allowlisted aggregate value.
+     * A standard or application-defined aggregate value.
      *
      * @param <T> the aggregate result type
      */
     final class Aggregate<T> implements QueryValue<T> {
         private final QueryAggregateFunction function;
         private final Class<T> valueType;
-        private final @Nullable QueryValue<?> operand;
+        private final List<QueryValue<?>> arguments;
 
         private Aggregate(
                 QueryAggregateFunction function,
                 Class<T> valueType,
-                @Nullable QueryValue<?> operand
+                List<QueryValue<?>> arguments
         ) {
             this.function = Objects.requireNonNull(function, "function");
             this.valueType = requireReferenceType(valueType, "valueType");
-            if (function == QueryAggregateFunction.COUNT && operand == null) {
-                this.operand = null;
+            this.arguments = List.copyOf(Objects.requireNonNull(arguments, "arguments"));
+            if (function instanceof QueryAggregateFunction.Standard standard) {
+                if ((standard == QueryAggregateFunction.COUNT && this.arguments.size() > 1)
+                        || (standard != QueryAggregateFunction.COUNT && this.arguments.size() != 1)) {
+                    throw new IllegalArgumentException("Invalid standard aggregate operand count");
+                }
+            } else if (function instanceof QueryAggregateDefinition<?> definition) {
+                List<Class<?>> types = List.copyOf(definition.getArgumentTypes());
+                if (!valueType.equals(definition.getResultType()) || types.size() != this.arguments.size()) {
+                    throw new IllegalArgumentException("Aggregate signature does not match its operands");
+                }
+                for (int index = 0; index < types.size(); index++) {
+                    Class<?> type = requireReferenceType(types.get(index), "aggregate argument type");
+                    if (!type.isAssignableFrom(this.arguments.get(index).getValueType())) {
+                        throw new IllegalArgumentException("Aggregate operand type does not match its signature");
+                    }
+                }
             } else {
-                this.operand = Objects.requireNonNull(operand, "operand");
+                throw new IllegalArgumentException("Aggregate must use a typed definition");
+            }
+            for (QueryValue<?> argument : this.arguments) {
+                if (containsAggregate(argument)) {
+                    throw new IllegalArgumentException("Aggregate operands must not contain aggregates");
+                }
             }
         }
 
@@ -537,12 +664,12 @@ public sealed interface QueryValue<T>
         }
 
         /**
-         * Returns the optional aggregate operand.
+         * Returns the ordered per-row operand expressions.
          *
-         * @return the operand, or null for row count
+         * @return the immutable operands, which are empty for a row-only aggregate
          */
-        public @Nullable QueryValue<?> getOperand() {
-            return operand;
+        public List<QueryValue<?>> getArguments() {
+            return arguments;
         }
 
         @Override

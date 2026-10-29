@@ -17,33 +17,66 @@
 package com.lamprism.luxspec.data.query;
 
 /**
- * The closed set of aggregate operations supported by provider adapters.
+ * Identifies a group aggregate operation.
+ *
+ * <p>Applications can define additional typed aggregates using
+ * {@link QueryAggregateDefinition} and register their implementations with query adapters.</p>
  *
  * @author RollW
  */
-public enum QueryAggregateFunction {
+public interface QueryAggregateFunction {
     /**
      * Counts rows or non-null values.
      */
-    COUNT,
+    Standard COUNT = Standard.COUNT;
     /**
      * Counts distinct non-null values.
      */
-    COUNT_DISTINCT,
+    Standard COUNT_DISTINCT = Standard.COUNT_DISTINCT;
     /**
-     * Sums numeric values.
+     * Sums non-null numeric values.
      */
-    SUM,
+    Standard SUM = Standard.SUM;
     /**
-     * Calculates the arithmetic average of numeric values.
+     * Averages non-null numeric values.
      */
-    AVERAGE,
+    Standard AVERAGE = Standard.AVERAGE;
     /**
-     * Selects the lowest comparable value.
+     * Selects the lowest non-null value.
      */
-    MIN,
+    Standard MIN = Standard.MIN;
     /**
-     * Selects the highest comparable value.
+     * Selects the highest non-null value.
      */
-    MAX
+    Standard MAX = Standard.MAX;
+
+    /**
+     * Standard aggregate operations supported by the built-in adapters.
+     */
+    enum Standard implements QueryAggregateFunction {
+        /**
+         * Counts rows or non-null values.
+         */
+        COUNT,
+        /**
+         * Counts distinct non-null values.
+         */
+        COUNT_DISTINCT,
+        /**
+         * Sums non-null numeric values.
+         */
+        SUM,
+        /**
+         * Averages non-null numeric values.
+         */
+        AVERAGE,
+        /**
+         * Selects the lowest non-null value.
+         */
+        MIN,
+        /**
+         * Selects the highest non-null value.
+         */
+        MAX
+    }
 }

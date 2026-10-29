@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.security.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
+
 import java.util.Objects;
 
 /**
@@ -26,7 +28,7 @@ import java.util.Objects;
 public final class IngressRequest implements FirewallRequest {
     private final String method;
     private final String path;
-    private final String clientAddress;
+    private final IpAddress clientAddress;
 
     /**
      * Creates immutable ingress facts supplied by a trusted boundary adapter.
@@ -35,10 +37,10 @@ public final class IngressRequest implements FirewallRequest {
      * @param path          the request path
      * @param clientAddress the normalized client address
      */
-    public IngressRequest(String method, String path, String clientAddress) {
+    public IngressRequest(String method, String path, IpAddress clientAddress) {
         this.method = requireText(method, "method");
         this.path = requireText(path, "path");
-        this.clientAddress = requireText(clientAddress, "clientAddress");
+        this.clientAddress = Objects.requireNonNull(clientAddress, "clientAddress");
     }
 
     /**
@@ -67,7 +69,7 @@ public final class IngressRequest implements FirewallRequest {
      * @return the client address
      */
     @Override
-    public String getClientAddress() {
+    public IpAddress getClientAddress() {
         return clientAddress;
     }
 

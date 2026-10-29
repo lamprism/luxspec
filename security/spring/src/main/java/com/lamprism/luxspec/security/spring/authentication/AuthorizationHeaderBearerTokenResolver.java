@@ -31,7 +31,7 @@ import java.util.Optional;
  *
  * @author RollW
  */
-public class AuthorizationHeaderBearerTokenResolver {
+public class AuthorizationHeaderBearerTokenResolver implements BearerTokenResolver {
     private static final String BEARER_SCHEME = "Bearer";
 
     /**
@@ -41,6 +41,7 @@ public class AuthorizationHeaderBearerTokenResolver {
      * @return the Bearer access token when present
      * @throws AuthenticationException when a Bearer header is malformed or repeated
      */
+    @Override
     public Optional<AccessToken> resolve(HttpServletRequest request) {
         Enumeration<String> headerValues = Objects.requireNonNull(request, "request").getHeaders(HttpHeaders.AUTHORIZATION);
         AccessToken resolvedToken = null;

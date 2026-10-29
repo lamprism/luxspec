@@ -20,6 +20,7 @@ package com.lamprism.luxspec.data.query;
  * Visits the typed value nodes used by a structured query predicate.
  *
  * @param <R> the visitor result type
+ *
  * @author RollW
  */
 public interface QueryValueVisitor<R> {
@@ -49,6 +50,15 @@ public interface QueryValueVisitor<R> {
      * @return the visitor result
      */
     <T> R visitFunction(QueryValue.Function<T> value);
+
+    /**
+     * Visits an application-owned function value.
+     *
+     * @param value the function node
+     * @param <T>   the function result type
+     * @return the visitor result
+     */
+    <T> R visitCustomFunction(QueryValue.CustomFunction<T> value);
 
     /**
      * Visits a typed cast value.

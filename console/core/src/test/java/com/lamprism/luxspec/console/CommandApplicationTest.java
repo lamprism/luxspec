@@ -19,6 +19,7 @@ package com.lamprism.luxspec.console;
 import com.lamprism.luxspec.console.help.HelpDocument;
 import com.lamprism.luxspec.console.session.PromptResult;
 import com.lamprism.luxspec.console.session.PromptSpec;
+import com.lamprism.luxspec.console.syntax.CommandTokenizationException;
 
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
@@ -29,10 +30,12 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -84,6 +87,139 @@ class CommandApplicationTest {
         assertEquals("hello world", runner.message());
         assertFalse(runner.verbose());
         assertEquals("console", runner.target());
+    }
+
+    @Test
+    void acceptsAnApplicationSelectedLineTokenizer() {
+        AtomicBoolean invoked = new AtomicBoolean();
+        CommandApplication application = CommandApplication.builder("demo")
+                .lineTokenizer(line -> List.of(line.substring(1)))
+                .command(CommandSpec.builder("ping").build(), context -> {
+                    invoked.set(true);
+                    return CommandResult.success();
+                })
+                .build();
+
+        CommandResult result = application.executeLine("/ping", new TestSession());
+
+        assertEquals(0, result.getExitCode());
+        assertTrue(invoked.get());
+    }
+
+    @Test
+    void acceptsACustomParserThatCanDelegateToTheStandardSyntax() {
+        OptionSpec<String> message = OptionSpec.builder("--message", ValueParser.string()).required().build();
+        OptionSpec<Boolean> verbose = OptionSpec.flag("--verbose").build();
+        ArgumentSpec<String> target = ArgumentSpec.builder("target", ValueParser.string())
+                .optional().defaultValue("console").build();
+        CommandSpec echo = CommandSpec.builder("echo").options(List.of(message, verbose)).argument(target).build();
+        AtomicReference<CommandInvocation> executed = new AtomicReference<>();
+        CommandApplication application = CommandApplication.builder("demo")
+                .version("1.2.3")
+                .command(echo, context -> {
+                    executed.set(context.getInvocation());
+                    return CommandResult.success();
+                })
+                .parser((catalog, standard) -> tokens -> {
+                    if (tokens.equals(List.of("?"))) {
+                        return CommandAction.help(CommandPath.of("echo"));
+                    }
+                    if (tokens.equals(List.of("v"))) {
+                        return CommandAction.version();
+                    }
+                    if (tokens.equals(List.of("invalid"))) {
+                        throw new CommandFailureException(CommandFailure.usage(
+                                "Invalid custom syntax", CommandPath.root(), null
+                        ));
+                    }
+                    if (tokens.size() == 1 && tokens.get(0).startsWith("say:")) {
+                        return CommandAction.invoke(CommandInvocation.builder(catalog, CommandPath.of("echo"), tokens)
+                                .option(message, List.of(tokens.get(0).substring(4)))
+                                .build());
+                    }
+                    return standard.parse(tokens);
+                })
+                .build();
+
+        assertTrue(application.execute(List.of("say:hello"), new TestSession()).isSuccess());
+        assertEquals("hello", executed.get().getOptionValue(message).orElseThrow());
+        assertEquals(false, executed.get().getOptionValue(verbose).orElseThrow());
+        assertFalse(executed.get().wasProvided(verbose));
+        assertEquals("console", executed.get().getArgumentValue(target).orElseThrow());
+        assertTrue(application.execute(List.of("echo", "--message", "fallback"), new TestSession()).isSuccess());
+        assertEquals("fallback", executed.get().getOptionValue(message).orElseThrow());
+        TestSession help = new TestSession();
+        assertTrue(application.execute(List.of("?"), help).isSuccess());
+        assertTrue(help.outputText().contains("echo"));
+        TestSession version = new TestSession();
+        assertTrue(application.execute(List.of("v"), version).isSuccess());
+        assertTrue(version.outputText().contains("1.2.3"));
+        TestSession failure = new TestSession();
+        assertFalse(application.execute(List.of("invalid"), failure).isSuccess());
+        assertTrue(failure.diagnosticsText().contains("Invalid custom syntax"));
+    }
+
+    @Test
+    void validatesCustomInvocationDeclarationsAndRequiredValues() {
+        OptionSpec<String> required = OptionSpec.builder("--value", ValueParser.string()).required().build();
+        OptionSpec<String> foreign = OptionSpec.builder("--other", ValueParser.string()).build();
+        ArgumentSpec<String> argument = ArgumentSpec.builder("target", ValueParser.string()).build();
+        CommandSpec command = CommandSpec.builder("send").option(required).argument(argument).build();
+        CommandApplication application = CommandApplication.builder("demo")
+                .command(command, context -> CommandResult.success()).build();
+        CommandCatalog catalog = application.getCatalog();
+        CommandPath path = CommandPath.of("send");
+
+        assertThrows(IllegalArgumentException.class, () -> CommandInvocation.builder(catalog, path, List.of()).build());
+        assertThrows(IllegalArgumentException.class, () -> CommandInvocation.builder(catalog, path, List.of())
+                .option(foreign, List.of("x")));
+        assertThrows(IllegalArgumentException.class, () -> CommandInvocation.builder(catalog, path, List.of())
+                .option(required, List.of("x", "y")));
+        assertThrows(IllegalArgumentException.class, () -> CommandInvocation.builder(catalog, path, List.of())
+                .option(required, List.of("x")).build());
+        CommandInvocation invocation = CommandInvocation.builder(catalog, path, List.of("send", "x", "target"))
+                .option(required, List.of("x"))
+                .argument(argument, List.of("target"))
+                .build();
+        assertTrue(invocation.wasProvided(required));
+        assertEquals("target", invocation.getArgumentValue(argument).orElseThrow());
+    }
+
+    @Test
+    void rejectsInvocationsBuiltAgainstAnotherCatalog() {
+        CommandSpec shared = CommandSpec.builder("ping").build();
+        CommandCatalog otherCatalog = CommandApplication.builder("other")
+                .command(shared, context -> CommandResult.success()).build().getCatalog();
+        AtomicBoolean invoked = new AtomicBoolean();
+        CommandApplication application = CommandApplication.builder("demo")
+                .command(shared, context -> {
+                    invoked.set(true);
+                    return CommandResult.success();
+                })
+                .parser((catalog, standard) -> tokens -> CommandAction.invoke(
+                        CommandInvocation.builder(otherCatalog, CommandPath.of("ping"), tokens).build()
+                ))
+                .build();
+
+        CommandResult result = application.execute(List.of("ping"), new TestSession());
+
+        assertFalse(result.isSuccess());
+        assertFalse(invoked.get());
+    }
+
+    @Test
+    void reportsThePositionOfAnApplicationTokenizerFailure() {
+        CommandApplication application = CommandApplication.builder("demo")
+                .lineTokenizer(line -> {
+                    throw new CommandTokenizationException("Unsupported separator", 2);
+                })
+                .build();
+        TestSession session = new TestSession();
+
+        CommandResult result = application.executeLine("a|b", session);
+
+        assertFalse(result.isSuccess());
+        assertTrue(session.diagnosticsText().contains("character 2"));
     }
 
     @Test

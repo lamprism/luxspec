@@ -22,20 +22,40 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A typed equality or membership condition for one query field.
+ * A typed operator condition for one query field.
  *
  * @param <T> the field value type
+ * @param <A> the operator argument type
+ *
  * @author RollW
  */
-public final class QueryCondition<T> implements QueryExpression {
+public final class QueryCondition<T, A> implements QueryExpression {
     private final QueryField<T> field;
     private final QueryOperator operator;
-    private final List<T> values;
+    private final List<A> values;
 
-    private QueryCondition(QueryField<T> field, QueryOperator operator, List<T> values) {
+    private QueryCondition(QueryField<T> field, QueryOperator operator, List<A> values) {
         this.field = field;
         this.operator = operator;
         this.values = values;
+    }
+
+    /**
+     * Creates a condition using an application-defined operator.
+     *
+     * @param field     the typed domain field
+     * @param operator  the typed operation definition
+     * @param arguments the operation arguments
+     * @param <T>       the field value type
+     * @param <A>       the operation argument type
+     * @return the immutable condition
+     */
+    public static <T, A> QueryCondition<T, A> of(
+            QueryField<T> field, QueryOperatorDefinition<? super T, A> operator, Collection<? extends A> arguments
+    ) {
+        QueryField<T> nonNullField = Objects.requireNonNull(field, "field");
+        return new QueryCondition<>(nonNullField, operator,
+                QueryOperatorArguments.validate(nonNullField.getValueType(), operator, arguments));
     }
 
     /**
@@ -46,7 +66,7 @@ public final class QueryCondition<T> implements QueryExpression {
      * @param <T>   the field value type
      * @return the immutable condition
      */
-    public static <T> QueryCondition<T> equal(QueryField<T> field, T value) {
+    public static <T> QueryCondition<T, T> equal(QueryField<T> field, T value) {
         return singleValue(field, QueryOperator.EQUAL, value);
     }
 
@@ -58,7 +78,7 @@ public final class QueryCondition<T> implements QueryExpression {
      * @param <T>   the field value type
      * @return the immutable condition
      */
-    public static <T> QueryCondition<T> notEqual(QueryField<T> field, T value) {
+    public static <T> QueryCondition<T, T> notEqual(QueryField<T> field, T value) {
         return singleValue(field, QueryOperator.NOT_EQUAL, value);
     }
 
@@ -69,7 +89,7 @@ public final class QueryCondition<T> implements QueryExpression {
      * @param <T>   the field value type
      * @return the immutable null-value condition
      */
-    public static <T> QueryCondition<T> isNull(QueryField<T> field) {
+    public static <T> QueryCondition<T, T> isNull(QueryField<T> field) {
         return noValue(field, QueryOperator.IS_NULL);
     }
 
@@ -80,7 +100,7 @@ public final class QueryCondition<T> implements QueryExpression {
      * @param <T>   the field value type
      * @return the immutable non-null-value condition
      */
-    public static <T> QueryCondition<T> isNotNull(QueryField<T> field) {
+    public static <T> QueryCondition<T, T> isNotNull(QueryField<T> field) {
         return noValue(field, QueryOperator.IS_NOT_NULL);
     }
 
@@ -92,7 +112,7 @@ public final class QueryCondition<T> implements QueryExpression {
      * @param <T>    the field value type
      * @return the immutable condition
      */
-    public static <T> QueryCondition<T> in(QueryField<T> field, Collection<? extends T> values) {
+    public static <T> QueryCondition<T, T> in(QueryField<T> field, Collection<? extends T> values) {
         return multipleValues(field, QueryOperator.IN, values);
     }
 
@@ -104,7 +124,7 @@ public final class QueryCondition<T> implements QueryExpression {
      * @param <T>    the field value type
      * @return the immutable condition
      */
-    public static <T> QueryCondition<T> notIn(QueryField<T> field, Collection<? extends T> values) {
+    public static <T> QueryCondition<T, T> notIn(QueryField<T> field, Collection<? extends T> values) {
         return multipleValues(field, QueryOperator.NOT_IN, values);
     }
 
@@ -118,7 +138,7 @@ public final class QueryCondition<T> implements QueryExpression {
     }
 
     /**
-     * Returns the equality or membership operator.
+     * Returns the condition operator.
      *
      * @return the condition operator
      */
@@ -127,12 +147,12 @@ public final class QueryCondition<T> implements QueryExpression {
     }
 
     /**
-     * Returns immutable values with the same type as the field. Null-value conditions have no
-     * values.
+     * Returns immutable argument values. Their type is defined by the operator; null-value
+     * conditions have no arguments.
      *
      * @return the comparison values
      */
-    public List<T> getValues() {
+    public List<A> getValues() {
         return values;
     }
 
@@ -141,14 +161,14 @@ public final class QueryCondition<T> implements QueryExpression {
         return Objects.requireNonNull(visitor, "visitor").visitCondition(this);
     }
 
-    private static <T> QueryCondition<T> singleValue(QueryField<T> field, QueryOperator operator, T value) {
+    private static <T> QueryCondition<T, T> singleValue(QueryField<T> field, QueryOperator operator, T value) {
         QueryField<T> nonNullField = Objects.requireNonNull(field, "field");
         requireSimpleOperator(operator);
         nonNullField.requireValue(value);
         return new QueryCondition<>(nonNullField, operator, List.of(value));
     }
 
-    private static <T> QueryCondition<T> noValue(QueryField<T> field, QueryOperator operator) {
+    private static <T> QueryCondition<T, T> noValue(QueryField<T> field, QueryOperator operator) {
         QueryField<T> nonNullField = Objects.requireNonNull(field, "field");
         if (operator != QueryOperator.IS_NULL && operator != QueryOperator.IS_NOT_NULL) {
             throw new IllegalArgumentException("Operator does not accept an empty value list");
@@ -156,7 +176,7 @@ public final class QueryCondition<T> implements QueryExpression {
         return new QueryCondition<>(nonNullField, operator, List.of());
     }
 
-    private static <T> QueryCondition<T> multipleValues(
+    private static <T> QueryCondition<T, T> multipleValues(
             QueryField<T> field,
             QueryOperator operator,
             Collection<? extends T> values

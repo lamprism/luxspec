@@ -20,6 +20,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ *
+ * @author RollW
+ */
 final class DefaultCachePlan implements CachePlan {
     private final List<CacheLevel> levels;
 

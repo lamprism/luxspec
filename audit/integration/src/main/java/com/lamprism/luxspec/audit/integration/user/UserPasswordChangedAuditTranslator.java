@@ -53,9 +53,15 @@ public class UserPasswordChangedAuditTranslator implements AuditEventTranslator<
         AuditFieldSet fields = AuditFieldSet.builder()
                 .put(UserAudit.USER_ID, event.getUserId())
                 .build();
+        String action = switch (event.getChangeType()) {
+            case INITIALIZED -> "user.password.initialize";
+            case CHANGED -> "user.password.change";
+            case RESET -> "user.password.reset";
+            case REHASHED -> "user.password.rehash";
+        };
         return AuditEntryContent.of(
                 event.getOccurredAt(),
-                AuditAction.of("user.password.change"),
+                AuditAction.of(action),
                 AuditOutcome.SUCCESS,
                 new ResourceReference<>(User.RESOURCE_TYPE, event.getUserId()),
                 fields

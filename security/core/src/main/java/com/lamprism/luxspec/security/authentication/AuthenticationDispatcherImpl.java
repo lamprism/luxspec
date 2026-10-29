@@ -78,7 +78,7 @@ public class AuthenticationDispatcherImpl implements AuthenticationDispatcher {
                     AuthErrorCode.UNSUPPORTED_CREDENTIALS,
                     "No authenticator is registered for the credential type"
             );
-            publishFailure(UNSUPPORTED_CREDENTIAL_TYPE, failure.getErrorCode(), startedAt);
+            publishFailure(UNSUPPORTED_CREDENTIAL_TYPE, failure.getErrorCode(), startedAt, failure);
             throw failure;
         }
         String credentialType = authenticator.getCredentialType().getName();
@@ -86,10 +86,10 @@ public class AuthenticationDispatcherImpl implements AuthenticationDispatcher {
         try {
             authentication = authenticate(authenticator, nonNullCredential);
         } catch (AuthenticationException failure) {
-            publishFailure(credentialType, failure.getErrorCode(), startedAt);
+            publishFailure(credentialType, failure.getErrorCode(), startedAt, failure);
             throw failure;
         } catch (RuntimeException failure) {
-            publishFailure(credentialType, AuthErrorCode.AUTHENTICATION_FAILURE, startedAt);
+            publishFailure(credentialType, AuthErrorCode.AUTHENTICATION_FAILURE, startedAt, failure);
             throw failure;
         }
         publishSuccess(credentialType, authentication, startedAt);
@@ -106,14 +106,20 @@ public class AuthenticationDispatcherImpl implements AuthenticationDispatcher {
         ));
     }
 
-    private void publishFailure(String credentialType, ErrorCode errorCode, Instant startedAt) {
-        Instant completedAt = clock.instant();
-        eventPublisher.publish(AuthenticationEvent.failed(
-                credentialType,
-                errorCode,
-                completedAt,
-                elapsedSince(startedAt, completedAt)
-        ));
+    private void publishFailure(String credentialType, ErrorCode errorCode, Instant startedAt, Throwable failure) {
+        try {
+            Instant completedAt = clock.instant();
+            eventPublisher.publish(AuthenticationEvent.failed(
+                    credentialType,
+                    errorCode,
+                    completedAt,
+                    elapsedSince(startedAt, completedAt)
+            ));
+        } catch (RuntimeException publicationFailure) {
+            if (publicationFailure != failure) {
+                failure.addSuppressed(publicationFailure);
+            }
+        }
     }
 
     private void register(

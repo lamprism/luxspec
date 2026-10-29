@@ -21,6 +21,7 @@ package com.lamprism.luxspec.security.token;
  *
  * @param <T> the token value type
  * @param <V> the verification result type
+ *
  * @author RollW
  */
 @FunctionalInterface

@@ -32,6 +32,7 @@ import java.util.Objects;
  * included in an application assembly.</p>
  *
  * @param <E> the event payload type
+ *
  * @author RollW
  */
 public final class AuditEventDefinition<E extends Event> {

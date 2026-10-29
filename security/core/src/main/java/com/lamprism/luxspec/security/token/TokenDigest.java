@@ -23,6 +23,7 @@ import java.util.Objects;
  * Holds a typed immutable one-way token digest.
  *
  * @param <T> the source token value type
+ *
  * @author RollW
  */
 public final class TokenDigest<T extends Token> {

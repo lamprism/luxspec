@@ -30,6 +30,7 @@ import java.util.Objects;
  * must be a non-primitive Java type.
  *
  * @param <T> the field value type
+ *
  * @author RollW
  */
 public final class QueryField<T> {

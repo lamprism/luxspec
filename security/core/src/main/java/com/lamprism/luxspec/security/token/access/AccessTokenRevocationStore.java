@@ -16,10 +16,12 @@
 
 package com.lamprism.luxspec.security.token.access;
 
+import java.time.Instant;
+
 /**
  * Stores explicit revocations for already verified access-token identities.
  *
- * <p>Implementations retain revocation state only until the token's natural expiration and
+ * <p>Implementations retain revocation state until the verifier no longer accepts the token and
  * never receive an encoded access-token body.</p>
  *
  * @author RollW
@@ -28,9 +30,10 @@ public interface AccessTokenRevocationStore {
     /**
      * Records an explicit revocation for a verified access token.
      *
-     * @param accessToken the verified token metadata containing its stable identifier and expiration
+     * @param accessToken       the verified token metadata identifying the token to revoke
+     * @param acceptanceDeadline the exclusive latest instant at which its verifier accepts it
      */
-    void revoke(VerifiedAccessToken accessToken);
+    void revoke(VerifiedAccessToken accessToken, Instant acceptanceDeadline);
 
     /**
      * Reports whether a verified access token has been explicitly revoked.

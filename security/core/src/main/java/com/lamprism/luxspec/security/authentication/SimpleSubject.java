@@ -23,6 +23,7 @@ import java.util.Objects;
  *
  * @param type the stable subject type
  * @param id   the stable identifier within the subject type
+ *
  * @author RollW
  */
 public record SimpleSubject(String type, String id) implements Subject {

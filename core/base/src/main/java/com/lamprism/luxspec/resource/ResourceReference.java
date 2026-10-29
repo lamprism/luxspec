@@ -22,6 +22,7 @@ import java.util.Objects;
  * Identifies one unloaded resource.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public final class ResourceReference<ID> {

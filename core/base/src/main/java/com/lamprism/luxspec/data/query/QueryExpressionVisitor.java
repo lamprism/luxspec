@@ -20,6 +20,7 @@ package com.lamprism.luxspec.data.query;
  * Visits every supported structured query expression node.
  *
  * @param <R> the visitor result type
+ *
  * @author RollW
  */
 public interface QueryExpressionVisitor<R> {
@@ -31,22 +32,24 @@ public interface QueryExpressionVisitor<R> {
     R visitMatchAll();
 
     /**
-     * Visits a typed equality or membership condition.
+     * Visits a typed field condition.
      *
      * @param condition the condition
      * @param <T>       the field value type
+     * @param <A>       the operator argument type
      * @return the visitor result
      */
-    <T> R visitCondition(QueryCondition<T> condition);
+    <T, A> R visitCondition(QueryCondition<T, A> condition);
 
     /**
      * Visits a condition over a transformed value expression.
      *
      * @param condition the value condition
      * @param <T>       the value expression type
+     * @param <A>       the operator argument type
      * @return the visitor result
      */
-    <T> R visitValueCondition(QueryValueCondition<T> condition);
+    <T, A> R visitValueCondition(QueryValueCondition<T, A> condition);
 
     /**
      * Visits a typed ordered comparison condition.

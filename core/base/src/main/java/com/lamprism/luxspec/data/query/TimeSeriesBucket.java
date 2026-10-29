@@ -16,135 +16,45 @@
 
 package com.lamprism.luxspec.data.query;
 
-import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Objects;
 
 /**
- * Defines fixed-width time buckets anchored at an explicit instant.
+ * Assigns an instant to an inclusive time-series bucket start.
  *
- * <p>The implementation uses nanosecond arithmetic with arbitrary precision so negative
- * timestamps and long ranges use the same floor-bucket rule without overflowing a {@code long}.
- * The returned bucket timestamp is always the inclusive bucket start.</p>
+ * <p>Implementations must be deterministic and safe for concurrent use when a plan is shared.
+ * The returned start must not be after the supplied timestamp.</p>
  *
  * @author RollW
  */
-public final class TimeSeriesBucket {
-    private static final BigInteger NANOS_PER_SECOND = BigInteger.valueOf(1_000_000_000L);
-    private static final BigInteger ONE = BigInteger.ONE;
-
-    private final Duration size;
-    private final Instant origin;
-    private final BigInteger sizeNanos;
-
-    private TimeSeriesBucket(Duration size, Instant origin) {
-        Duration nonNullSize = Objects.requireNonNull(size, "size");
-        if (nonNullSize.isZero() || nonNullSize.isNegative()) {
-            throw new IllegalArgumentException("Bucket size must be positive");
-        }
-        this.size = nonNullSize;
-        this.origin = Objects.requireNonNull(origin, "origin");
-        this.sizeNanos = toNanos(nonNullSize);
-    }
-
+@FunctionalInterface
+public interface TimeSeriesBucket {
     /**
-     * Creates buckets anchored at the Unix epoch.
+     * Creates fixed-width buckets anchored at the Unix epoch.
      *
      * @param size the positive bucket width
-     * @return the bucket definition
+     * @return the fixed-width bucket definition
      */
-    public static TimeSeriesBucket of(Duration size) {
-        return new TimeSeriesBucket(size, Instant.EPOCH);
+    static FixedTimeSeriesBucket of(Duration size) {
+        return new FixedTimeSeriesBucket(size, Instant.EPOCH);
     }
 
     /**
-     * Creates buckets anchored at an explicit instant.
+     * Creates fixed-width buckets anchored at an explicit instant.
      *
-     * @param size   the positive bucket width
+     * @param size the positive bucket width
      * @param origin the bucket origin
-     * @return the bucket definition
+     * @return the fixed-width bucket definition
      */
-    public static TimeSeriesBucket of(Duration size, Instant origin) {
-        return new TimeSeriesBucket(size, origin);
+    static FixedTimeSeriesBucket of(Duration size, Instant origin) {
+        return new FixedTimeSeriesBucket(size, origin);
     }
 
     /**
-     * Returns the positive bucket width.
+     * Returns the inclusive bucket start containing the timestamp.
      *
-     * @return the bucket width
-     */
-    public Duration size() {
-        return size;
-    }
-
-    /**
-     * Returns the bucket origin.
-     *
-     * @return the bucket origin
-     */
-    public Instant origin() {
-        return origin;
-    }
-
-    /**
-     * Returns the inclusive start of the bucket containing a timestamp.
-     *
-     * @param timestamp the timestamp to bucket
+     * @param timestamp the timestamp to assign
      * @return the bucket start
      */
-    public Instant start(Instant timestamp) {
-        Instant nonNullTimestamp = Objects.requireNonNull(timestamp, "timestamp");
-        BigInteger delta = nanosBetween(origin, nonNullTimestamp);
-        BigInteger[] division = delta.divideAndRemainder(sizeNanos);
-        BigInteger index = division[0];
-        if (delta.signum() < 0 && division[1].signum() != 0) {
-            index = index.subtract(ONE);
-        }
-        BigInteger bucketDelta = sizeNanos.multiply(index);
-        BigInteger[] secondsAndNanos = bucketDelta.divideAndRemainder(NANOS_PER_SECOND);
-        BigInteger relativeSeconds = secondsAndNanos[0];
-        BigInteger relativeNanos = secondsAndNanos[1];
-        if (relativeNanos.signum() < 0) {
-            relativeSeconds = relativeSeconds.subtract(ONE);
-            relativeNanos = relativeNanos.add(NANOS_PER_SECOND);
-        }
-        try {
-            return origin.plusSeconds(relativeSeconds.longValueExact())
-                    .plusNanos(relativeNanos.longValueExact());
-        } catch (ArithmeticException exception) {
-            throw new IllegalArgumentException("Bucket start exceeds the Instant range", exception);
-        }
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (!(other instanceof TimeSeriesBucket bucket)) {
-            return false;
-        }
-        return size.equals(bucket.size) && origin.equals(bucket.origin);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(size, origin);
-    }
-
-    @Override
-    public String toString() {
-        return "TimeSeriesBucket[size=" + size + ", origin=" + origin + "]";
-    }
-
-    private static BigInteger nanosBetween(Instant start, Instant end) {
-        BigInteger seconds = BigInteger.valueOf(end.getEpochSecond())
-                .subtract(BigInteger.valueOf(start.getEpochSecond()))
-                .multiply(NANOS_PER_SECOND);
-        return seconds.add(BigInteger.valueOf((long) end.getNano() - start.getNano()));
-    }
-
-    private static BigInteger toNanos(Duration duration) {
-        return BigInteger.valueOf(duration.getSeconds())
-                .multiply(NANOS_PER_SECOND)
-                .add(BigInteger.valueOf(duration.getNano()));
-    }
+    Instant start(Instant timestamp);
 }

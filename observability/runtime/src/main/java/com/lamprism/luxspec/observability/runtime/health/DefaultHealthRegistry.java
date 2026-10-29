@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.observability.runtime.health;
 
+import com.lamprism.luxspec.observability.health.HealthAggregationPolicy;
 import com.lamprism.luxspec.observability.health.HealthContributor;
 import com.lamprism.luxspec.observability.health.HealthDetailSet;
 import com.lamprism.luxspec.observability.health.HealthGroup;
@@ -50,12 +51,14 @@ final class DefaultHealthRegistry implements HealthRegistry {
     private final Map<String, HealthContributor> contributors;
     private final Map<HealthGroup, List<String>> groups;
     private final @Nullable Long timeoutNanos;
+    private final HealthAggregationPolicy aggregationPolicy;
 
     DefaultHealthRegistry(
             Executor executor,
             Map<String, HealthContributor> contributors,
             Map<HealthGroup, ? extends Set<String>> groups,
-            @Nullable Duration timeout
+            @Nullable Duration timeout,
+            HealthAggregationPolicy aggregationPolicy
     ) {
         this.executor = Objects.requireNonNull(executor, "executor");
         this.contributors = Map.copyOf(contributors);
@@ -64,6 +67,7 @@ final class DefaultHealthRegistry implements HealthRegistry {
             this.groups.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
         this.timeoutNanos = timeout == null ? null : timeout.toNanos();
+        this.aggregationPolicy = Objects.requireNonNull(aggregationPolicy, "aggregationPolicy");
     }
 
     @Override
@@ -71,7 +75,7 @@ final class DefaultHealthRegistry implements HealthRegistry {
         HealthGroup nonNullGroup = Objects.requireNonNull(group, "group");
         List<String> names = Objects.requireNonNull(groups.get(nonNullGroup), "health group");
         if (names.isEmpty()) {
-            return HealthResult.of(HealthStatus.UP);
+            return aggregate(nonNullGroup, Map.of());
         }
         Map<String, HealthTask> tasks = new LinkedHashMap<>();
         Map<String, Long> submittedAt = new LinkedHashMap<>();
@@ -104,7 +108,7 @@ final class DefaultHealthRegistry implements HealthRegistry {
         for (String name : names) {
             results.putIfAbsent(name, HealthResult.of(HealthStatus.UNKNOWN));
         }
-        return aggregate(results);
+        return aggregate(nonNullGroup, results);
     }
 
     private HealthResult resolve(HealthTask task, long submittedAt) {
@@ -169,7 +173,22 @@ final class DefaultHealthRegistry implements HealthRegistry {
         return result;
     }
 
-    private record CompletedHealthResult(@Nullable HealthResult result, long completedAtNanos) {
+    private static final class CompletedHealthResult {
+        private final @Nullable HealthResult result;
+        private final long completedAtNanos;
+
+        private CompletedHealthResult(@Nullable HealthResult result, long completedAtNanos) {
+            this.result = result;
+            this.completedAtNanos = completedAtNanos;
+        }
+
+        private @Nullable HealthResult result() {
+            return result;
+        }
+
+        private long completedAtNanos() {
+            return completedAtNanos;
+        }
     }
 
     private static final class HealthTask extends FutureTask<CompletedHealthResult> {
@@ -189,30 +208,16 @@ final class DefaultHealthRegistry implements HealthRegistry {
         }
     }
 
-    private static HealthResult aggregate(Map<String, HealthResult> results) {
-        HealthStatus status = HealthStatus.UP;
+    private HealthResult aggregate(HealthGroup group, Map<String, HealthResult> results) {
+        HealthStatus status = Objects.requireNonNull(
+                aggregationPolicy.aggregate(group, Map.copyOf(results)), "aggregate health status"
+        );
         HealthDetailSet.Builder details = HealthDetailSet.builder();
         for (Map.Entry<String, HealthResult> entry : results.entrySet()) {
             HealthResult result = entry.getValue();
-            status = moreSevere(status, result.getStatus());
             details.put(entry.getKey(), result);
         }
         return HealthResult.of(status, details.build());
     }
 
-    private static HealthStatus moreSevere(HealthStatus current, HealthStatus candidate) {
-        if (severity(candidate) > severity(current)) {
-            return candidate;
-        }
-        return current;
-    }
-
-    private static int severity(HealthStatus status) {
-        return switch (status) {
-            case UP -> 0;
-            case UNKNOWN -> 1;
-            case OUT_OF_SERVICE -> 2;
-            case DOWN -> 3;
-        };
-    }
 }

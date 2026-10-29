@@ -22,6 +22,7 @@ import java.util.Objects;
  * Identifies one credential Java type for exact authenticator dispatch.
  *
  * @param <C> the credential type
+ *
  * @author RollW
  */
 public final class CredentialType<C extends Credential> {

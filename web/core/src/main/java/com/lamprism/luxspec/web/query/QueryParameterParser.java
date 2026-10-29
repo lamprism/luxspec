@@ -29,6 +29,7 @@ import java.util.function.Function;
  * common JDK scalar values and never instantiate an arbitrary class from request data.</p>
  *
  * @param <T> the parsed value type
+ *
  * @author RollW
  */
 @FunctionalInterface

@@ -26,6 +26,10 @@ import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+/**
+ *
+ * @author RollW
+ */
 class CaffeineCache<K, V> implements Cache<K, V> {
     private final com.github.benmanes.caffeine.cache.Cache<K, V> delegate;
     private final Map<K, LoadState<V>> inFlightLoads = new HashMap<>();

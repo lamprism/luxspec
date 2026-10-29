@@ -19,6 +19,7 @@ package org.slf4j
 import org.slf4j.event.Level
 
 /**
+ *
  * @author RollW
  */
 inline fun <reified T> logger(): Logger = LoggerFactory.getLogger(T::class.java)

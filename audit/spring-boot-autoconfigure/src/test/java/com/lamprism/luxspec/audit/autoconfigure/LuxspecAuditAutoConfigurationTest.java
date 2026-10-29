@@ -16,8 +16,10 @@
 
 package com.lamprism.luxspec.audit.autoconfigure;
 
+import com.lamprism.luxspec.audit.AuditActor;
 import com.lamprism.luxspec.audit.AuditEntry;
 import com.lamprism.luxspec.audit.AuditOutcome;
+import com.lamprism.luxspec.audit.integration.AuditActorMapper;
 import com.lamprism.luxspec.audit.integration.security.SecurityAudit;
 import com.lamprism.luxspec.audit.publish.AuditDeliveryPolicy;
 import com.lamprism.luxspec.audit.publish.AuditEventDefinition;
@@ -29,6 +31,7 @@ import com.lamprism.luxspec.audit.publish.AuditPublisher;
 import com.lamprism.luxspec.audit.publish.AuditRegistry;
 import com.lamprism.luxspec.audit.publish.AuditSink;
 import com.lamprism.luxspec.audit.store.InMemoryAuditStore;
+import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.core.autoconfigure.LuxspecEventAutoConfiguration;
@@ -38,6 +41,9 @@ import com.lamprism.luxspec.event.EventSubscription;
 import com.lamprism.luxspec.event.SynchronousEventDispatcher;
 import com.lamprism.luxspec.failure.FailureHandler;
 import com.lamprism.luxspec.security.SecurityErrorCode;
+import com.lamprism.luxspec.security.authentication.Authentication;
+import com.lamprism.luxspec.security.authentication.UserSubject;
+import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import com.lamprism.luxspec.security.firewall.FirewallRuleFailureEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -52,6 +58,10 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecAuditAutoConfigurationTest {
     private static final Instant OCCURRED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -142,6 +152,25 @@ class LuxspecAuditAutoConfigurationTest {
                 .withBean(AuditSink.class, () -> entry -> {
                 })
                 .run(context -> assertThat(context).hasSingleBean(AuditMetadataProvider.class));
+    }
+
+    @Test
+    void usesTheApplicationActorMapper() {
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        contextRunner
+                .withBean(ExecutionContextStorage.class, () -> storage)
+                .withBean(AuditActorMapper.class, () -> subject -> AuditActor.of(AuditActor.Kind.SERVICE, subject.getId()))
+                .withBean(AuditSink.class, () -> entry -> {
+                })
+                .run(context -> {
+                    Authentication authentication = new Authentication(new UserSubject(7), AuthorizationGrantSet.of(List.of()));
+                    try (ExecutionContextStorage.Scope ignored = storage.open(
+                            ExecutionContext.empty().with(Authentication.CONTEXT_KEY, authentication))) {
+                        AuditActor actor = context.getBean(AuditMetadataProvider.class).capture().actor();
+                        assertThat(actor.kind()).isEqualTo(AuditActor.Kind.SERVICE);
+                        assertThat(actor.id()).isEqualTo("7");
+                    }
+                });
     }
 
     @Test

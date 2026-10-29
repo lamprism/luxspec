@@ -23,6 +23,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ *
+ * @author RollW
+ */
 final class ManagedSslMaterialArtifact implements SslMaterialArtifact {
     private final Path path;
     private final List<AutoCloseable> resources;

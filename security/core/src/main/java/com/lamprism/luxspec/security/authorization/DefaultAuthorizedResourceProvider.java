@@ -32,6 +32,7 @@ import java.util.Objects;
  * Default authorized resource provider implementation.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public class DefaultAuthorizedResourceProvider<ID> implements AuthorizedResourceProvider<ID> {

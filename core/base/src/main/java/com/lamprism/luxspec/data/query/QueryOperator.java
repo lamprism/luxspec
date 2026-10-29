@@ -17,53 +17,107 @@
 package com.lamprism.luxspec.data.query;
 
 /**
- * Identifies one supported field-level structured query operation.
+ * Identifies a structured query operation.
+ *
+ * <p>Standard operators are provided as constants. Applications may define other typed
+ * operations through {@link QueryOperatorDefinition} and register their implementations with
+ * each query executor.</p>
  *
  * @author RollW
  */
-public enum QueryOperator {
+public interface QueryOperator {
     /**
-     * Matches an equal value.
+     * Matches equal values.
      */
-    EQUAL,
+    Standard EQUAL = Standard.EQUAL;
     /**
-     * Matches a non-equal value.
+     * Matches non-equal values.
      */
-    NOT_EQUAL,
+    Standard NOT_EQUAL = Standard.NOT_EQUAL;
     /**
-     * Matches a value greater than the comparison value.
+     * Matches values above a boundary.
      */
-    GREATER_THAN,
+    Standard GREATER_THAN = Standard.GREATER_THAN;
     /**
-     * Matches a value greater than or equal to the comparison value.
+     * Matches values at or above a boundary.
      */
-    GREATER_THAN_OR_EQUAL,
+    Standard GREATER_THAN_OR_EQUAL = Standard.GREATER_THAN_OR_EQUAL;
     /**
-     * Matches a value less than the comparison value.
+     * Matches values below a boundary.
      */
-    LESS_THAN,
+    Standard LESS_THAN = Standard.LESS_THAN;
     /**
-     * Matches a value less than or equal to the comparison value.
+     * Matches values at or below a boundary.
      */
-    LESS_THAN_OR_EQUAL,
+    Standard LESS_THAN_OR_EQUAL = Standard.LESS_THAN_OR_EQUAL;
     /**
-     * Matches a String pattern.
+     * Matches a string pattern.
      */
-    LIKE,
+    Standard LIKE = Standard.LIKE;
     /**
-     * Matches one value in a supplied collection.
+     * Matches values in a collection.
      */
-    IN,
+    Standard IN = Standard.IN;
     /**
-     * Matches no value in a supplied collection.
+     * Matches values outside a collection.
      */
-    NOT_IN,
+    Standard NOT_IN = Standard.NOT_IN;
     /**
-     * Matches a field whose value is null.
+     * Matches null values.
      */
-    IS_NULL,
+    Standard IS_NULL = Standard.IS_NULL;
     /**
-     * Matches a field whose value is not null.
+     * Matches non-null values.
      */
-    IS_NOT_NULL
+    Standard IS_NOT_NULL = Standard.IS_NOT_NULL;
+
+    /**
+     * Standard operations understood by the built-in adapters.
+     */
+    enum Standard implements QueryOperator {
+        /**
+         * Matches equal values.
+         */
+        EQUAL,
+        /**
+         * Matches non-equal values.
+         */
+        NOT_EQUAL,
+        /**
+         * Matches values above a boundary.
+         */
+        GREATER_THAN,
+        /**
+         * Matches values at or above a boundary.
+         */
+        GREATER_THAN_OR_EQUAL,
+        /**
+         * Matches values below a boundary.
+         */
+        LESS_THAN,
+        /**
+         * Matches values at or below a boundary.
+         */
+        LESS_THAN_OR_EQUAL,
+        /**
+         * Matches a string pattern.
+         */
+        LIKE,
+        /**
+         * Matches values in a collection.
+         */
+        IN,
+        /**
+         * Matches values outside a collection.
+         */
+        NOT_IN,
+        /**
+         * Matches null values.
+         */
+        IS_NULL,
+        /**
+         * Matches non-null values.
+         */
+        IS_NOT_NULL
+    }
 }

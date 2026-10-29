@@ -18,6 +18,8 @@ package com.lamprism.luxspec.security.token.access;
 
 import com.lamprism.luxspec.security.token.TokenVerifier;
 
+import java.time.Instant;
+
 /**
  * Verifies a presented access token into trusted provider-neutral claims.
  *
@@ -26,6 +28,12 @@ import com.lamprism.luxspec.security.token.TokenVerifier;
  *
  * @author RollW
  */
-@FunctionalInterface
 public interface AccessTokenVerifier extends TokenVerifier<AccessToken, VerifiedAccessToken> {
+    /**
+     * Returns the exclusive deadline until which this verifier accepts the verified token.
+     *
+     * @param accessToken the verified Access Token claims
+     * @return the verifier-specific acceptance deadline
+     */
+    Instant getAcceptanceDeadline(VerifiedAccessToken accessToken);
 }

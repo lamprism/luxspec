@@ -16,8 +16,8 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
-import inet.ipaddr.IPAddress;
-import inet.ipaddr.IPAddressString;
+import com.lamprism.luxspec.network.ip.IpAddress;
+import com.lamprism.luxspec.network.ip.IpAddressSet;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.ArrayList;
@@ -50,26 +50,28 @@ public final class TrustedProxyClientAddressResolver implements ServletClientAdd
     private static final String FORWARDED_HEADER = "Forwarded";
     private static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";
 
-    private final List<IPAddress> trustedProxyNetworks;
+    private final List<IpAddressSet> trustedProxyNetworks;
 
     /**
      * Creates a resolver for trusted proxy addresses and networks.
      *
      * @param trustedProxyNetworks exact IP addresses or CIDR networks belonging to trusted proxies
      */
-    public TrustedProxyClientAddressResolver(Collection<String> trustedProxyNetworks) {
-        this.trustedProxyNetworks = parseTrustedProxyNetworks(trustedProxyNetworks);
+    public TrustedProxyClientAddressResolver(Collection<? extends IpAddressSet> trustedProxyNetworks) {
+        this.trustedProxyNetworks = List.copyOf(Objects.requireNonNull(trustedProxyNetworks, "trustedProxyNetworks"));
+        if (this.trustedProxyNetworks.isEmpty()) {
+            throw new IllegalArgumentException("trustedProxyNetworks must not be empty");
+        }
     }
 
     @Override
-    public String resolve(HttpServletRequest request) {
+    public IpAddress resolve(HttpServletRequest request) {
         HttpServletRequest nonNullRequest = Objects.requireNonNull(request, "request");
-        String remoteAddress = Objects.requireNonNull(
+        IpAddress remoteAddress = IpAddress.parse(Objects.requireNonNull(
                 nonNullRequest.getRemoteAddr(),
                 "request.remoteAddr"
-        );
-        Optional<IPAddress> parsedRemoteAddress = parseAddress(remoteAddress);
-        if (parsedRemoteAddress.isEmpty() || !isTrusted(parsedRemoteAddress.get())) {
+        ));
+        if (!isTrusted(remoteAddress)) {
             return remoteAddress;
         }
 
@@ -85,31 +87,28 @@ public final class TrustedProxyClientAddressResolver implements ServletClientAdd
         return remoteAddress;
     }
 
-    private Optional<String> resolveForwardedAddress(List<String> headerValues) {
+    private Optional<IpAddress> resolveForwardedAddress(List<String> headerValues) {
         return ForwardedHeaderAddressParser.parseForwarded(headerValues)
                 .flatMap(this::selectClientAddress);
     }
 
-    private Optional<String> resolveXForwardedForAddress(List<String> headerValues) {
+    private Optional<IpAddress> resolveXForwardedForAddress(List<String> headerValues) {
         return ForwardedHeaderAddressParser.parseXForwardedFor(headerValues)
                 .flatMap(this::selectClientAddress);
     }
 
-    private Optional<String> selectClientAddress(List<IPAddress> addressChain) {
+    private Optional<IpAddress> selectClientAddress(List<IpAddress> addressChain) {
         for (int index = addressChain.size() - 1; index >= 0; index--) {
-            IPAddress address = addressChain.get(index);
+            IpAddress address = addressChain.get(index);
             if (!isTrusted(address)) {
-                return Optional.of(address.withoutPrefixLength().toNormalizedString());
+                return Optional.of(address);
             }
         }
         return Optional.empty();
     }
 
-    private boolean isTrusted(IPAddress address) {
-        for (IPAddress network : trustedProxyNetworks) {
-            if (network.getIPVersion() != address.getIPVersion()) {
-                continue;
-            }
+    private boolean isTrusted(IpAddress address) {
+        for (IpAddressSet network : trustedProxyNetworks) {
             if (network.contains(address)) {
                 return true;
             }
@@ -132,59 +131,4 @@ public final class TrustedProxyClientAddressResolver implements ServletClientAdd
         return List.copyOf(result);
     }
 
-    private static List<IPAddress> parseTrustedProxyNetworks(Collection<String> values) {
-        Collection<String> nonNullValues = Objects.requireNonNull(values, "trustedProxyNetworks");
-        if (nonNullValues.isEmpty()) {
-            throw new IllegalArgumentException("trustedProxyNetworks must not be empty");
-        }
-        List<IPAddress> result = new ArrayList<>(nonNullValues.size());
-        for (String value : nonNullValues) {
-            result.add(parseNetwork(value));
-        }
-        return List.copyOf(result);
-    }
-
-    private static IPAddress parseNetwork(String value) {
-        String nonNullValue = Objects.requireNonNull(value, "trustedProxyNetwork").trim();
-        if (nonNullValue.isEmpty()) {
-            throw new IllegalArgumentException("trustedProxyNetwork must not be blank");
-        }
-        IPAddressString parsed = new IPAddressString(nonNullValue);
-        if (!parsed.isValid() || !parsed.isIPAddress()) {
-            throw new IllegalArgumentException(
-                    "Invalid trusted proxy address or network '" + nonNullValue + "'"
-            );
-        }
-        IPAddress address = parsed.getAddress();
-        if (address == null) {
-            throw new IllegalArgumentException(
-                    "Invalid trusted proxy address or network '" + nonNullValue + "'"
-            );
-        }
-        if (address.isMultiple() && !address.isSinglePrefixBlock()) {
-            throw new IllegalArgumentException(
-                    "Trusted proxy value must be an IP address or CIDR network: '"
-                            + nonNullValue + "'"
-            );
-        }
-        if (address.isMultiple()) {
-            return address.toPrefixBlock();
-        }
-        return address.withoutPrefixLength();
-    }
-
-    private static Optional<IPAddress> parseAddress(String value) {
-        if (value == null || value.isBlank()) {
-            return Optional.empty();
-        }
-        IPAddressString parsed = new IPAddressString(value);
-        if (!parsed.isValid() || !parsed.isIPAddress()) {
-            return Optional.empty();
-        }
-        IPAddress address = parsed.getAddress();
-        if (address == null || address.isMultiple()) {
-            return Optional.empty();
-        }
-        return Optional.of(address.withoutPrefixLength());
-    }
 }

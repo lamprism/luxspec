@@ -16,11 +16,11 @@
 
 package com.lamprism.luxspec.security.token.refresh;
 
+import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.token.SessionLifetime;
 import com.lamprism.luxspec.security.token.TokenDigest;
-import com.lamprism.luxspec.security.token.TokenRotation;
+import com.lamprism.luxspec.security.token.TokenRotationException;
 import com.lamprism.luxspec.security.token.TokenRotationRejection;
-import com.lamprism.luxspec.security.token.TokenRotationResult;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -35,41 +35,86 @@ import java.util.concurrent.ConcurrentMap;
  *
  * <p>Each session has its own mutation monitor, so unrelated sessions can rotate concurrently.
  * Digests remain available until their session reaches its absolute expiration; {@link #cleanup()}
- * removes expired sessions and all of their digest history. Replaying a consumed digest revokes
- * the complete session, matching the refresh-token reuse detection contract.</p>
+ * removes expired sessions and all of their digest history. Replay handling and session renewal
+ * are supplied as strategies.</p>
+ *
+ * @param <S> the application session type
  *
  * @author RollW
  */
-public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStore<RefreshTokenSession> {
+public class InMemoryRefreshTokenSessionStore<S extends RefreshTokenSession> implements RefreshTokenSessionStore<S> {
     private final Clock clock;
+    private final RefreshTokenSessionRenewal<S> renewal;
+    private final RefreshTokenReplayPolicy<S> replayPolicy;
+    private final RefreshTokenReplayHandler<S> replayHandler;
     private final Object creationLock = new Object();
-    private final ConcurrentMap<RefreshTokenSessionId, StoredSession> sessions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<RefreshTokenSessionId, StoredSession<S>> sessions = new ConcurrentHashMap<>();
     private final ConcurrentMap<TokenDigest<RefreshToken>, StoredDigest> digests = new ConcurrentHashMap<>();
 
     /**
-     * Creates a store using the UTC system clock.
+     * Creates a standard store using the UTC system clock and session revocation on replay.
+     *
+     * @return the standard in-memory store
      */
-    public InMemoryRefreshTokenSessionStore() {
-        this(Clock.systemUTC());
+    public static InMemoryRefreshTokenSessionStore<RefreshTokenSession> standard() {
+        return standard(Clock.systemUTC());
     }
 
     /**
-     * Creates a store using an explicit expiration clock.
+     * Creates a standard store using an explicit expiration clock.
      *
      * @param clock the clock used for cleanup and expiration checks
+     * @return the standard in-memory store
      */
-    public InMemoryRefreshTokenSessionStore(Clock clock) {
+    public static InMemoryRefreshTokenSessionStore<RefreshTokenSession> standard(Clock clock) {
+        return new InMemoryRefreshTokenSessionStore<>(
+                clock, RefreshTokenSessionRenewal.standard(), RefreshTokenReplayPolicy.revokeSession()
+        );
+    }
+
+    /**
+     * Creates a store for application session metadata and replay behavior.
+     *
+     * @param clock the clock used for cleanup and expiration checks
+     * @param renewal the session renewal strategy
+     * @param replayPolicy the atomic session replay policy
+     */
+    public InMemoryRefreshTokenSessionStore(
+            Clock clock,
+            RefreshTokenSessionRenewal<S> renewal,
+            RefreshTokenReplayPolicy<S> replayPolicy
+    ) {
+        this(clock, renewal, replayPolicy, RefreshTokenReplayHandler.none());
+    }
+
+    /**
+     * Creates a store with an application-selected response after a replay decision.
+     *
+     * @param clock         the clock used for cleanup and expiration checks
+     * @param renewal       the session renewal strategy
+     * @param replayPolicy  the atomic session replay policy
+     * @param replayHandler the response invoked outside the session lock
+     */
+    public InMemoryRefreshTokenSessionStore(
+            Clock clock,
+            RefreshTokenSessionRenewal<S> renewal,
+            RefreshTokenReplayPolicy<S> replayPolicy,
+            RefreshTokenReplayHandler<S> replayHandler
+    ) {
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.renewal = Objects.requireNonNull(renewal, "renewal");
+        this.replayPolicy = Objects.requireNonNull(replayPolicy, "replayPolicy");
+        this.replayHandler = Objects.requireNonNull(replayHandler, "replayHandler");
     }
 
     @Override
     public void create(
-            RefreshTokenSession session,
+            S session,
             TokenDigest<RefreshToken> initialDigest
     ) {
-        RefreshTokenSession nonNullSession = Objects.requireNonNull(session, "session");
+        S nonNullSession = Objects.requireNonNull(session, "session");
         TokenDigest<RefreshToken> nonNullDigest = requireDigest(initialDigest);
-        StoredSession storedSession = new StoredSession(nonNullSession);
+        StoredSession<S> storedSession = new StoredSession<>(nonNullSession);
         StoredDigest storedDigest = new StoredDigest(nonNullSession.getId());
         synchronized (creationLock) {
             synchronized (storedSession) {
@@ -86,57 +131,63 @@ public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStor
     }
 
     @Override
-    public TokenRotationResult<RefreshTokenSession> rotate(TokenRotation<RefreshToken> rotation) {
-        TokenRotation<RefreshToken> nonNullRotation = Objects.requireNonNull(rotation, "rotation");
-        TokenDigest<RefreshToken> presentedDigest = requireDigest(nonNullRotation.getPresentedDigest());
-        TokenDigest<RefreshToken> successorDigest = requireDigest(nonNullRotation.getSuccessorDigest());
-        StoredDigest presented = digests.get(presentedDigest);
-        if (presented == null) {
-            return TokenRotationResult.rejected(TokenRotationRejection.UNKNOWN);
+    public S rotate(TokenDigest<RefreshToken> presented, TokenDigest<RefreshToken> successor, Instant rotatedAt) {
+        TokenDigest<RefreshToken> presentedDigest = requireDigest(presented);
+        TokenDigest<RefreshToken> successorDigest = requireDigest(successor);
+        Instant time = Objects.requireNonNull(rotatedAt, "rotatedAt");
+        if (presentedDigest.equals(successorDigest)) {
+            throw new IllegalArgumentException("Token rotation successor must differ from the presented digest");
         }
-        StoredSession storedSession = sessions.get(presented.sessionId);
+        StoredDigest presentedRecord = digests.get(presentedDigest);
+        if (presentedRecord == null) {
+            throw new TokenRotationException(TokenRotationRejection.UNKNOWN);
+        }
+        StoredSession<S> storedSession = sessions.get(presentedRecord.sessionId);
         if (storedSession == null) {
-            return TokenRotationResult.rejected(TokenRotationRejection.UNKNOWN);
+            throw new TokenRotationException(TokenRotationRejection.UNKNOWN);
         }
+        S replayedSession;
         synchronized (storedSession) {
-            if (sessions.get(presented.sessionId) != storedSession
-                    || digests.get(presentedDigest) != presented) {
-                return TokenRotationResult.rejected(TokenRotationRejection.UNKNOWN);
+            if (sessions.get(presentedRecord.sessionId) != storedSession
+                    || digests.get(presentedDigest) != presentedRecord) {
+                throw new TokenRotationException(TokenRotationRejection.UNKNOWN);
             }
             if (storedSession.revoked) {
-                return TokenRotationResult.rejected(TokenRotationRejection.REVOKED);
+                throw new TokenRotationException(TokenRotationRejection.REVOKED);
             }
-            if (presented.consumed) {
-                storedSession.revoked = true;
-                return TokenRotationResult.rejected(TokenRotationRejection.REPLAY_DETECTED);
+            if (presentedRecord.consumed) {
+                if (replayPolicy.revokeSessionOnReplay(storedSession.session)) {
+                    storedSession.revoked = true;
+                }
+                replayedSession = storedSession.session;
+            } else {
+                if (storedSession.session.getLifetime().isExpiredAt(time)) {
+                    throw new TokenRotationException(TokenRotationRejection.EXPIRED);
+                }
+                SessionLifetime renewedLifetime = storedSession.session.getLifetime().renew(time);
+                S renewedSession = Objects.requireNonNull(
+                        renewal.renew(storedSession.session, renewedLifetime), "renewed session"
+                );
+                validateRenewal(storedSession.session, renewedSession, renewedLifetime);
+                StoredDigest successorRecord = new StoredDigest(storedSession.session.getId());
+                if (digests.putIfAbsent(successorDigest, successorRecord) != null) {
+                    throw new IllegalStateException("Refresh Token successor Digest already exists");
+                }
+                presentedRecord.consumed = true;
+                storedSession.session = renewedSession;
+                storedSession.digests.put(successorDigest, successorRecord);
+                return renewedSession;
             }
-            Instant rotatedAt = Objects.requireNonNull(nonNullRotation.getRotatedAt(), "rotatedAt");
-            if (storedSession.session.getLifetime().isExpiredAt(rotatedAt)) {
-                return TokenRotationResult.rejected(TokenRotationRejection.EXPIRED);
-            }
-            SessionLifetime renewedLifetime = storedSession.session.getLifetime().renew(rotatedAt);
-            RefreshTokenSession renewedSession = RefreshTokenSession.of(
-                    storedSession.session.getId(),
-                    storedSession.session.getSubject(),
-                    storedSession.session.getAuthorizationCeiling(),
-                    renewedLifetime
-            );
-            StoredDigest successor = new StoredDigest(storedSession.session.getId());
-            if (digests.putIfAbsent(successorDigest, successor) != null) {
-                throw new IllegalStateException("Refresh Token successor Digest already exists");
-            }
-            presented.consumed = true;
-            storedSession.session = renewedSession;
-            storedSession.digests.put(successorDigest, successor);
-            return TokenRotationResult.succeeded(renewedSession);
         }
+        replayHandler.onReplay(replayedSession, time);
+        throw new TokenRotationException(TokenRotationRejection.REPLAY_DETECTED);
     }
 
     @Override
     public void revoke(RefreshTokenSessionId sessionId, Instant revokedAt) {
         RefreshTokenSessionId nonNullSessionId = Objects.requireNonNull(sessionId, "sessionId");
         Objects.requireNonNull(revokedAt, "revokedAt");
-        StoredSession storedSession = sessions.get(nonNullSessionId);
+        StoredSession<S> storedSession = sessions.get(nonNullSessionId);
         if (storedSession != null) {
             synchronized (storedSession) {
                 storedSession.revoked = true;
@@ -152,7 +203,7 @@ public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStor
         if (storedDigest == null) {
             return;
         }
-        StoredSession storedSession = sessions.get(storedDigest.sessionId);
+        StoredSession<S> storedSession = sessions.get(storedDigest.sessionId);
         if (storedSession == null) {
             return;
         }
@@ -172,17 +223,19 @@ public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStor
     public int cleanup() {
         Instant now = Objects.requireNonNull(clock.instant(), "clock instant");
         int removed = 0;
-        for (Map.Entry<RefreshTokenSessionId, StoredSession> entry : sessions.entrySet()) {
-            StoredSession storedSession = entry.getValue();
+        for (Map.Entry<RefreshTokenSessionId, StoredSession<S>> entry : sessions.entrySet()) {
+            StoredSession<S> storedSession = entry.getValue();
             synchronized (storedSession) {
                 if (!storedSession.session.getLifetime().getAbsoluteExpiresAt().isAfter(now)
-                        && sessions.remove(entry.getKey(), storedSession)) {
+                        && sessions.get(entry.getKey()) == storedSession) {
                     for (Map.Entry<TokenDigest<RefreshToken>, StoredDigest> digest
                             : storedSession.digests.entrySet()) {
                         digests.remove(digest.getKey(), digest.getValue());
                     }
                     storedSession.digests.clear();
-                    removed++;
+                    if (sessions.remove(entry.getKey(), storedSession)) {
+                        removed++;
+                    }
                 }
             }
         }
@@ -214,7 +267,7 @@ public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStor
      * @return whether the session is revoked
      */
     public boolean isRevoked(RefreshTokenSessionId sessionId) {
-        StoredSession storedSession = sessions.get(Objects.requireNonNull(sessionId, "sessionId"));
+        StoredSession<S> storedSession = sessions.get(Objects.requireNonNull(sessionId, "sessionId"));
         if (storedSession == null) {
             return false;
         }
@@ -223,9 +276,9 @@ public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStor
         }
     }
 
-    RefreshTokenSession getSession(RefreshTokenSessionId sessionId) {
+    S getSession(RefreshTokenSessionId sessionId) {
         RefreshTokenSessionId nonNullSessionId = Objects.requireNonNull(sessionId, "sessionId");
-        StoredSession storedSession = sessions.get(nonNullSessionId);
+        StoredSession<S> storedSession = sessions.get(nonNullSessionId);
         if (storedSession == null) {
             throw new IllegalArgumentException("Unknown Refresh Token Session");
         }
@@ -251,7 +304,7 @@ public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStor
         if (storedDigest == null) {
             return false;
         }
-        StoredSession storedSession = sessions.get(storedDigest.sessionId);
+        StoredSession<S> storedSession = sessions.get(storedDigest.sessionId);
         if (storedSession == null) {
             return false;
         }
@@ -270,12 +323,21 @@ public class InMemoryRefreshTokenSessionStore implements RefreshTokenSessionStor
         return nonNullDigest;
     }
 
-    private static final class StoredSession {
+    private void validateRenewal(S original, S renewed, SessionLifetime lifetime) {
+        if (!original.getId().equals(renewed.getId())
+                || !SimpleSubject.from(original.getSubject()).equals(SimpleSubject.from(renewed.getSubject()))
+                || !original.getAuthorizationCeiling().equals(renewed.getAuthorizationCeiling())
+                || !lifetime.equals(renewed.getLifetime())) {
+            throw new IllegalStateException("Refresh Token Session renewal changed its identity or grants");
+        }
+    }
+
+    private static final class StoredSession<S extends RefreshTokenSession> {
         private final Map<TokenDigest<RefreshToken>, StoredDigest> digests = new LinkedHashMap<>();
-        private RefreshTokenSession session;
+        private S session;
         private boolean revoked;
 
-        private StoredSession(RefreshTokenSession session) {
+        private StoredSession(S session) {
             this.session = session;
         }
     }

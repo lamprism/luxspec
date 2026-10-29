@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) Lamprism
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lamprism.luxspec.config.runtime;
 
 import com.lamprism.luxspec.cache.CacheInvalidator;
@@ -13,6 +29,7 @@ import com.lamprism.luxspec.config.policy.ConfigPolicyContext;
 import com.lamprism.luxspec.config.policy.ConfigPolicyDecision;
 import com.lamprism.luxspec.config.policy.ConfigPolicyException;
 import com.lamprism.luxspec.config.policy.ConfigPolicyOperation;
+import com.lamprism.luxspec.config.resolution.ConfigResolutionException;
 import com.lamprism.luxspec.config.source.ConfigSource;
 import com.lamprism.luxspec.config.source.ConfigSourceId;
 import com.lamprism.luxspec.config.source.RawConfigValue;
@@ -27,6 +44,9 @@ import java.util.Objects;
 
 /**
  * Writes configuration through sources registered by their stable instance ID.
+ *
+ * <p>An invalid previously effective value does not prevent a source repair or removal. In
+ * that case a source change is published, but no effective change can be compared.</p>
  *
  * @author RollW
  */
@@ -215,7 +235,11 @@ public class SourceConfigWriter implements ConfigWriter {
 
     private <T> @Nullable ConfigValue<T> readEffectiveBeforeMutation(ConfigBinding<T> binding) {
         cacheInvalidator.invalidate(binding.getKey());
-        return readEffective(binding);
+        try {
+            return readEffective(binding);
+        } catch (ConfigResolutionException exception) {
+            return null;
+        }
     }
 
     private <T> @Nullable ConfigValue<T> readEffective(ConfigBinding<T> binding) {

@@ -21,6 +21,10 @@ import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ *
+ * @author RollW
+ */
 final class ImmutableVerifiedAccessToken implements VerifiedAccessToken {
     private final String subjectType;
     private final String subjectId;
@@ -28,7 +32,6 @@ final class ImmutableVerifiedAccessToken implements VerifiedAccessToken {
     private final String tokenId;
     private final Instant issuedAt;
     private final Instant expiresAt;
-    private final Instant acceptanceExpiresAt;
 
     ImmutableVerifiedAccessToken(
             String subjectType,
@@ -36,8 +39,7 @@ final class ImmutableVerifiedAccessToken implements VerifiedAccessToken {
             AuthorizationGrantSet grants,
             String tokenId,
             Instant issuedAt,
-            Instant expiresAt,
-            Instant acceptanceExpiresAt
+            Instant expiresAt
     ) {
         this.subjectType = requireText(subjectType, "subjectType");
         this.subjectId = requireText(subjectId, "subjectId");
@@ -45,12 +47,8 @@ final class ImmutableVerifiedAccessToken implements VerifiedAccessToken {
         this.tokenId = requireText(tokenId, "tokenId");
         this.issuedAt = Objects.requireNonNull(issuedAt, "issuedAt");
         this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
-        this.acceptanceExpiresAt = Objects.requireNonNull(acceptanceExpiresAt, "acceptanceExpiresAt");
         if (!this.expiresAt.isAfter(this.issuedAt)) {
             throw new IllegalArgumentException("Access Token expiration must follow issuance");
-        }
-        if (this.acceptanceExpiresAt.isBefore(this.expiresAt)) {
-            throw new IllegalArgumentException("Access Token acceptance must not end before expiration");
         }
     }
 
@@ -82,11 +80,6 @@ final class ImmutableVerifiedAccessToken implements VerifiedAccessToken {
     @Override
     public Instant getExpiresAt() {
         return expiresAt;
-    }
-
-    @Override
-    public Instant getAcceptanceExpiresAt() {
-        return acceptanceExpiresAt;
     }
 
     private static String requireText(String value, String name) {

@@ -19,6 +19,7 @@ package com.lamprism.luxspec.web.query;
 import com.lamprism.luxspec.data.pagination.KeysetPosition;
 import com.lamprism.luxspec.data.pagination.KeysetWindow;
 import com.lamprism.luxspec.data.pagination.PageWindow;
+import com.lamprism.luxspec.data.pagination.QueryWindow;
 import com.lamprism.luxspec.data.pagination.SliceWindow;
 import com.lamprism.luxspec.data.query.ComparisonCondition;
 import com.lamprism.luxspec.data.query.LogicalCondition;
@@ -28,6 +29,7 @@ import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryField;
 import com.lamprism.luxspec.data.query.QueryFunction;
 import com.lamprism.luxspec.data.query.QueryOperator;
+import com.lamprism.luxspec.data.query.QueryOperatorDefinition;
 import com.lamprism.luxspec.data.query.QuerySchema;
 import com.lamprism.luxspec.web.pagination.DefaultKeysetCursorCodec;
 import com.lamprism.luxspec.web.pagination.KeysetCursorCodec;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,9 +48,41 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class QueryRequestBinderTest {
     private static final QueryField<String> STATUS = QueryField.of("status", String.class);
     private static final QueryField<Integer> PRIORITY = QueryField.of("priority", Integer.class);
+
+    @Test
+    void bindsOnlyExplicitlyRegisteredAndAuthorizedCustomOperators() {
+        QueryOperatorDefinition<String, Integer> minimum = QueryOperatorDefinition.of(
+                "minimumLength", String.class, Integer.class, 1, 1
+        );
+        QueryField<String> other = QueryField.of("other", String.class);
+        QuerySchema schema = QuerySchema.builder().add(STATUS, Set.of(minimum))
+                .add(PRIORITY, Set.of(QueryOperator.EQUAL)).add(other, Set.of(QueryOperator.EQUAL)).build();
+        QueryRequestBinder binder = QueryRequestBinder.builder(schema)
+                .field(STATUS, QueryParameterParser.string())
+                .field(PRIORITY, QueryParameterParser.integer())
+                .field(other, QueryParameterParser.string())
+                .operator("minLength", minimum, QueryParameterParser.integer())
+                .build();
+
+        QueryCriteria criteria = binder.bindCriteria(Map.of("filter.status.minLength", List.of("4")));
+        QueryCondition<?, ?> condition = assertInstanceOf(QueryCondition.class, criteria.getCondition());
+        assertEquals(minimum, condition.getOperator());
+        assertEquals(List.of(4), condition.getValues());
+        assertThrows(QueryBindingException.class, () -> binder.bindCriteria(Map.of("filter.status.minLength", List.of("bad"))));
+        assertThrows(QueryBindingException.class, () -> binder.bindCriteria(Map.of("filter.status.minLength", List.of("1", "2"))));
+        assertThrows(QueryBindingException.class, () -> binder.bindCriteria(Map.of("filter.priority.minLength", List.of("4"))));
+        assertThrows(QueryBindingException.class, () -> binder.bindCriteria(Map.of("filter.other.minLength", List.of("4"))));
+        assertThrows(QueryBindingException.class, () -> binder.bindCriteria(Map.of("filter.status.unknown", List.of("4"))));
+        assertThrows(IllegalArgumentException.class, () -> QueryRequestBinder.builder(schema)
+                .operator("eq", minimum, QueryParameterParser.integer()));
+    }
 
     @Test
     void bindsTypedFiltersRepeatedMembershipOrderingAndPageWindow() {
@@ -58,32 +93,41 @@ class QueryRequestBinderTest {
         parameters.put("offset", List.of("2"));
         parameters.put("limit", List.of("10"));
         parameters.put("mode", List.of("page"));
-        QueryRequest request = binder().bind(parameters);
+        QueryRequestBinder binder = binder();
+        QueryCriteria criteria = binder.bindCriteria(parameters);
 
-        assertInstanceOf(PageWindow.class, request.getWindow());
-        PageWindow window = (PageWindow) request.getWindow();
+        PageWindow window = assertInstanceOf(PageWindow.class, binder.bindWindow(parameters, criteria));
         assertEquals(2L, window.offset());
         assertEquals(10, window.limit());
-        LogicalCondition condition = assertInstanceOf(LogicalCondition.class, request.getCriteria().getCondition());
+        LogicalCondition condition = assertInstanceOf(LogicalCondition.class, criteria.getCondition());
         assertEquals(2, condition.getExpressions().size());
-        QueryCondition<?> status = assertInstanceOf(QueryCondition.class, condition.getExpressions().get(0));
+        QueryCondition<?, ?> status = assertInstanceOf(QueryCondition.class, condition.getExpressions().get(0));
         assertEquals(List.of("active"), status.getValues());
-        QueryCondition<?> priorities = assertInstanceOf(QueryCondition.class, condition.getExpressions().get(1));
+        QueryCondition<?, ?> priorities = assertInstanceOf(QueryCondition.class, condition.getExpressions().get(1));
         assertEquals(List.of(10, 20), priorities.getValues());
-        assertEquals(2, request.getCriteria().getOrders().size());
+        assertEquals(2, criteria.getOrders().size());
+    }
+
+    @Test
+    void bindsExplicitNullPlacementForSorting() {
+        QueryCriteria criteria = binder().bindCriteria(Map.of("sort", List.of("priority:desc:nullsLast", "status:asc:nullsFirst")));
+
+        assertEquals(OrderBy.NullPlacement.LAST, criteria.getOrders().get(0).getNullPlacement());
+        assertEquals(OrderBy.NullPlacement.FIRST, criteria.getOrders().get(1).getNullPlacement());
+        assertThrows(QueryBindingException.class,
+                () -> binder().bindCriteria(Map.of("sort", List.of("priority:asc:nullsUnknown"))));
     }
 
     @Test
     void bindsNullPredicatesAndDefaultsToBoundedSlice() {
-        QueryRequest request = binder().bind(Map.of(
-                "filter.status.isNull", List.of("true")
-        ));
+        Map<String, List<String>> parameters = Map.of("filter.status.isNull", List.of("true"));
+        QueryRequestBinder binder = binder();
+        QueryCriteria criteria = binder.bindCriteria(parameters);
 
-        assertInstanceOf(SliceWindow.class, request.getWindow());
-        SliceWindow window = (SliceWindow) request.getWindow();
+        SliceWindow window = assertInstanceOf(SliceWindow.class, binder.bindWindow(parameters, criteria));
         assertEquals(0L, window.offset());
         assertEquals(25, window.limit());
-        QueryCondition<?> condition = assertInstanceOf(QueryCondition.class, request.getCriteria().getCondition());
+        QueryCondition<?, ?> condition = assertInstanceOf(QueryCondition.class, criteria.getCondition());
         assertEquals(QueryOperator.IS_NULL, condition.getOperator());
         assertEquals(List.of(), condition.getValues());
     }
@@ -94,14 +138,14 @@ class QueryRequestBinderTest {
         QuerySchema schema = QuerySchema.builder()
                 .add(CREATED_AT, Set.of(QueryOperator.GREATER_THAN))
                 .build();
-        QueryRequest request = QueryRequestBinder.builder(schema)
+        QueryCriteria criteria = QueryRequestBinder.builder(schema)
                 .field(CREATED_AT, QueryParameterParser.instant())
                 .build()
-                .bind(Map.of("filter.createdAt.gt", List.of("2026-01-01T00:00:00Z")));
+                .bindCriteria(Map.of("filter.createdAt.gt", List.of("2026-01-01T00:00:00Z")));
 
         ComparisonCondition<?> condition = assertInstanceOf(
                 ComparisonCondition.class,
-                request.getCriteria().getCondition()
+                criteria.getCondition()
         );
         assertEquals(Instant.parse("2026-01-01T00:00:00Z"), condition.getValue());
     }
@@ -125,26 +169,47 @@ class QueryRequestBinderTest {
                 .build();
         String cursor = codec.encode(orders, new KeysetPosition(List.of(20, "active")));
 
-        QueryRequest request = binder.bind(Map.of(
+        Map<String, List<String>> parameters = Map.of(
                 "mode", List.of("keyset"),
                 "sort", List.of("priority:desc", "status:asc"),
                 "limit", List.of("10"),
                 "cursor", List.of(cursor)
-        ));
+        );
+        QueryCriteria criteria = binder.bindCriteria(parameters);
 
-        KeysetWindow window = assertInstanceOf(KeysetWindow.class, request.getWindow());
+        KeysetWindow window = assertInstanceOf(KeysetWindow.class, binder.bindWindow(parameters, criteria));
         assertEquals(10, window.limit());
         assertEquals(List.of(20, "active"), window.after().values());
+
+        List<OrderBy<?>> explicitOrders = List.of(
+                OrderBy.descending(PRIORITY, OrderBy.NullPlacement.LAST),
+                OrderBy.ascending(STATUS, OrderBy.NullPlacement.FIRST));
+        String nullableCursor = codec.encode(explicitOrders, new KeysetPosition(Arrays.asList(null, "active")));
+        Map<String, List<String>> nullableParameters = Map.of(
+                "mode", List.of("keyset"),
+                "sort", List.of("priority:desc:nullsLast", "status:asc:nullsFirst"),
+                "cursor", List.of(nullableCursor)
+        );
+        QueryCriteria nullableCriteria = binder.bindCriteria(nullableParameters);
+        KeysetWindow nullableWindow = assertInstanceOf(KeysetWindow.class, binder.bindWindow(nullableParameters, nullableCriteria));
+        assertEquals(Arrays.asList(null, "active"), nullableWindow.after().values());
+        Map<String, List<String>> mismatchedParameters = Map.of(
+                "mode", List.of("keyset"),
+                "sort", List.of("priority:desc:nullsFirst", "status:asc:nullsFirst"),
+                "cursor", List.of(nullableCursor)
+        );
+        QueryCriteria mismatchedCriteria = binder.bindCriteria(mismatchedParameters);
+        assertThrows(QueryBindingException.class, () -> binder.bindWindow(mismatchedParameters, mismatchedCriteria));
     }
 
     @Test
     void rejectsKeysetCursorsWithoutAnEndpointCodec() {
+        Map<String, List<String>> parameters = Map.of("mode", List.of("keyset"), "sort", List.of("priority:desc"));
+        QueryRequestBinder binder = binder();
+        QueryCriteria criteria = binder.bindCriteria(parameters);
         assertThrows(
                 QueryBindingException.class,
-                () -> binder().bind(Map.of(
-                        "mode", List.of("keyset"),
-                        "sort", List.of("priority:desc")
-                ))
+                () -> binder.bindWindow(parameters, criteria)
         );
     }
 
@@ -152,27 +217,31 @@ class QueryRequestBinderTest {
     void rejectsUnknownValuesAndUnsafeOrExcessiveRequests() {
         assertThrows(
                 QueryBindingException.class,
-                () -> binder().bind(Map.of("filter.unknown.eq", List.of("active")))
+                () -> binder().bindCriteria(Map.of("filter.unknown.eq", List.of("active")))
         );
         assertThrows(
                 QueryBindingException.class,
-                () -> binder().bind(Map.of("filter.status.contains", List.of("active")))
+                () -> binder().bindCriteria(Map.of("filter.status.contains", List.of("active")))
         );
         assertThrows(
                 QueryBindingException.class,
-                () -> binder().bind(Map.of("filter.priority.gte", List.of("not-a-number")))
+                () -> binder().bindCriteria(Map.of("filter.priority.gte", List.of("not-a-number")))
         );
         assertThrows(
                 QueryBindingException.class,
-                () -> binder().bind(Map.of("limit", List.of("101")))
+                () -> binder().bindWindow(Map.of("limit", List.of("101")), QueryCriteria.empty())
         );
         assertThrows(
                 QueryBindingException.class,
-                () -> binder().bind(Map.of("filter.status.eq", List.of("active"), "unexpected", List.of("x")))
+                () -> binder().bindWindow(Map.of("unexpected", List.of("x")), QueryCriteria.empty())
         );
         assertThrows(
                 QueryBindingException.class,
-                () -> binder().bind(Map.of("filter.status.isNull", List.of("false")))
+                () -> binder().bindCriteria(Map.of("filter.status.eq", List.of("active"), "unexpected", List.of("x")))
+        );
+        assertThrows(
+                QueryBindingException.class,
+                () -> binder().bindCriteria(Map.of("filter.status.isNull", List.of("false")))
         );
     }
 
@@ -187,21 +256,28 @@ class QueryRequestBinderTest {
 
         assertThrows(
                 QueryBindingException.class,
-                () -> binder.bind(Map.of("filter.status.isNotNull", List.of()))
+                () -> binder.bindCriteria(Map.of("filter.status.isNotNull", List.of()))
         );
+        QueryCriteria unauthorized = new QueryCriteria(QueryCondition.equal(PRIORITY, 1), List.of());
+        assertThrows(QueryBindingException.class, () -> binder.bindWindow(Map.of(), unauthorized));
     }
 
     @Test
     void supportsApplicationOwnedBinderImplementations() {
-        QueryRequestBinder binder = parameters -> new QueryRequest(
-                QueryCriteria.empty(),
-                new SliceWindow(0L, 1)
-        );
+        QueryRequestBinder binder = new QueryRequestBinder() {
+            @Override
+            public QueryCriteria bindCriteria(Map<String, ? extends List<String>> parameters) {
+                return QueryCriteria.empty();
+            }
 
-        QueryRequest request = binder.bind(Map.of("applicationFilter", List.of("active")));
-
-        assertInstanceOf(SliceWindow.class, request.getWindow());
-        SliceWindow window = (SliceWindow) request.getWindow();
+            @Override
+            public QueryWindow bindWindow(Map<String, ? extends List<String>> parameters, QueryCriteria criteria) {
+                return new SliceWindow(0L, 1);
+            }
+        };
+        Map<String, List<String>> parameters = Map.of("applicationFilter", List.of("active"));
+        QueryCriteria criteria = binder.bindCriteria(parameters);
+        SliceWindow window = assertInstanceOf(SliceWindow.class, binder.bindWindow(parameters, criteria));
         assertEquals(1, window.limit());
     }
 

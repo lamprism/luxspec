@@ -39,6 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class AuditPublisherTest {
     private static final Instant PUBLISHED_AT = Instant.parse("2026-01-01T00:00:00Z");
     private static final Instant OCCURRED_AT = PUBLISHED_AT.minusSeconds(30L);

@@ -36,8 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class InMemoryQueryExecutorTest {
     private static final QueryField<String> NAME = QueryField.of("name", String.class);
+    private static final QueryField<Integer> NAME_LENGTH = QueryField.of("nameLength", Integer.class);
     private static final QueryField<Integer> PRIORITY = QueryField.of("priority", Integer.class);
     private static final QueryField<String> CATEGORY = QueryField.of("category", String.class);
     private static final QueryField<String> OPTIONAL_VALUE = QueryField.of("optionalValue", String.class);
@@ -72,6 +77,20 @@ class InMemoryQueryExecutorTest {
         );
 
         assertEquals(List.of("alpha", "beta", "gamma"), names(result));
+    }
+
+    @Test
+    void evaluatesAnApplicationDefinedDerivedFieldAfterSchemaValidation() {
+        QueryCriteria criteria = new QueryCriteria(QueryCondition.equal(NAME_LENGTH, 5), List.of());
+        QuerySchema schema = QuerySchema.builder().add(NAME_LENGTH, Set.of(QueryOperator.EQUAL)).build();
+        schema.validate(criteria, QueryComplexityBudget.defaults());
+        assertThrows(IllegalArgumentException.class,
+                () -> QuerySchema.builder().build().validate(criteria, QueryComplexityBudget.defaults()));
+        InMemoryQueryExecutor<Item> executor = InMemoryQueryExecutor.<Item>builder(InMemoryQueryExecutorTest::items)
+                .field(NAME_LENGTH, item -> item.name().length())
+                .build();
+
+        assertEquals(List.of("alpha", "gamma"), names(executor.query(criteria, UnboundedWindow.getInstance())));
     }
 
     @Test

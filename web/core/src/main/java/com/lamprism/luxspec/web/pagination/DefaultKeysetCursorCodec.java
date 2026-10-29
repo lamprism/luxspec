@@ -20,6 +20,7 @@ import com.lamprism.luxspec.data.pagination.KeysetPosition;
 import com.lamprism.luxspec.data.query.OrderBy;
 import com.lamprism.luxspec.data.query.QueryField;
 import com.lamprism.luxspec.web.query.QueryParameterParser;
+import org.jspecify.annotations.Nullable;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
@@ -132,8 +133,13 @@ public final class DefaultKeysetCursorCodec implements KeysetCursorCodec {
             output.writeUTF(orderFingerprint(orders));
             output.writeInt(position.values().size());
             for (int index = 0; index < orders.size(); index++) {
+                Object rawValue = position.values().get(index);
+                output.writeBoolean(rawValue != null);
+                if (rawValue == null) {
+                    continue;
+                }
                 FieldCodec<?> fieldCodec = fieldCodecs.get(orders.get(index).getField().getName());
-                String value = fieldCodec.encode(position.values().get(index));
+                String value = fieldCodec.encode(rawValue);
                 if (value.length() > MAX_VALUE_LENGTH) {
                     throw new IllegalArgumentException("Cursor value exceeds the maximum length");
                 }
@@ -160,8 +166,12 @@ public final class DefaultKeysetCursorCodec implements KeysetCursorCodec {
             if (valueCount != orders.size()) {
                 throw invalidCursor();
             }
-            List<Object> values = new ArrayList<>(valueCount);
+            List<@Nullable Object> values = new ArrayList<>(valueCount);
             for (OrderBy<?> order : orders) {
+                if (!input.readBoolean()) {
+                    values.add(null);
+                    continue;
+                }
                 String raw = input.readUTF();
                 if (raw.length() > MAX_VALUE_LENGTH) {
                     throw invalidCursor();
@@ -218,6 +228,8 @@ public final class DefaultKeysetCursorCodec implements KeysetCursorCodec {
                     .append(fieldName)
                     .append(':')
                     .append(order.getDirection().name())
+                    .append(':')
+                    .append(order.getNullPlacement().name())
                     .append(';');
         }
         return fingerprint.toString();
@@ -288,7 +300,19 @@ public final class DefaultKeysetCursorCodec implements KeysetCursorCodec {
         }
     }
 
-    private record FieldCodec<T>(Class<T> valueType, QueryParameterParser<T> parser) {
+    private static final class FieldCodec<T> {
+        private final Class<T> valueType;
+        private final QueryParameterParser<T> parser;
+
+        private FieldCodec(Class<T> valueType, QueryParameterParser<T> parser) {
+            this.valueType = valueType;
+            this.parser = parser;
+        }
+
+        private Class<T> valueType() {
+            return valueType;
+        }
+
         private String encode(Object value) {
             Object nonNullValue = Objects.requireNonNull(value, "value");
             T typedValue;

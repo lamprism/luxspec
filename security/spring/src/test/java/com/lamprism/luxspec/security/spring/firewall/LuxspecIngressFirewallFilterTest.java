@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
 import com.lamprism.luxspec.security.firewall.IngressRequest;
 import com.lamprism.luxspec.security.firewall.SimpleFirewallRegistry;
@@ -32,6 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecIngressFirewallFilterTest {
     @Test
     void passesTheConfiguredClientAddressIntoTheIngressFirewall() throws Exception {
@@ -44,7 +49,7 @@ class LuxspecIngressFirewallFilterTest {
         );
         LuxspecIngressFirewallFilter filter = new LuxspecIngressFirewallFilter(
                 firewallRegistry,
-                request -> "198.51.100.42",
+                request -> IpAddress.parse("198.51.100.42"),
                 (ignoredRequest, ignoredResponse, decision) -> {
                     throw new AssertionError("Passing firewall decision must not be handled");
                 }
@@ -59,7 +64,7 @@ class LuxspecIngressFirewallFilterTest {
         assertNotNull(ingressRequest);
         assertEquals("POST", ingressRequest.getMethod());
         assertEquals("/orders", ingressRequest.getPath());
-        assertEquals("198.51.100.42", ingressRequest.getClientAddress());
+        assertEquals(IpAddress.parse("198.51.100.42"), ingressRequest.getClientAddress());
         assertTrue(chainReached.get());
     }
 
@@ -74,6 +79,20 @@ class LuxspecIngressFirewallFilterTest {
 
         filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
             throw new AssertionError("Encoded denied path must not reach the chain");
+        });
+
+        assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    void rejectsAnInvalidPeerBeforeEvaluatingTheFirewall() throws Exception {
+        LuxspecIngressFirewallFilter filter = new LuxspecIngressFirewallFilter(new SimpleFirewallRegistry<>(List.of()));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/");
+        request.setRemoteAddr("010.0.0.1");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("Invalid peer address must not reach the chain");
         });
 
         assertEquals(403, response.getStatus());

@@ -21,6 +21,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+/**
+ *
+ * @author RollW
+ */
 class AuditRegistryTest {
     private static final AuditEventTranslator<String> TRANSLATOR = envelope -> null;
 

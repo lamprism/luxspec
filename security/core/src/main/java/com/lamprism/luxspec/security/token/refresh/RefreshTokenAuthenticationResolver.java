@@ -18,6 +18,9 @@ package com.lamprism.luxspec.security.token.refresh;
 
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
+import com.lamprism.luxspec.security.authentication.AuthenticationResolver;
+
+import java.util.Objects;
 
 /**
  * Reconstructs current Authentication for one successfully rotated Refresh Token Session.
@@ -26,6 +29,20 @@ import com.lamprism.luxspec.security.authentication.AuthenticationException;
  */
 @FunctionalInterface
 public interface RefreshTokenAuthenticationResolver<S extends RefreshTokenSession> {
+    /**
+     * Uses a common current-authentication resolver for the session subject.
+     *
+     * @param resolver the current actor resolver
+     * @param <S>      the session type
+     * @return the refresh authentication resolver
+     */
+    static <S extends RefreshTokenSession> RefreshTokenAuthenticationResolver<S> current(
+            AuthenticationResolver resolver
+    ) {
+        AuthenticationResolver nonNullResolver = Objects.requireNonNull(resolver, "resolver");
+        return session -> nonNullResolver.resolve(session.getSubject());
+    }
+
     /**
      * Reconstructs the current authenticated actor and applies refresh-flow state policy.
      *

@@ -25,6 +25,7 @@ package com.lamprism.luxspec.failure;
  * policy.</p>
  *
  * @param <C> the typed failure context
+ *
  * @author RollW
  */
 @FunctionalInterface

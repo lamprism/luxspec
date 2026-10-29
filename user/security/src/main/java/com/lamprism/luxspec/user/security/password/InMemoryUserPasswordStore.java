@@ -46,26 +46,29 @@ public class InMemoryUserPasswordStore implements UserPasswordStore {
     }
 
     @Override
+    public boolean initialize(long userId, EncodedPassword password) {
+        requireUserId(userId);
+        return passwords.putIfAbsent(userId, Objects.requireNonNull(password, "password")) == null;
+    }
+
+    @Override
     public boolean replace(
             long userId,
             EncodedPassword currentPassword,
-            EncodedPassword replacementPassword
+            EncodedPassword replacementPassword,
+            PasswordReplacementPurpose purpose
     ) {
         requireUserId(userId);
         EncodedPassword current = Objects.requireNonNull(currentPassword, "currentPassword");
         EncodedPassword replacement = Objects.requireNonNull(replacementPassword, "replacementPassword");
+        Objects.requireNonNull(purpose, "purpose");
         return passwords.replace(userId, current, replacement);
     }
 
-    /**
-     * Installs or replaces a protected password representation.
-     *
-     * @param userId          the positive user ID
-     * @param encodedPassword the protected representation
-     */
-    public void put(long userId, EncodedPassword encodedPassword) {
+    @Override
+    public boolean reset(long userId, EncodedPassword password) {
         requireUserId(userId);
-        passwords.put(userId, Objects.requireNonNull(encodedPassword, "encodedPassword"));
+        return passwords.replace(userId, Objects.requireNonNull(password, "password")) != null;
     }
 
     /**

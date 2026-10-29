@@ -30,6 +30,7 @@ import java.util.function.BiFunction;
  * {@link ProjectionQueryPlan}.</p>
  *
  * @param <R> the final point result type
+ *
  * @author RollW
  */
 public final class TimeSeriesQueryPlan<R>
@@ -75,12 +76,16 @@ public final class TimeSeriesQueryPlan<R>
         if (nonNullTimestamp.getValueType() != Instant.class) {
             throw new IllegalArgumentException("Time-series timestamp must be an Instant");
         }
+        if (QueryValue.containsAggregate(nonNullTimestamp) || value != null && QueryValue.containsAggregate(value)) {
+            throw new IllegalArgumentException("Time-series source expressions must not contain aggregates");
+        }
         TimeSeriesAggregationFunction nonNullAggregation = Objects.requireNonNull(
                 aggregation,
                 "aggregation"
         );
         TimeSeriesBucket nonNullBucket = Objects.requireNonNull(bucket, "bucket");
-        if (nonNullAggregation != TimeSeriesAggregationFunction.COUNT && value == null) {
+        if (nonNullAggregation instanceof TimeSeriesAggregationFunction.Standard
+                && nonNullAggregation != TimeSeriesAggregationFunction.COUNT && value == null) {
             throw new IllegalArgumentException("This aggregation requires a value expression");
         }
         return new Builder<>(
@@ -169,7 +174,6 @@ public final class TimeSeriesQueryPlan<R>
      * Builds an immutable time-series plan.
      *
      * @param <R> the final point result type
-     * @author RollW
      */
     public static final class Builder<R> {
         private final Class<?> valueType;

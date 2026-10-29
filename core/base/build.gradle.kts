@@ -26,4 +26,5 @@ dependencies {
     implementation("com.github.ben-manes.caffeine:caffeine")
     compileOnly("tools.jackson.dataformat:jackson-dataformat-toml")
     testImplementation("tools.jackson.dataformat:jackson-dataformat-toml")
+    testImplementation("com.github.seancfoley:ipaddress")
 }

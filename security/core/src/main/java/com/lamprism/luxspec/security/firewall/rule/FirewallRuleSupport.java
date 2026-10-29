@@ -24,6 +24,10 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ *
+ * @author RollW
+ */
 final class FirewallRuleSupport {
     private FirewallRuleSupport() {
     }

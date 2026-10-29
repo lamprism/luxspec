@@ -22,6 +22,10 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ *
+ * @author RollW
+ */
 class ResourceBundleMessageResolverTest {
     private static final String BUNDLE = "com.lamprism.luxspec.message.messages";
 

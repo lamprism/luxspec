@@ -32,6 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecRequestContextFilterTest {
     @Test
     void runsBeforeSecurityFilters() {
@@ -124,5 +128,21 @@ class LuxspecRequestContextFilterTest {
         });
 
         assertEquals("generated-id", response.getHeader("X-Correlation-ID"));
+    }
+
+    @Test
+    void supportsServerGeneratedIdsEvenWhenTheClientSuppliesAValidId() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
+        request.addHeader("X-Request-ID", "client-supplied");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        LuxspecRequestContextFilter filter = new LuxspecRequestContextFilter(
+                "X-Request-ID", () -> CorrelationId.of("server-generated"), null,
+                ServletCorrelationIdPolicy.generated()
+        );
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+        });
+
+        assertEquals("server-generated", response.getHeader("X-Request-ID"));
     }
 }

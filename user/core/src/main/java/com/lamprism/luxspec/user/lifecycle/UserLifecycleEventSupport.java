@@ -19,6 +19,10 @@ package com.lamprism.luxspec.user.lifecycle;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ *
+ * @author RollW
+ */
 final class UserLifecycleEventSupport {
     private UserLifecycleEventSupport() {
     }

@@ -18,9 +18,16 @@ package com.lamprism.luxspec.observability.autoconfigure;
 
 import com.lamprism.luxspec.data.query.InMemoryQueryExecutor;
 import com.lamprism.luxspec.data.query.QueryExecutor;
+import com.lamprism.luxspec.failure.FailureHandler;
+import com.lamprism.luxspec.observability.health.HealthAggregationPolicy;
+import com.lamprism.luxspec.observability.health.HealthGroup;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
+import com.lamprism.luxspec.observability.health.HealthStatus;
 import com.lamprism.luxspec.observability.metric.MetricRegistry;
+import com.lamprism.luxspec.observability.observation.ObservationHandler;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
+import com.lamprism.luxspec.observability.observation.ObservationSpec;
+import com.lamprism.luxspec.observability.observation.ObservationView;
 import com.lamprism.luxspec.observability.runtime.health.JvmHealthSet;
 import com.lamprism.luxspec.observability.runtime.instrumentation.ObservedQueryExecutor;
 import com.lamprism.luxspec.observability.runtime.metric.HttpServerMetricSet;
@@ -31,6 +38,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -39,10 +51,16 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecObservabilityAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(LuxspecObservabilityAutoConfiguration.class));
@@ -58,6 +76,42 @@ class LuxspecObservabilityAutoConfigurationTest {
                     assertThat(context).hasSingleBean(ObservationRegistry.class);
                     assertThat(context).hasSingleBean(HealthRegistry.class);
                 });
+    }
+
+    @Test
+    void usesApplicationHealthAndObservationFailurePolicies() {
+        contextRunner
+                .withBean(Executor.class, () -> Runnable::run)
+                .withBean(HealthAggregationPolicy.class, () -> (group, results) -> HealthStatus.UNKNOWN)
+                .withUserConfiguration(ObservationFailureConfiguration.class)
+                .run(context -> {
+                    assertThat(context.getBean(HealthRegistry.class).evaluate(HealthGroup.READINESS).getStatus())
+                            .isEqualTo(HealthStatus.UNKNOWN);
+                    ObservationRegistry registry = context.getBean(ObservationRegistry.class);
+                    ObservationSpec spec = ObservationSpec.builder("custom").build();
+                    registry.register(spec);
+                    registry.addHandler(new ObservationHandler() {
+                        @Override
+                        public void onStart(ObservationView view) {
+                            throw new IllegalStateException("handler failure");
+                        }
+                    });
+                    registry.start(spec).stop();
+                    assertThat(context.getBean(AtomicInteger.class).get()).isEqualTo(1);
+                });
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ObservationFailureConfiguration {
+        @Bean
+        AtomicInteger observationFailures() {
+            return new AtomicInteger();
+        }
+
+        @Bean
+        FailureHandler<ObservationSpec> observationFailureHandler(AtomicInteger failures) {
+            return (spec, failure) -> failures.incrementAndGet();
+        }
     }
 
     @Test
@@ -110,6 +164,24 @@ class LuxspecObservabilityAutoConfigurationTest {
                     assertThat(context.getBean(MetricRegistry.class).getSpecs())
                             .extracting(spec -> spec.getName().getValue())
                             .contains("http.server.requests", "http.server.active.requests");
+                });
+    }
+
+    @Test
+    void usesTheApplicationHttpMetricOutcomePolicy() {
+        webContextRunner
+                .withPropertyValues("luxspec.observability.http.metrics.enabled=true")
+                .withBean(HttpMetricOutcomePolicy.class, () -> (status, failure) -> HttpMetricOutcome.CLIENT_ERROR)
+                .run(context -> {
+                    LuxspecHttpMetricsFilter filter = context.getBean(LuxspecHttpMetricsFilter.class);
+                    assertThatCode(() -> filter.doFilter(
+                            new MockHttpServletRequest("GET", "/test"), new MockHttpServletResponse(), new MockFilterChain()
+                    )).doesNotThrowAnyException();
+                    assertThat(context.getBean(MetricRegistry.class).snapshot().readings())
+                            .filteredOn(reading -> "http.server.requests".equals(reading.binding().getSpec().getName().getValue()))
+                            .singleElement()
+                            .satisfies(reading -> assertThat(reading.binding().getDimensions().get("outcome"))
+                                    .isEqualTo("CLIENT_ERROR"));
                 });
     }
 

@@ -29,6 +29,7 @@ import java.util.Objects;
  * {@link TimeSeriesQueryPlan} instead of by nullable fields on this plan.</p>
  *
  * @param <R> the projected result type
+ *
  * @author RollW
  */
 public final class ProjectionQueryPlan<R>
@@ -147,7 +148,6 @@ public final class ProjectionQueryPlan<R>
      * Builds an immutable projection query plan.
      *
      * @param <R> the projected result type
-     * @author RollW
      */
     public static final class Builder<R> {
         private final QueryProjection<R> projection;

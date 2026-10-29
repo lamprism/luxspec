@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
@@ -35,7 +36,7 @@ public interface ServletClientAddressResolver {
      * @param request the current Servlet request
      * @return the normalized client address
      */
-    String resolve(HttpServletRequest request);
+    IpAddress resolve(HttpServletRequest request);
 
     /**
      * Creates the default Servlet remote-address resolver.
@@ -43,6 +44,6 @@ public interface ServletClientAddressResolver {
      * @return the default client-address resolver
      */
     static ServletClientAddressResolver remoteAddress() {
-        return HttpServletRequest::getRemoteAddr;
+        return request -> IpAddress.parse(request.getRemoteAddr());
     }
 }

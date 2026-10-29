@@ -26,6 +26,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ *
+ * @author RollW
+ */
 final class ImmutableTokenIssuance implements TokenIssuance {
     private final List<IssuedToken<? extends Token>> tokens;
     private final Map<String, IssuedToken<?>> tokensByKindName;

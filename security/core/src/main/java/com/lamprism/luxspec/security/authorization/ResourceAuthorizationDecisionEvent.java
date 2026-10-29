@@ -28,6 +28,7 @@ import java.util.Objects;
  * Reports the final decision produced by one resource authorization attempt.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public final class ResourceAuthorizationDecisionEvent<ID> implements Event {

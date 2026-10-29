@@ -31,6 +31,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ *
+ * @author RollW
+ */
 abstract class BuiltInDatabaseUrlBuilder implements DatabaseUrlBuilder {
     private final DatabaseType databaseType;
     private final String driverClassName;

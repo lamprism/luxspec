@@ -24,6 +24,7 @@ import com.lamprism.luxspec.data.query.QueryCriteria;
  * An optional resource-provider capability for ordinary structured collection browsing.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public interface ResourceBrowser<ID> extends ResourceProvider<ID> {

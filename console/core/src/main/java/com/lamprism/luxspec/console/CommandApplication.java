@@ -20,23 +20,24 @@ import com.lamprism.luxspec.console.help.HelpDocument;
 import com.lamprism.luxspec.console.help.HelpRenderer;
 import com.lamprism.luxspec.console.help.text.PlainTextHelpFormat;
 import com.lamprism.luxspec.console.help.text.PlainTextHelpRenderer;
+import com.lamprism.luxspec.console.syntax.CommandLineTokenizer;
 import com.lamprism.luxspec.console.syntax.CommandTokenizationException;
 import com.lamprism.luxspec.console.syntax.CommandTokenizer;
-
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 /**
  * Immutable command application facade shared by process CLI and application Shell.
  *
  * <p>The application consumes already separated tokens through
  * {@link #execute(List, CommandSession)}. Shell integrations may use
- * {@link #executeLine(String, CommandSession)} when they need the built-in
- * quote and escape tokenizer.</p>
+ * {@link #executeLine(String, CommandSession)} with the standard quote and escape tokenizer or an
+ * application-selected tokenizer.</p>
  *
  * @author RollW
  */
@@ -50,20 +51,24 @@ public final class CommandApplication {
     private final List<String> versionOptionNames;
     private final HelpDocumentFactory helpDocumentFactory;
     private final CommandParser parser;
+    private final CommandLineTokenizer lineTokenizer;
 
     private CommandApplication(Builder builder, CommandCatalog catalog) {
         this.name = builder.name;
         this.version = builder.version;
         this.catalog = catalog;
         this.helpRenderer = builder.helpRenderer;
+        this.lineTokenizer = builder.lineTokenizer;
         this.helpCommand = builder.helpCommand;
         this.helpOptionNames = List.copyOf(builder.helpOptionNames);
         this.versionOptionNames = List.copyOf(builder.versionOptionNames);
         this.helpDocumentFactory = new HelpDocumentFactory(
                 name, catalog, helpOptionNames, versionOptionNames
         );
-        this.parser = new CommandParser(catalog,
-                new CommandParser.CommandControl(helpCommand, helpOptionNames, versionOptionNames));
+        CommandParser standardParser = new DefaultCommandParser(catalog, helpCommand, helpOptionNames, versionOptionNames);
+        this.parser = builder.parserFactory == null ? standardParser : Objects.requireNonNull(
+                builder.parserFactory.apply(catalog, standardParser), "parserFactory returned null"
+        );
     }
 
     /**
@@ -131,19 +136,29 @@ public final class CommandApplication {
     public CommandResult execute(List<String> tokens, CommandSession session) {
         Objects.requireNonNull(session, "session");
         CommandResult result;
-        CommandParser.ParseOutcome outcome = parser.parse(tokens);
-        if (outcome instanceof CommandParser.HelpRequest helpRequest) {
-            result = renderHelp(helpRequest.path(), session);
-        } else if (outcome instanceof CommandParser.VersionRequest) {
-            result = renderVersion(session);
-        } else if (outcome instanceof CommandParser.ParseFailure parseFailure) {
-            result = completeFailure(parseFailure.failure(), session);
-        } else if (outcome instanceof CommandParser.InvocationRequest invocationRequest) {
-            result = executeRunner(invocationRequest, session);
-        } else {
-            result = completeFailure(CommandFailure.internal(
-                    "Unsupported parser outcome", CommandPath.root(), null
-            ), session);
+        try {
+            CommandAction action = Objects.requireNonNull(parser.parse(List.copyOf(tokens)), "parser returned null");
+            if (action instanceof CommandAction.Help help) {
+                result = renderHelp(help.getPath(), session);
+            } else if (action instanceof CommandAction.Version) {
+                result = renderVersion(session);
+            } else if (action instanceof CommandAction.Invoke invoke) {
+                CommandInvocation invocation = invoke.getInvocation();
+                if (!invocation.belongsTo(catalog)) {
+                    throw new IllegalArgumentException("Parser selected a command outside the application catalog");
+                }
+                CommandRunner runner = catalog.runner(invocation.getPath()).orElseThrow(
+                        () -> new IllegalArgumentException("Parser selected a non-executable command")
+                );
+                result = executeRunner(invocation, runner, session);
+            } else {
+                throw new IllegalStateException("Unsupported command action");
+            }
+        } catch (CommandFailureException exception) {
+            result = completeFailure(exception.getFailure(), session);
+        } catch (RuntimeException exception) {
+            result = completeFailure(CommandFailure.internal("Command parsing failed", CommandPath.root(), exception),
+                    session);
         }
         flush(session);
         return result;
@@ -171,7 +186,7 @@ public final class CommandApplication {
     public CommandResult executeLine(String line, CommandSession session) {
         Objects.requireNonNull(session, "session");
         try {
-            return execute(CommandTokenizer.tokenize(line), session);
+            return execute(lineTokenizer.tokenize(line), session);
         } catch (CommandTokenizationException exception) {
             CommandFailure failure = CommandFailure.usage(
                     "Invalid command line at character " + exception.getPosition() + ": " + exception.getMessage(),
@@ -203,13 +218,12 @@ public final class CommandApplication {
         return executeLine(line, CommandSession.standard());
     }
 
-    private CommandResult executeRunner(CommandParser.InvocationRequest request,
-                                         CommandSession session) {
+    private CommandResult executeRunner(CommandInvocation invocation, CommandRunner runner, CommandSession session) {
         try {
-            CommandResult result = request.runner().execute(new CommandContext(request.invocation(), session));
+            CommandResult result = runner.execute(new CommandContext(invocation, session));
             if (result == null) {
                 return completeFailure(CommandFailure.internal(
-                        "Command runner returned null", request.invocation().getPath(), null
+                        "Command runner returned null", invocation.getPath(), null
                 ), session);
             }
             if (result.getFailure() != null) {
@@ -221,11 +235,11 @@ public final class CommandApplication {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return completeFailure(CommandFailure.execution(
-                    "Command execution was interrupted", request.invocation().getPath(), exception
+                    "Command execution was interrupted", invocation.getPath(), exception
             ), session);
         } catch (Exception exception) {
             return completeFailure(CommandFailure.execution(
-                    "Command execution failed", request.invocation().getPath(), exception
+                    "Command execution failed", invocation.getPath(), exception
             ), session);
         }
     }
@@ -282,6 +296,8 @@ public final class CommandApplication {
         private final List<CommandSpec> specifications = new ArrayList<>();
         private final List<CommandRegistration> registrations = new ArrayList<>();
         private HelpRenderer helpRenderer = new PlainTextHelpRenderer(PlainTextHelpFormat.defaults());
+        private CommandLineTokenizer lineTokenizer = CommandTokenizer::tokenize;
+        private @Nullable BiFunction<CommandCatalog, CommandParser, ? extends CommandParser> parserFactory;
         private String helpCommand = "help";
         private List<String> helpOptionNames = List.of("--help", "-h");
         private List<String> versionOptionNames = List.of("--version");
@@ -436,6 +452,29 @@ public final class CommandApplication {
          */
         public Builder helpRenderer(HelpRenderer helpRenderer) {
             this.helpRenderer = Objects.requireNonNull(helpRenderer, "helpRenderer");
+            return this;
+        }
+
+        /**
+         * Selects how shell lines are split into command tokens.
+         *
+         * @param tokenizer the line tokenization strategy
+         * @return this builder
+         */
+        public Builder lineTokenizer(CommandLineTokenizer tokenizer) {
+            this.lineTokenizer = Objects.requireNonNull(tokenizer, "tokenizer");
+            return this;
+        }
+
+        /**
+         * Selects a command parser after the catalog and standard parser have been built.
+         * The factory may replace the standard syntax or delegate selected inputs to it.
+         *
+         * @param factory creates a thread-safe parser from the catalog and standard parser
+         * @return this builder
+         */
+        public Builder parser(BiFunction<CommandCatalog, CommandParser, ? extends CommandParser> factory) {
+            this.parserFactory = Objects.requireNonNull(factory, "factory");
             return this;
         }
 

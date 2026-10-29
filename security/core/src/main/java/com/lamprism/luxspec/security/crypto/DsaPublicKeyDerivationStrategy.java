@@ -22,6 +22,10 @@ import org.bouncycastle.crypto.params.DSAPublicKeyParameters;
 
 import java.math.BigInteger;
 
+/**
+ *
+ * @author RollW
+ */
 final class DsaPublicKeyDerivationStrategy extends AbstractPublicKeyDerivationStrategy {
     @Override
     protected DerivedPublicKey deriveParameters(

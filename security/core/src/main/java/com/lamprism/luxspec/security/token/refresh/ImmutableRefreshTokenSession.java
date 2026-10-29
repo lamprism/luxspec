@@ -22,6 +22,10 @@ import com.lamprism.luxspec.security.token.SessionLifetime;
 
 import java.util.Objects;
 
+/**
+ *
+ * @author RollW
+ */
 final class ImmutableRefreshTokenSession implements RefreshTokenSession {
     private final RefreshTokenSessionId id;
     private final Subject subject;

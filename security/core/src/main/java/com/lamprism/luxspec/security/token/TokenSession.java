@@ -22,6 +22,7 @@ import com.lamprism.luxspec.security.authentication.Subject;
  * Represents server-authoritative lifecycle state associated with one or more tokens.
  *
  * @param <ID> the session identifier type
+ *
  * @author RollW
  */
 public interface TokenSession<ID> {

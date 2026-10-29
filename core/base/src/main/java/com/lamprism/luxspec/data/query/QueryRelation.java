@@ -26,6 +26,7 @@ import java.util.Objects;
  * provider prevents a query expression from carrying persistence metadata.</p>
  *
  * @param <T> the related value type
+ *
  * @author RollW
  */
 public final class QueryRelation<T> {

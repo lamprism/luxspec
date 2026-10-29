@@ -21,6 +21,7 @@ import com.lamprism.luxspec.security.token.TokenLifecycleEvent;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -67,8 +68,8 @@ public class EventPublishingAccessTokenRevocationStore implements AccessTokenRev
     }
 
     @Override
-    public void revoke(VerifiedAccessToken accessToken) {
-        delegate.revoke(accessToken);
+    public void revoke(VerifiedAccessToken accessToken, Instant acceptanceDeadline) {
+        delegate.revoke(accessToken, acceptanceDeadline);
         eventPublisher.publish(TokenLifecycleEvent.revoked(
                 AccessToken.KIND,
                 null,

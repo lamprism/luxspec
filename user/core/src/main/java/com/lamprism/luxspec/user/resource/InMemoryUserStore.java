@@ -22,6 +22,7 @@ import com.lamprism.luxspec.data.query.QueryComplexityBudget;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.resource.InMemoryResourceBrowser;
 import com.lamprism.luxspec.resource.ResourceException;
+import com.lamprism.luxspec.resource.ResourceNotFoundException;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.resource.ResourceType;
 import com.lamprism.luxspec.user.Role;
@@ -46,7 +47,7 @@ import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
- * Provides a concurrent in-memory user registry, provider, and browser.
+ * Provides a concurrent in-memory user account writer, provider, and browser.
  *
  * <p>The store is intended for local applications, tests, and examples. It keeps immutable user
  * snapshots and performs all identity and username-index mutations under one lock, so a query
@@ -54,7 +55,7 @@ import java.util.function.UnaryOperator;
  *
  * @author RollW
  */
-public class InMemoryUserStore implements UserRegistry, UserProvider, UserBrowser {
+public class InMemoryUserStore implements UserAccountWriter, UserProvider, UserBrowser {
     private final Object stateLock = new Object();
     private final Clock clock;
     private final Map<Long, User> usersById = new LinkedHashMap<>();
@@ -104,9 +105,10 @@ public class InMemoryUserStore implements UserRegistry, UserProvider, UserBrowse
     }
 
     @Override
-    public User register(String username, @Nullable String email, Set<Role> roles) {
+    public User register(String username, @Nullable String email, Set<Role> roles, UserStatus status) {
         String nonBlankUsername = requireUsername(username);
         Set<Role> nonEmptyRoles = Set.copyOf(Objects.requireNonNull(roles, "roles"));
+        UserStatus initialStatus = Objects.requireNonNull(status, "status");
         if (nonEmptyRoles.isEmpty()) {
             throw new IllegalArgumentException("roles must not be empty");
         }
@@ -124,7 +126,7 @@ public class InMemoryUserStore implements UserRegistry, UserProvider, UserBrowse
                     nonBlankUsername,
                     email,
                     nonEmptyRoles,
-                    UserStatus.ACTIVE,
+                    initialStatus,
                     now,
                     now
             );
@@ -187,23 +189,18 @@ public class InMemoryUserStore implements UserRegistry, UserProvider, UserBrowse
     }
 
     @Override
-    public void activate(long userId) {
-        changeStatus(userId, UserStatus.ACTIVE);
+    public void replaceRoles(long userId, Set<Role> roles) {
+        Set<Role> replacement = Set.copyOf(Objects.requireNonNull(roles, "roles"));
+        if (replacement.isEmpty()) {
+            throw new IllegalArgumentException("roles must not be empty");
+        }
+        update(userId, user -> copy(user, user.username(), user.email(), replacement, user.status()));
     }
 
     @Override
-    public void disable(long userId) {
-        changeStatus(userId, UserStatus.DISABLED);
-    }
-
-    @Override
-    public void lock(long userId) {
-        changeStatus(userId, UserStatus.LOCKED);
-    }
-
-    @Override
-    public void cancel(long userId) {
-        changeStatus(userId, UserStatus.CANCELED);
+    public void changeStatus(long userId, UserStatus status) {
+        UserStatus nonNullStatus = Objects.requireNonNull(status, "status");
+        update(userId, user -> copy(user, user.username(), user.email(), user.roles(), nonNullStatus));
     }
 
     @Override
@@ -275,10 +272,6 @@ public class InMemoryUserStore implements UserRegistry, UserProvider, UserBrowse
         }
     }
 
-    private void changeStatus(long userId, UserStatus status) {
-        update(userId, user -> copy(user, user.username(), user.email(), user.roles(), status));
-    }
-
     private User update(long userId, UnaryOperator<User> updater) {
         Objects.requireNonNull(updater, "updater");
         synchronized (stateLock) {
@@ -335,8 +328,8 @@ public class InMemoryUserStore implements UserRegistry, UserProvider, UserBrowse
         return nonNullReference;
     }
 
-    private static ResourceException notFound() {
-        return new ResourceException("User was not found");
+    private static ResourceNotFoundException notFound() {
+        return new ResourceNotFoundException("User was not found");
     }
 
     private static String requireUsername(String username) {

@@ -30,6 +30,7 @@ import java.util.Objects;
  * same-name attribute mapping internally.</p>
  *
  * @param <T> the persistence entity type
+ *
  * @author RollW
  */
 public interface JpaQueryFieldResolver<T> {

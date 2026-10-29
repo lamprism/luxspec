@@ -24,13 +24,16 @@ import com.lamprism.luxspec.data.query.LogicalCondition;
 import com.lamprism.luxspec.data.query.LogicalOperator;
 import com.lamprism.luxspec.data.query.NegatedQueryExpression;
 import com.lamprism.luxspec.data.query.OrderBy;
+import com.lamprism.luxspec.data.query.QueryAggregateDefinition;
 import com.lamprism.luxspec.data.query.QueryAggregateFunction;
 import com.lamprism.luxspec.data.query.QueryCondition;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryExpression;
 import com.lamprism.luxspec.data.query.QueryExpressionVisitor;
 import com.lamprism.luxspec.data.query.QueryField;
+import com.lamprism.luxspec.data.query.QueryFunctionDefinition;
 import com.lamprism.luxspec.data.query.QueryOperator;
+import com.lamprism.luxspec.data.query.QueryOperatorDefinition;
 import com.lamprism.luxspec.data.query.QueryValue;
 import com.lamprism.luxspec.data.query.QueryValueCondition;
 import com.lamprism.luxspec.data.query.QueryValueVisitor;
@@ -39,6 +42,7 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.From;
 import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Nulls;
 import jakarta.persistence.criteria.Order;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -47,7 +51,9 @@ import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -56,10 +62,104 @@ import java.util.Objects;
  * @author RollW
  */
 public class JpaCriteriaTranslator {
+    private final Map<QueryFunctionDefinition<?>, JpaQueryFunction<?>> functions;
+    private final Map<QueryOperatorDefinition<?, ?>, JpaQueryOperator<?, ?>> operators;
+    private final Map<QueryAggregateDefinition<?>, JpaQueryAggregate<?>> aggregates;
+
     /**
      * Creates a stateless typed Criteria API translator.
      */
     public JpaCriteriaTranslator() {
+        this(Map.of(), Map.of(), Map.of());
+    }
+
+    private JpaCriteriaTranslator(Map<QueryFunctionDefinition<?>, JpaQueryFunction<?>> functions,
+                                  Map<QueryOperatorDefinition<?, ?>, JpaQueryOperator<?, ?>> operators,
+                                  Map<QueryAggregateDefinition<?>, JpaQueryAggregate<?>> aggregates) {
+        this.functions = Map.copyOf(functions);
+        this.operators = Map.copyOf(operators);
+        this.aggregates = Map.copyOf(aggregates);
+    }
+
+    /**
+     * Starts a translator with application-owned function and operator implementations.
+     *
+     * @return the translator builder
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Configures trusted Criteria implementations of query functions and operators.
+     */
+    public static final class Builder {
+        private final Map<QueryFunctionDefinition<?>, JpaQueryFunction<?>> functions = new LinkedHashMap<>();
+        private final Map<QueryOperatorDefinition<?, ?>, JpaQueryOperator<?, ?>> operators = new LinkedHashMap<>();
+        private final Map<QueryAggregateDefinition<?>, JpaQueryAggregate<?>> aggregates = new LinkedHashMap<>();
+
+        private Builder() {
+        }
+
+        /**
+         * Registers a typed function implementation.
+         *
+         * @param definition     the function identity
+         * @param implementation the trusted Criteria translation
+         * @param <V>            the function result type
+         * @return this builder
+         */
+        public <V> Builder function(QueryFunctionDefinition<V> definition, JpaQueryFunction<V> implementation) {
+            QueryFunctionDefinition<V> key = Objects.requireNonNull(definition, "definition");
+            if (functions.putIfAbsent(key, Objects.requireNonNull(implementation, "implementation")) != null) {
+                throw new IllegalArgumentException("Query function is already registered: " + key.getName());
+            }
+            return this;
+        }
+
+        /**
+         * Registers a trusted Criteria implementation of a typed query operator.
+         *
+         * @param definition     the operation identity
+         * @param implementation the Criteria translation
+         * @param <V>            the operand type
+         * @param <A>            the argument type
+         * @return this builder
+         */
+        public <V, A> Builder operator(
+                QueryOperatorDefinition<V, A> definition, JpaQueryOperator<V, A> implementation
+        ) {
+            QueryOperatorDefinition<V, A> key = Objects.requireNonNull(definition, "definition");
+            if (operators.putIfAbsent(key, Objects.requireNonNull(implementation, "implementation")) != null) {
+                throw new IllegalArgumentException("Query operator is already registered: " + key.getName());
+            }
+            return this;
+        }
+
+        /**
+         * Registers a trusted Criteria implementation of a typed group aggregate.
+         *
+         * @param definition     the aggregate identity
+         * @param implementation the Criteria translation
+         * @param <V>            the aggregate result type
+         * @return this builder
+         */
+        public <V> Builder aggregate(QueryAggregateDefinition<V> definition, JpaQueryAggregate<V> implementation) {
+            QueryAggregateDefinition<V> key = Objects.requireNonNull(definition, "definition");
+            if (aggregates.putIfAbsent(key, Objects.requireNonNull(implementation, "implementation")) != null) {
+                throw new IllegalArgumentException("Query aggregate is already registered: " + key.getName());
+            }
+            return this;
+        }
+
+        /**
+         * Builds an immutable translator.
+         *
+         * @return the configured translator
+         */
+        public JpaCriteriaTranslator build() {
+            return new JpaCriteriaTranslator(functions, operators, aggregates);
+        }
     }
 
     /**
@@ -141,7 +241,8 @@ public class JpaCriteriaTranslator {
             QueryExpression expression,
             JpaQueryFieldResolver<T> fieldResolver
     ) {
-        return new PredicateTranslator<>(builder, root, query, fieldResolver).translate(expression);
+        return new PredicateTranslator<>(builder, root, query, fieldResolver, functions, operators, aggregates)
+                .translate(expression);
     }
 
     /**
@@ -162,7 +263,8 @@ public class JpaCriteriaTranslator {
             QueryValue<?> value,
             JpaQueryFieldResolver<T> fieldResolver
     ) {
-        return new PredicateTranslator<>(builder, root, query, fieldResolver).expression(value);
+        return new PredicateTranslator<>(builder, root, query, fieldResolver, functions, operators, aggregates)
+                .expression(value);
     }
 
     /**
@@ -192,7 +294,7 @@ public class JpaCriteriaTranslator {
         KeysetPosition nonNullPosition = Objects.requireNonNull(position, "position");
         JpaQueryFieldResolver<T> nonNullResolver = Objects.requireNonNull(resolver, "resolver");
         List<OrderBy<?>> orders = nonNullCriteria.getOrders();
-        List<Object> values = nonNullPosition.values();
+        List<@Nullable Object> values = nonNullPosition.values();
         if (orders.isEmpty()) {
             throw new IllegalArgumentException("Keyset windows require explicit query ordering");
         }
@@ -201,7 +303,7 @@ public class JpaCriteriaTranslator {
         }
         for (int index = 0; index < orders.size(); index++) {
             Object value = values.get(index);
-            if (!orders.get(index).getField().getValueType().isInstance(value)) {
+            if (value != null && !orders.get(index).getField().getValueType().isInstance(value)) {
                 throw new IllegalArgumentException("Keyset value does not match query field type");
             }
         }
@@ -215,7 +317,10 @@ public class JpaCriteriaTranslator {
                         nonNullRoot,
                         order.getField()
                 );
-                terms.add(nonNullBuilder.equal(expression, values.get(prefix)));
+                Object prefixValue = values.get(prefix);
+                terms.add(prefixValue == null
+                        ? nonNullBuilder.isNull(expression)
+                        : nonNullBuilder.equal(expression, prefixValue));
             }
             OrderBy<?> order = orders.get(index);
             Expression<?> expression = nonNullResolver.resolve(nonNullRoot, order.getField());
@@ -223,7 +328,7 @@ public class JpaCriteriaTranslator {
                     nonNullBuilder,
                     expression,
                     values.get(index),
-                    order.getDirection()
+                    order
             ));
             branches.add(nonNullBuilder.and(terms.toArray(Predicate[]::new)));
         }
@@ -303,28 +408,36 @@ public class JpaCriteriaTranslator {
             JpaQueryFieldResolver<T> fieldResolver
     ) {
         Expression<V> expression = fieldResolver.resolve(root, order.getField());
+        Nulls nulls = order.getNullPlacement() == OrderBy.NullPlacement.FIRST ? Nulls.FIRST : Nulls.LAST;
         if (order.getDirection() == OrderBy.Direction.ASCENDING) {
-            return builder.asc(expression);
+            return builder.asc(expression, nulls);
         }
-        return builder.desc(expression);
+        return builder.desc(expression, nulls);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static Predicate after(
             CriteriaBuilder builder,
             Expression<?> expression,
-            Object value,
-            OrderBy.Direction direction
+            @Nullable Object value,
+            OrderBy<?> order
     ) {
+        if (value == null) {
+            return order.getNullPlacement() == OrderBy.NullPlacement.FIRST
+                    ? builder.isNotNull(expression)
+                    : builder.disjunction();
+        }
         if (!(value instanceof Comparable<?> comparable)) {
             throw new IllegalArgumentException("Keyset values must be comparable");
         }
         Expression comparableExpression = expression;
         Comparable comparableValue = comparable;
-        if (direction == OrderBy.Direction.ASCENDING) {
-            return builder.greaterThan(comparableExpression, comparableValue);
-        }
-        return builder.lessThan(comparableExpression, comparableValue);
+        Predicate comparison = order.getDirection() == OrderBy.Direction.ASCENDING
+                ? builder.greaterThan(comparableExpression, comparableValue)
+                : builder.lessThan(comparableExpression, comparableValue);
+        return order.getNullPlacement() == OrderBy.NullPlacement.LAST
+                ? builder.or(comparison, builder.isNull(expression))
+                : comparison;
     }
 
     private static final class PredicateTranslator<T>
@@ -333,21 +446,34 @@ public class JpaCriteriaTranslator {
         private final From<?, ?> source;
         private final @Nullable CommonAbstractCriteria query;
         private final JpaQueryFieldResolver<T> fieldResolver;
+        private final Map<QueryFunctionDefinition<?>, JpaQueryFunction<?>> functions;
+        private final Map<QueryOperatorDefinition<?, ?>, JpaQueryOperator<?, ?>> operators;
+        private final Map<QueryAggregateDefinition<?>, JpaQueryAggregate<?>> aggregates;
 
         private PredicateTranslator(
                 CriteriaBuilder builder,
                 From<?, ?> source,
                 @Nullable CommonAbstractCriteria query,
-                JpaQueryFieldResolver<T> fieldResolver
+                JpaQueryFieldResolver<T> fieldResolver,
+                Map<QueryFunctionDefinition<?>, JpaQueryFunction<?>> functions,
+                Map<QueryOperatorDefinition<?, ?>, JpaQueryOperator<?, ?>> operators,
+                Map<QueryAggregateDefinition<?>, JpaQueryAggregate<?>> aggregates
         ) {
             this.builder = Objects.requireNonNull(builder, "builder");
             this.source = Objects.requireNonNull(source, "source");
             this.query = query;
             this.fieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
+            this.functions = Objects.requireNonNull(functions, "functions");
+            this.operators = Objects.requireNonNull(operators, "operators");
+            this.aggregates = Objects.requireNonNull(aggregates, "aggregates");
         }
 
         private Predicate translate(QueryExpression expression) {
-            return Objects.requireNonNull(expression, "expression").accept(this);
+            QueryExpression nonNullExpression = Objects.requireNonNull(expression, "expression");
+            if (!QueryExpression.isBuiltIn(nonNullExpression)) {
+                throw new IllegalArgumentException("Unsupported query expression: " + nonNullExpression.getClass().getName());
+            }
+            return nonNullExpression.accept(this);
         }
 
         @Override
@@ -356,13 +482,13 @@ public class JpaCriteriaTranslator {
         }
 
         @Override
-        public <V> Predicate visitCondition(QueryCondition<V> condition) {
+        public <V, A> Predicate visitCondition(QueryCondition<V, A> condition) {
             Expression<V> expression = fieldResolver.resolve(source, condition.getField());
             return predicate(expression, condition.getOperator(), condition.getValues());
         }
 
         @Override
-        public <V> Predicate visitValueCondition(QueryValueCondition<V> condition) {
+        public <V, A> Predicate visitValueCondition(QueryValueCondition<V, A> condition) {
             Expression<?> expression = expression(condition.getValue());
             return predicate(expression, condition.getOperator(), condition.getValues());
         }
@@ -429,7 +555,10 @@ public class JpaCriteriaTranslator {
                     builder,
                     related,
                     subquery,
-                    fieldResolver
+                    fieldResolver,
+                    functions,
+                    operators,
+                    aggregates
             ).translate(condition.getCondition());
             subquery.select(builder.literal(1));
             subquery.where(nested);
@@ -460,27 +589,75 @@ public class JpaCriteriaTranslator {
         }
 
         @Override
+        public <V> Expression<V> visitCustomFunction(QueryValue.CustomFunction<V> value) {
+            JpaQueryFunction<?> function = functions.get(value.getDefinition());
+            if (function == null) {
+                throw new IllegalArgumentException("JPA query function is not registered: "
+                        + value.getDefinition().getName());
+            }
+            List<Expression<?>> arguments = new ArrayList<>(value.getArguments().size());
+            for (QueryValue<?> argument : value.getArguments()) {
+                arguments.add(expression(argument));
+            }
+            Expression<?> translated = Objects.requireNonNull(function.translate(builder, List.copyOf(arguments)),
+                    "query function expression");
+            if (!value.getValueType().isAssignableFrom(translated.getJavaType())) {
+                throw new IllegalStateException("JPA query function returned an incompatible expression");
+            }
+            return castExpression(translated);
+        }
+
+        @Override
         public <V> Expression<V> visitCast(QueryValue.Cast<V> value) {
             return expression(value.getOperand()).as(value.getTargetType());
         }
 
         @Override
         public <V> Expression<V> visitAggregate(QueryValue.Aggregate<V> value) {
-            QueryValue<?> operand = value.getOperand();
-            if (value.getFunction() == QueryAggregateFunction.COUNT && operand == null) {
+            if (value.getFunction() instanceof QueryAggregateDefinition<?> definition) {
+                return customAggregate(value, definition);
+            }
+            if (!(value.getFunction() instanceof QueryAggregateFunction.Standard standard)) {
+                throw new IllegalArgumentException("Unsupported query aggregate");
+            }
+            if (standard == QueryAggregateFunction.COUNT && value.getArguments().isEmpty()) {
                 return castExpression(builder.count(source));
             }
-            Expression<?> expression = expression(Objects.requireNonNull(operand, "aggregate operand"));
-            return aggregate(value.getFunction(), expression);
+            Expression<?> expression = expression(value.getArguments().get(0));
+            return aggregate(standard, expression);
+        }
+
+        private <V> Expression<V> customAggregate(
+                QueryValue.Aggregate<V> value, QueryAggregateDefinition<?> definition
+        ) {
+            JpaQueryAggregate<?> implementation = aggregates.get(definition);
+            if (implementation == null) {
+                throw new IllegalArgumentException("JPA query aggregate is not registered: " + definition.getName());
+            }
+            List<Expression<?>> arguments = new ArrayList<>(value.getArguments().size());
+            for (QueryValue<?> argument : value.getArguments()) {
+                arguments.add(expression(argument));
+            }
+            Expression<?> translated = Objects.requireNonNull(
+                    implementation.translate(builder, source, List.copyOf(arguments)), "query aggregate expression"
+            );
+            if (!value.getValueType().isAssignableFrom(translated.getJavaType())) {
+                throw new IllegalStateException("JPA query aggregate returned an incompatible expression");
+            }
+            return castExpression(translated);
         }
 
         private Expression<?> expression(QueryValue<?> value) {
-            return Objects.requireNonNull(value, "value").accept(this);
+            QueryValue<?> nonNullValue = Objects.requireNonNull(value, "value");
+            if (!QueryValue.isBuiltIn(nonNullValue)) {
+                throw new IllegalArgumentException("Unsupported query value: " + nonNullValue.getClass().getName());
+            }
+            return nonNullValue.accept(this);
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         private <V> Expression<V> aggregate(
-                QueryAggregateFunction function,
+                QueryAggregateFunction.Standard function,
                 Expression<?> expression
         ) {
             return switch (function) {
@@ -498,13 +675,19 @@ public class JpaCriteriaTranslator {
                 QueryOperator operator,
                 List<?> values
         ) {
+            if (operator instanceof QueryOperatorDefinition<?, ?> definition) {
+                return customPredicate(definition, expression, values);
+            }
+            if (!(operator instanceof QueryOperator.Standard standard)) {
+                throw new IllegalArgumentException("Unsupported query operator");
+            }
             if (operator == QueryOperator.IS_NULL) {
                 return builder.isNull(expression);
             }
             if (operator == QueryOperator.IS_NOT_NULL) {
                 return builder.isNotNull(expression);
             }
-            Predicate valuePredicate = switch (operator) {
+            Predicate valuePredicate = switch (standard) {
                 case EQUAL -> builder.equal(expression, values.get(0));
                 case NOT_EQUAL -> builder.notEqual(expression, values.get(0));
                 case IN -> expression.in(values);
@@ -514,11 +697,23 @@ public class JpaCriteriaTranslator {
                         (String) values.get(0),
                         LikeCondition.ESCAPE_CHARACTER
                 );
-                case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL ->
-                        orderedPredicate(builder, expression, operator, values.get(0));
+                case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> orderedPredicate(builder, expression, standard, values.get(0));
                 case IS_NULL, IS_NOT_NULL -> throw new IllegalStateException("Null operators were handled above");
             };
             return nonNullPredicate(expression, valuePredicate);
+        }
+
+        @SuppressWarnings("unchecked")
+        private <V, A> Predicate customPredicate(
+                QueryOperatorDefinition<V, A> definition, Expression<?> expression, List<?> values
+        ) {
+            JpaQueryOperator<?, ?> implementation = operators.get(definition);
+            if (implementation == null) {
+                throw new IllegalArgumentException("JPA query operator is not registered: " + definition.getName());
+            }
+            List<A> arguments = values.stream().map(definition.getArgumentType()::cast).toList();
+            return Objects.requireNonNull(((JpaQueryOperator<V, A>) implementation)
+                    .translate(builder, castExpression(expression), arguments), "query operator predicate");
         }
 
         private Predicate nonNullPredicate(Expression<?> expression, Predicate predicate) {
@@ -529,7 +724,7 @@ public class JpaCriteriaTranslator {
         private static Predicate orderedPredicate(
                 CriteriaBuilder builder,
                 Expression<?> expression,
-                QueryOperator operator,
+                QueryOperator.Standard operator,
                 Object value
         ) {
             Expression comparableExpression = expression;

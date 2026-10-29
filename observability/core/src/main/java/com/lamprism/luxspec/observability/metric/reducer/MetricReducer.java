@@ -28,6 +28,7 @@ import java.util.Collection;
  * metric fields that are not available in a sample.</p>
  *
  * @param <R> the projection result type
+ *
  * @author RollW
  */
 @FunctionalInterface

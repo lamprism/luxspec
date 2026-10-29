@@ -36,6 +36,7 @@ import java.util.function.Function;
  * executor or resource browser builder, which assembles the default resolver internally.</p>
  *
  * @param <T> the queried candidate type
+ *
  * @author RollW
  */
 public interface QueryFieldResolver<T> {
@@ -132,7 +133,6 @@ public interface QueryFieldResolver<T> {
      * Builds a resolver from candidate accessors.
      *
      * @param <T> the queried candidate type
-     * @author RollW
      */
     final class Builder<T> {
         private final Map<QueryField<?>, DefaultQueryFieldResolver.FieldAccessor<T, ?>> accessors

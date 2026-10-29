@@ -23,6 +23,7 @@ package com.lamprism.luxspec.security.firewall;
  * priority firewalls, while an allow or deny result terminates registry evaluation.</p>
  *
  * @param <R> the request type accepted by the firewall
+ *
  * @author RollW
  */
 public interface Firewall<R extends FirewallRequest> {

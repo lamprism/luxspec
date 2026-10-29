@@ -16,9 +16,13 @@
 
 package com.lamprism.luxspec.security.firewall.filtertable;
 
+import com.lamprism.luxspec.security.firewall.filtertable.format.FilterTableFileFormat;
+import com.lamprism.luxspec.security.firewall.filtertable.format.LineFilterTableFileFormat;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -28,18 +32,25 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.UnaryOperator;
 
 /**
- * File-backed filter table with atomic replacement and immutable runtime snapshots.
+ * File-backed filter table with immutable runtime snapshots.
  *
  * <p>The file is loaded at construction. External edits are applied through {@link #reload()}.
- * Mutations write a complete replacement before publishing it to readers, so a failed write does
- * not change the active in-memory table.</p>
+ * Mutations prepare complete replacement files before publishing them, so a failed write does
+ * not change the active in-memory table. Concurrent mutations of this instance are coordinated;
+ * separate instances and external writers require application-level coordination. Replacement
+ * uses an atomic move when supported and falls back to a regular move otherwise. File rewrites use
+ * the selected format and do not preserve comments from an externally edited file.</p>
  *
  * @author RollW
  */
 public final class FileFilterTable implements FilterTable {
     private final Path path;
+    private final FilterTableFileFormat format;
+    private final ReentrantReadWriteLock fileLock = new ReentrantReadWriteLock();
     private volatile FilterTableSnapshot currentSnapshot;
 
     /**
@@ -48,7 +59,18 @@ public final class FileFilterTable implements FilterTable {
      * @param path the filter-table file path
      */
     public FileFilterTable(Path path) {
+        this(path, new LineFilterTableFileFormat());
+    }
+
+    /**
+     * Loads a filter table using a caller-supplied file format.
+     *
+     * @param path   the filter-table file path
+     * @param format the thread-safe file format
+     */
+    public FileFilterTable(Path path, FilterTableFileFormat format) {
         this.path = normalizePath(path);
+        this.format = Objects.requireNonNull(format, "format");
         this.currentSnapshot = readSnapshot(this.path);
     }
 
@@ -67,37 +89,27 @@ public final class FileFilterTable implements FilterTable {
     }
 
     @Override
-    public synchronized void put(FilterEntry entry) {
+    public void put(FilterEntry entry) {
         FilterEntry nonNullEntry = Objects.requireNonNull(entry, "entry");
-        FilterTableSnapshot replacement = currentSnapshot.withEntry(nonNullEntry);
-        writeSnapshot(path, replacement);
-        currentSnapshot = replacement;
+        update(snapshot -> snapshot.withEntry(nonNullEntry));
     }
 
     @Override
-    public synchronized boolean remove(FilterTarget target) {
+    public boolean remove(FilterTarget target) {
         FilterTarget nonNullTarget = Objects.requireNonNull(target, "target");
-        FilterTableSnapshot replacement = currentSnapshot.withoutTarget(nonNullTarget);
-        if (replacement == currentSnapshot) {
-            return false;
-        }
-        writeSnapshot(path, replacement);
-        currentSnapshot = replacement;
-        return true;
+        return update(snapshot -> snapshot.withoutTarget(nonNullTarget));
     }
 
     @Override
-    public synchronized void replaceAll(Collection<? extends FilterEntry> entries) {
+    public void replaceAll(Collection<? extends FilterEntry> entries) {
         FilterTableSnapshot replacement = new FilterTableSnapshot(entries);
-        writeSnapshot(path, replacement);
-        currentSnapshot = replacement;
+        update(snapshot -> replacement);
     }
 
     @Override
-    public synchronized void clear() {
+    public void clear() {
         FilterTableSnapshot replacement = FilterTableSnapshot.empty();
-        writeSnapshot(path, replacement);
-        currentSnapshot = replacement;
+        update(snapshot -> replacement);
     }
 
     /**
@@ -106,31 +118,80 @@ public final class FileFilterTable implements FilterTable {
      * <p>This method is the explicit boundary for administrator edits made outside the process.
      * A malformed or unreadable file leaves the current in-memory snapshot unchanged.</p>
      */
-    public synchronized void reload() {
-        FilterTableSnapshot replacement = readSnapshot(path);
-        currentSnapshot = replacement;
+    public void reload() {
+        while (true) {
+            FilterTableSnapshot previous = currentSnapshot;
+            FilterTableSnapshot replacement = readSnapshot(path);
+            fileLock.writeLock().lock();
+            try {
+                if (currentSnapshot == previous) {
+                    currentSnapshot = replacement;
+                    return;
+                }
+            } finally {
+                fileLock.writeLock().unlock();
+            }
+        }
     }
 
-    private static FilterTableSnapshot readSnapshot(Path path) {
-        if (Files.notExists(path)) {
-            return FilterTableSnapshot.empty();
+    private boolean update(UnaryOperator<FilterTableSnapshot> operation) {
+        while (true) {
+            FilterTableSnapshot previous = currentSnapshot;
+            FilterTableSnapshot replacement = operation.apply(previous);
+            if (replacement == previous) {
+                return false;
+            }
+            Path temporaryPath = prepareSnapshot(path, replacement);
+            try {
+                fileLock.writeLock().lock();
+                try {
+                    if (currentSnapshot != previous) {
+                        continue;
+                    }
+                    moveIntoPlace(temporaryPath, path);
+                    currentSnapshot = replacement;
+                    return true;
+                } catch (IOException exception) {
+                    throw new UncheckedIOException("Could not write filter table: " + path, exception);
+                } finally {
+                    fileLock.writeLock().unlock();
+                }
+            } finally {
+                deleteTemporaryFile(temporaryPath);
+            }
         }
-        if (Files.isDirectory(path)) {
-            throw new IllegalStateException("Filter table path is a directory: " + path);
+    }
+
+    private FilterTableSnapshot readSnapshot(Path path) {
+        String contents;
+        fileLock.readLock().lock();
+        try {
+            if (Files.notExists(path)) {
+                return FilterTableSnapshot.empty();
+            }
+            if (Files.isDirectory(path)) {
+                throw new IllegalStateException("Filter table path is a directory: " + path);
+            }
+            contents = Files.readString(path, StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Could not read filter table: " + path, exception);
+        } finally {
+            fileLock.readLock().unlock();
         }
-        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            return FilterTableFileFormat.read(reader, path.toString());
+        try (BufferedReader reader = new BufferedReader(new StringReader(contents))) {
+            return Objects.requireNonNull(format.read(reader, path.toString()), "format.read");
         } catch (IOException exception) {
             throw new UncheckedIOException("Could not read filter table: " + path, exception);
         }
     }
 
-    private static void writeSnapshot(Path path, FilterTableSnapshot snapshot) {
+    private Path prepareSnapshot(Path path, FilterTableSnapshot snapshot) {
         Path parent = path.getParent();
         if (parent == null) {
             throw new IllegalArgumentException("Filter table path must have a parent directory");
         }
         Path temporaryPath = null;
+        boolean prepared = false;
         try {
             Files.createDirectories(parent);
             temporaryPath = Files.createTempFile(parent, path.getFileName().toString(), ".tmp");
@@ -140,13 +201,16 @@ public final class FileFilterTable implements FilterTable {
                     StandardOpenOption.WRITE,
                     StandardOpenOption.TRUNCATE_EXISTING
             )) {
-                FilterTableFileFormat.write(writer, snapshot);
+                format.write(writer, snapshot);
             }
-            moveIntoPlace(temporaryPath, path);
+            prepared = true;
+            return temporaryPath;
         } catch (IOException exception) {
             throw new UncheckedIOException("Could not write filter table: " + path, exception);
         } finally {
-            deleteTemporaryFile(temporaryPath);
+            if (!prepared) {
+                deleteTemporaryFile(temporaryPath);
+            }
         }
     }
 
@@ -170,7 +234,9 @@ public final class FileFilterTable implements FilterTable {
         try {
             Files.deleteIfExists(temporaryPath);
         } catch (IOException ignored) {
-            // The target file has already been replaced or the original write failure is primary.
+            /*
+             * The target file has already been replaced or the original write failure is primary.
+             */
         }
     }
 

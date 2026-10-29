@@ -30,6 +30,7 @@ import java.util.List;
  * Provides resources only after the supplied action has been authorized.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public interface AuthorizedResourceProvider<ID> {

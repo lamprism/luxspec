@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.security.firewall;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
+import com.lamprism.luxspec.network.ip.IpNetwork;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.UserSubject;
@@ -37,6 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class SimpleFirewallRegistryTest {
     private static final class TestRequest implements FirewallRequest {
         @Override
@@ -50,8 +56,8 @@ class SimpleFirewallRegistryTest {
         }
 
         @Override
-        public String getClientAddress() {
-            return "127.0.0.1";
+        public IpAddress getClientAddress() {
+            return IpAddress.parse("127.0.0.1");
         }
     }
 
@@ -141,6 +147,38 @@ class SimpleFirewallRegistryTest {
     }
 
     @Test
+    void supportsDenialPriorityAndReportsObserverFailure() {
+        List<Throwable> failures = new ArrayList<>();
+        IllegalStateException publicationFailure = new IllegalStateException("event publication failed");
+        Firewall<TestRequest> allow = new Firewall<>() {
+            @Override
+            public FirewallDecision verifyRequest(TestRequest request) {
+                return FirewallDecision.allow();
+            }
+
+            @Override
+            public int getPriority() {
+                return 10;
+            }
+        };
+        SimpleFirewallRegistry<TestRequest> registry = new SimpleFirewallRegistry<>(
+                List.of(allow, request -> FirewallDecision.deny(SecurityErrorCode.FIREWALL_PATH_DENIED)),
+                event -> {
+                    throw publicationFailure;
+                },
+                Clock.systemUTC(),
+                FirewallDecisionPolicy.denyOverrides(),
+                (event, failure) -> failures.add(failure)
+        );
+
+        FirewallDecision decision = registry.filter(new TestRequest());
+
+        assertEquals(FirewallDecision.Case.DENY, decision.getCase());
+        assertEquals(SecurityErrorCode.FIREWALL_PATH_DENIED, decision.getReasonCode());
+        assertEquals(List.of(publicationFailure), failures);
+    }
+
+    @Test
     void evaluatesNeutralFirewallsByDescendingPriority() {
         List<Integer> order = new ArrayList<>();
         Firewall<TestRequest> low = firewall(1, order);
@@ -173,10 +211,10 @@ class SimpleFirewallRegistryTest {
                 List.of(
                         RequestMethodFirewallRule.allowOnly(List.of("GET")),
                         RequestPathFirewallRule.allowExact(List.of("/test")),
-                        ClientAddressFirewallRule.allowOnly(List.of("127.0.0.1"))
+                        ClientAddressFirewallRule.allowOnly(List.of(IpNetwork.parse("127.0.0.0/8")))
                 )
         );
-        IngressRequest ingress = new IngressRequest("GET", "/test", "127.0.0.1");
+        IngressRequest ingress = new IngressRequest("GET", "/test", IpAddress.parse("127.0.0.1"));
         Authentication authentication = new Authentication(
                 new UserSubject(1L),
                 AuthorizationGrantSet.of(List.of())

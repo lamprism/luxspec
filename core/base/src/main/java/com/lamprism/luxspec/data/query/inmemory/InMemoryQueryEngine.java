@@ -28,28 +28,46 @@ import com.lamprism.luxspec.data.pagination.SliceResult;
 import com.lamprism.luxspec.data.pagination.SliceWindow;
 import com.lamprism.luxspec.data.pagination.TimeSeriesWindow;
 import com.lamprism.luxspec.data.pagination.UnboundedWindow;
+import com.lamprism.luxspec.data.query.ExistsCondition;
+import com.lamprism.luxspec.data.query.InMemoryQueryAggregate;
 import com.lamprism.luxspec.data.query.InMemoryQueryExecutor;
+import com.lamprism.luxspec.data.query.InMemoryQueryFunction;
+import com.lamprism.luxspec.data.query.InMemoryQueryOperator;
+import com.lamprism.luxspec.data.query.LogicalCondition;
+import com.lamprism.luxspec.data.query.NegatedQueryExpression;
 import com.lamprism.luxspec.data.query.OrderBy;
 import com.lamprism.luxspec.data.query.ProjectionQueryPlan;
+import com.lamprism.luxspec.data.query.QueryAggregateDefinition;
+import com.lamprism.luxspec.data.query.QueryCondition;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryExpression;
 import com.lamprism.luxspec.data.query.QueryFieldResolver;
+import com.lamprism.luxspec.data.query.QueryFunctionDefinition;
+import com.lamprism.luxspec.data.query.QueryOperator;
+import com.lamprism.luxspec.data.query.QueryOperatorDefinition;
 import com.lamprism.luxspec.data.query.QueryPlan;
 import com.lamprism.luxspec.data.query.QueryProjection;
 import com.lamprism.luxspec.data.query.QueryRelation;
 import com.lamprism.luxspec.data.query.QueryRelationResolver;
 import com.lamprism.luxspec.data.query.QueryValue;
+import com.lamprism.luxspec.data.query.QueryValueCondition;
 import com.lamprism.luxspec.data.query.TimeSeriesAggregation;
 import com.lamprism.luxspec.data.query.TimeSeriesQueryPlan;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -61,6 +79,7 @@ import java.util.function.Supplier;
  * collection traversal, ordering, grouping, and result windows.</p>
  *
  * @param <T> the queried candidate type
+ *
  * @author RollW
  */
 public final class InMemoryQueryEngine<T> {
@@ -69,6 +88,9 @@ public final class InMemoryQueryEngine<T> {
     private final QueryRelationResolver<T> relationResolver;
     private final Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers;
     private final Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers;
+    private final Map<QueryFunctionDefinition<?>, InMemoryQueryFunction<?>> functions;
+    private final Map<QueryOperatorDefinition<?, ?>, InMemoryQueryOperator<?, ?>> operators;
+    private final Map<QueryAggregateDefinition<?>, InMemoryQueryAggregate<?>> aggregates;
     private final InMemoryQueryWindow<T> windowing;
 
     /**
@@ -87,6 +109,32 @@ public final class InMemoryQueryEngine<T> {
             Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers,
             Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers
     ) {
+        this(candidateSupplier, fieldResolver, relationResolver, relatedFieldResolvers, relatedRelationResolvers,
+                Map.of(), Map.of(), Map.of());
+    }
+
+    /**
+     * Creates an engine with explicitly registered application functions and operators.
+     *
+     * @param candidateSupplier        the candidate source
+     * @param fieldResolver            the field resolver
+     * @param relationResolver         the root relationship resolver
+     * @param relatedFieldResolvers    related field resolvers
+     * @param relatedRelationResolvers nested relationship resolvers
+     * @param functions                the trusted application function implementations
+     * @param operators                the trusted application operator implementations
+     * @param aggregates               the trusted application aggregate implementations
+     */
+    public InMemoryQueryEngine(
+            Supplier<? extends Collection<? extends T>> candidateSupplier,
+            QueryFieldResolver<T> fieldResolver,
+            QueryRelationResolver<T> relationResolver,
+            Map<QueryRelation<?>, QueryFieldResolver<?>> relatedFieldResolvers,
+            Map<QueryRelation<?>, QueryRelationResolver<?>> relatedRelationResolvers,
+            Map<QueryFunctionDefinition<?>, InMemoryQueryFunction<?>> functions,
+            Map<QueryOperatorDefinition<?, ?>, InMemoryQueryOperator<?, ?>> operators,
+            Map<QueryAggregateDefinition<?>, InMemoryQueryAggregate<?>> aggregates
+    ) {
         this.candidateSupplier = Objects.requireNonNull(candidateSupplier, "candidateSupplier");
         this.fieldResolver = Objects.requireNonNull(fieldResolver, "fieldResolver");
         this.relationResolver = Objects.requireNonNull(relationResolver, "relationResolver");
@@ -96,6 +144,9 @@ public final class InMemoryQueryEngine<T> {
         this.relatedRelationResolvers = Map.copyOf(
                 Objects.requireNonNull(relatedRelationResolvers, "relatedRelationResolvers")
         );
+        this.functions = Map.copyOf(Objects.requireNonNull(functions, "functions"));
+        this.operators = Map.copyOf(Objects.requireNonNull(operators, "operators"));
+        this.aggregates = Map.copyOf(Objects.requireNonNull(aggregates, "aggregates"));
         this.windowing = new InMemoryQueryWindow<>(this.fieldResolver);
     }
 
@@ -126,6 +177,8 @@ public final class InMemoryQueryEngine<T> {
         Predicate<? super T> nonNullCandidateFilter = Objects.requireNonNull(candidateFilter, "candidateFilter");
         QueryCriteria nonNullCriteria = Objects.requireNonNull(criteria, "criteria");
         QueryWindow nonNullWindow = Objects.requireNonNull(window, "window");
+        windowing.requireSupported(nonNullWindow);
+        requireCapabilities(nonNullCriteria);
         return query(
                 candidates(),
                 nonNullCandidateFilter,
@@ -145,6 +198,11 @@ public final class InMemoryQueryEngine<T> {
     public <R> QueryResult<R> query(QueryPlan<R> plan, QueryWindow window) {
         QueryPlan<R> nonNullPlan = Objects.requireNonNull(plan, "plan");
         QueryWindow nonNullWindow = Objects.requireNonNull(window, "window");
+        windowing.requireSupported(nonNullWindow);
+        if (!(nonNullPlan instanceof ProjectionQueryPlan<?>) && !(nonNullPlan instanceof TimeSeriesQueryPlan<?>)) {
+            throw new IllegalArgumentException("Unsupported query plan: " + nonNullPlan.getClass().getName());
+        }
+        requireCapabilities(nonNullPlan);
         if (nonNullPlan instanceof TimeSeriesQueryPlan<?>) {
             if (!(nonNullWindow instanceof TimeSeriesWindow timeSeriesWindow)) {
                 throw new IllegalArgumentException("Time-series plans require a time-series window");
@@ -186,6 +244,9 @@ public final class InMemoryQueryEngine<T> {
                     relationResolver,
                     relatedFieldResolvers,
                     relatedRelationResolvers,
+                    functions,
+                    operators,
+                    aggregates,
                     representative,
                     group.candidates()
             );
@@ -209,11 +270,82 @@ public final class InMemoryQueryEngine<T> {
         return projectedWindow(rows, effectiveCriteria.getOrders(), nonNullWindow);
     }
 
+    private void requireCapabilities(Object root) {
+        Deque<Object> pending = new ArrayDeque<>();
+        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        pending.push(root);
+        while (!pending.isEmpty()) {
+            Object node = pending.pop();
+            if (!visited.add(node)) {
+                continue;
+            }
+            if (node instanceof QueryExpression expression && !QueryExpression.isBuiltIn(expression)) {
+                throw new IllegalArgumentException("Unsupported query expression: " + expression.getClass().getName());
+            }
+            if (node instanceof QueryValue<?> value && !QueryValue.isBuiltIn(value)) {
+                throw new IllegalArgumentException("Unsupported query value: " + value.getClass().getName());
+            }
+            if (node instanceof QueryCriteria criteria) {
+                pending.push(criteria.getCondition());
+            } else if (node instanceof ProjectionQueryPlan<?> projection) {
+                pending.push(projection.getCriteria());
+                pending.addAll(projection.getProjection().getValues());
+                pending.addAll(projection.getGroupBy());
+                if (projection.getHaving() != null) {
+                    pending.push(projection.getHaving());
+                }
+            } else if (node instanceof TimeSeriesQueryPlan<?> series) {
+                pending.push(series.getCriteria());
+                pending.push(series.getTimestamp());
+                if (series.getValue() != null) {
+                    pending.push(series.getValue());
+                }
+            } else if (node instanceof QueryCondition<?, ?> condition) {
+                requireOperator(condition.getOperator());
+            } else if (node instanceof QueryValueCondition<?, ?> condition) {
+                requireOperator(condition.getOperator());
+                pending.push(condition.getValue());
+            } else if (node instanceof LogicalCondition condition) {
+                pending.addAll(condition.getExpressions());
+            } else if (node instanceof NegatedQueryExpression condition) {
+                pending.push(condition.getExpression());
+            } else if (node instanceof ExistsCondition<?> condition) {
+                pending.push(condition.getCondition());
+            } else if (node instanceof QueryValue.CustomFunction<?> function) {
+                if (!functions.containsKey(function.getDefinition())) {
+                    throw new IllegalArgumentException("In-memory query function is not registered: "
+                            + function.getDefinition().getName());
+                }
+                pending.addAll(function.getArguments());
+            } else if (node instanceof QueryValue.Function<?> function) {
+                pending.addAll(function.getArguments());
+            } else if (node instanceof QueryValue.Cast<?> cast) {
+                pending.push(cast.getOperand());
+            } else if (node instanceof QueryValue.Aggregate<?> aggregate) {
+                if (aggregate.getFunction() instanceof QueryAggregateDefinition<?> definition
+                        && !aggregates.containsKey(definition)) {
+                    throw new IllegalArgumentException("In-memory query aggregate is not registered: " + definition.getName());
+                }
+                pending.addAll(aggregate.getArguments());
+            }
+        }
+    }
+
+    private void requireOperator(QueryOperator operator) {
+        if (operator instanceof QueryOperatorDefinition<?, ?> definition) {
+            if (!operators.containsKey(definition)) {
+                throw new IllegalArgumentException("In-memory query operator is not registered: " + definition.getName());
+            }
+        } else if (!(operator instanceof QueryOperator.Standard)) {
+            throw new IllegalArgumentException("Unsupported query operator");
+        }
+    }
+
     private <R> QueryResult<R> timeSeriesPlan(
             TimeSeriesQueryPlan<R> plan,
             TimeSeriesWindow window
     ) {
-        Map<Instant, List<Object>> grouped = new TreeMap<>();
+        Map<Instant, List<TimedValue>> grouped = new TreeMap<>();
         for (T candidate : candidates()) {
             T nonNullCandidate = Objects.requireNonNull(candidate, "candidate");
             InMemoryQueryMatcher<T> matcher = new InMemoryQueryMatcher<>(
@@ -221,6 +353,9 @@ public final class InMemoryQueryEngine<T> {
                     relationResolver,
                     relatedFieldResolvers,
                     relatedRelationResolvers,
+                    functions,
+                    operators,
+                    aggregates,
                     nonNullCandidate
             );
             if (!matcher.matches(plan.getCriteria().getCondition())) {
@@ -237,11 +372,18 @@ public final class InMemoryQueryEngine<T> {
                     ? null
                     : matcher.evaluate(plan.getValue());
             Instant bucketStart = plan.getBucket().start(timestamp);
-            grouped.computeIfAbsent(bucketStart, ignored -> new ArrayList<>()).add(resolvedValue);
+            grouped.computeIfAbsent(bucketStart, ignored -> new ArrayList<>())
+                    .add(new TimedValue(timestamp, resolvedValue));
         }
         List<R> points = new ArrayList<>(grouped.size());
-        for (Map.Entry<Instant, List<Object>> entry : grouped.entrySet()) {
-            Object value = TimeSeriesAggregation.reduce(plan, entry.getValue());
+        for (Map.Entry<Instant, List<TimedValue>> entry : grouped.entrySet()) {
+            List<TimedValue> bucket = entry.getValue();
+            bucket.sort(Comparator.comparing(TimedValue::timestamp));
+            List<@Nullable Object> values = new ArrayList<>(bucket.size());
+            for (TimedValue timedValue : bucket) {
+                values.add(timedValue.value());
+            }
+            Object value = TimeSeriesAggregation.reduce(plan, values);
             if (value != null) {
                 points.add(plan.point(entry.getKey(), value));
             }
@@ -338,6 +480,9 @@ public final class InMemoryQueryEngine<T> {
                 relationResolver,
                 relatedFieldResolvers,
                 relatedRelationResolvers,
+                functions,
+                operators,
+                aggregates,
                 candidate
         );
     }
@@ -399,12 +544,51 @@ public final class InMemoryQueryEngine<T> {
         return items;
     }
 
-    private record PlanGroup<T>(List<T> candidates) {
-        private PlanGroup {
-            candidates = List.copyOf(candidates);
+    private static final class TimedValue {
+        private final Instant timestamp;
+        private final @Nullable Object value;
+
+        private TimedValue(Instant timestamp, @Nullable Object value) {
+            this.timestamp = timestamp;
+            this.value = value;
+        }
+
+        private Instant timestamp() {
+            return timestamp;
+        }
+
+        private @Nullable Object value() {
+            return value;
         }
     }
 
-    private record PlanRow<R, T>(R item, @Nullable T representative) {
+    private static final class PlanGroup<T> {
+        private final List<T> candidates;
+
+        private PlanGroup(List<T> candidates) {
+            this.candidates = List.copyOf(candidates);
+        }
+
+        private List<T> candidates() {
+            return candidates;
+        }
+    }
+
+    private static final class PlanRow<R, T> {
+        private final R item;
+        private final @Nullable T representative;
+
+        private PlanRow(R item, @Nullable T representative) {
+            this.item = item;
+            this.representative = representative;
+        }
+
+        private R item() {
+            return item;
+        }
+
+        private @Nullable T representative() {
+            return representative;
+        }
     }
 }

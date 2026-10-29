@@ -55,6 +55,7 @@ import com.lamprism.luxspec.resource.ResourceType;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationEvent;
+import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.authentication.UserSubject;
 import com.lamprism.luxspec.security.authorization.AuthorizationDecision;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
@@ -74,6 +75,7 @@ import com.lamprism.luxspec.user.lifecycle.UserEmailChangedEvent;
 import com.lamprism.luxspec.user.lifecycle.UserRegisteredEvent;
 import com.lamprism.luxspec.user.lifecycle.UserRenamedEvent;
 import com.lamprism.luxspec.user.lifecycle.UserRolesChangedEvent;
+import com.lamprism.luxspec.user.lifecycle.UserRolesReplacedEvent;
 import com.lamprism.luxspec.user.lifecycle.UserStatusChangedEvent;
 import com.lamprism.luxspec.user.security.password.UserPasswordChangedEvent;
 import org.junit.jupiter.api.Test;
@@ -92,6 +94,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class AuditEventDefinitionContributorTest {
     private static final Instant PUBLISHED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -113,6 +119,7 @@ class AuditEventDefinitionContributorTest {
                 UserAudit.RENAMED,
                 UserAudit.EMAIL_CHANGED,
                 UserAudit.ROLES_CHANGED,
+                UserAudit.ROLES_REPLACED,
                 UserAudit.STATUS_CHANGED,
                 UserAudit.PASSWORD_CHANGED,
                 "application.test"
@@ -278,6 +285,22 @@ class AuditEventDefinitionContributorTest {
     }
 
     @Test
+    void recordsAtomicRoleReplacementAsOneAuditEntry() {
+        List<AuditEntry> entries = new ArrayList<>();
+        AuditPublisher publisher = publisher(entries);
+        EventDispatcher dispatcher = new SynchronousEventDispatcher((context, failure) -> {
+            throw new AssertionError("Audit listener failed", failure);
+        });
+        try (EventSubscription ignored = subscribe(dispatcher, publisher, new UserAuditEventDefinitionContributor())) {
+            dispatcher.publish(new UserRolesReplacedEvent(7L, Set.of(Role.ADMIN), PUBLISHED_AT));
+        }
+
+        assertEquals(1, entries.size());
+        assertEquals(UserAudit.ROLES_REPLACED, entries.get(0).eventName());
+        assertEquals("admin", entries.get(0).fields().get(UserAudit.USER_ROLES).orElseThrow());
+    }
+
+    @Test
     void stopsRoutingAfterTheRegistrationIsClosed() {
         List<AuditEntry> entries = new ArrayList<>();
         AuditPublisher publisher = publisher(entries);
@@ -319,6 +342,26 @@ class AuditEventDefinitionContributorTest {
             assertEquals(CorrelationId.of("request-1"), metadata.correlationId());
         }
         assertTrue(storage.current().isEmpty());
+    }
+
+    @Test
+    void mapsCustomSubjectsWithoutLosingTheirIdentity() {
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        Authentication authentication = new Authentication(
+                new SimpleSubject("device", "device-1"), AuthorizationGrantSet.of(List.of())
+        );
+        ExecutionContext context = ExecutionContext.empty().with(Authentication.CONTEXT_KEY, authentication);
+        ExecutionContextAuditMetadataProvider standard = new ExecutionContextAuditMetadataProvider(storage);
+        ExecutionContextAuditMetadataProvider custom = new ExecutionContextAuditMetadataProvider(
+                storage, subject -> AuditActor.of(AuditActor.Kind.SERVICE, subject.getId())
+        );
+        assertEquals(AuditActor.Kind.UNKNOWN, custom.capture().actor().kind());
+        try (ExecutionContextStorage.Scope ignored = storage.open(context)) {
+            assertEquals(AuditActor.Kind.UNKNOWN, standard.capture().actor().kind());
+            assertEquals("device-1", standard.capture().actor().id());
+            assertEquals(AuditActor.Kind.SERVICE, custom.capture().actor().kind());
+            assertEquals("device-1", custom.capture().actor().id());
+        }
     }
 
     @Test

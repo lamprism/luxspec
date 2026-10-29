@@ -22,6 +22,7 @@ import java.util.Objects;
  * Defines one typed ordering term for a structured query.
  *
  * @param <T> the field value type
+ *
  * @author RollW
  */
 public final class OrderBy<T> {
@@ -39,18 +40,48 @@ public final class OrderBy<T> {
         DESCENDING
     }
 
+    /**
+     * Identifies where null values appear independently of the ordering direction.
+     */
+    public enum NullPlacement {
+        /**
+         * Places null values before non-null values.
+         */
+        FIRST,
+        /**
+         * Places null values after non-null values.
+         */
+        LAST
+    }
+
     private final QueryField<T> field;
     private final Direction direction;
+    private final NullPlacement nullPlacement;
 
     /**
      * Creates a typed ordering term.
+     *
+     * <p>Nulls sort last in ascending order and first in descending order.</p>
      *
      * @param field     the field to order
      * @param direction the ordering direction
      */
     public OrderBy(QueryField<T> field, Direction direction) {
+        this(field, direction, Objects.requireNonNull(direction, "direction") == Direction.ASCENDING
+                ? NullPlacement.LAST : NullPlacement.FIRST);
+    }
+
+    /**
+     * Creates a typed ordering term with explicit null placement.
+     *
+     * @param field         the field to order
+     * @param direction     the ordering direction
+     * @param nullPlacement the placement of null values
+     */
+    public OrderBy(QueryField<T> field, Direction direction, NullPlacement nullPlacement) {
         this.field = Objects.requireNonNull(field, "field");
         this.direction = Objects.requireNonNull(direction, "direction");
+        this.nullPlacement = Objects.requireNonNull(nullPlacement, "nullPlacement");
     }
 
     /**
@@ -65,6 +96,18 @@ public final class OrderBy<T> {
     }
 
     /**
+     * Creates an ascending ordering term with explicit null placement.
+     *
+     * @param field         the field to order
+     * @param nullPlacement the placement of null values
+     * @param <T>           the field value type
+     * @return the ascending ordering term
+     */
+    public static <T> OrderBy<T> ascending(QueryField<T> field, NullPlacement nullPlacement) {
+        return new OrderBy<>(field, Direction.ASCENDING, nullPlacement);
+    }
+
+    /**
      * Creates a descending ordering term.
      *
      * @param field the field to order
@@ -73,6 +116,18 @@ public final class OrderBy<T> {
      */
     public static <T> OrderBy<T> descending(QueryField<T> field) {
         return new OrderBy<>(field, Direction.DESCENDING);
+    }
+
+    /**
+     * Creates a descending ordering term with explicit null placement.
+     *
+     * @param field         the field to order
+     * @param nullPlacement the placement of null values
+     * @param <T>           the field value type
+     * @return the descending ordering term
+     */
+    public static <T> OrderBy<T> descending(QueryField<T> field, NullPlacement nullPlacement) {
+        return new OrderBy<>(field, Direction.DESCENDING, nullPlacement);
     }
 
     /**
@@ -91,5 +146,14 @@ public final class OrderBy<T> {
      */
     public Direction getDirection() {
         return direction;
+    }
+
+    /**
+     * Returns the null placement.
+     *
+     * @return the placement of null values
+     */
+    public NullPlacement getNullPlacement() {
+        return nullPlacement;
     }
 }

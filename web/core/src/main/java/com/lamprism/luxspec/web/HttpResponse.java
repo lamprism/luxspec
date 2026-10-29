@@ -24,6 +24,7 @@ import java.util.Objects;
  * The standard JSON response envelope for ordinary Luxspec HTTP APIs.
  *
  * @param <T> the response data type
+ *
  * @author RollW
  */
 public final class HttpResponse<T> {

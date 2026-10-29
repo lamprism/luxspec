@@ -23,6 +23,7 @@ import java.util.Objects;
  * One immutable timestamped data point.
  *
  * @param <T> the point value type
+ *
  * @author RollW
  */
 public final class TimeSeriesPoint<T> {

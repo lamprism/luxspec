@@ -68,6 +68,7 @@ import java.util.TreeMap;
  * standard {@link TimeSeriesPoint#TIMESTAMP} field to resolve to a non-null entity attribute.
  *
  * @param <T> the persistence entity type
+ *
  * @author RollW
  */
 public class JpaQueryExecutor<T> implements QueryExecutor<T> {
@@ -203,6 +204,9 @@ public class JpaQueryExecutor<T> implements QueryExecutor<T> {
     public <R> QueryResult<R> query(QueryPlan<R> plan, QueryWindow window) {
         QueryPlan<R> nonNullPlan = Objects.requireNonNull(plan, "plan");
         QueryWindow nonNullWindow = Objects.requireNonNull(window, "window");
+        if (!(nonNullPlan instanceof ProjectionQueryPlan<?>) && !(nonNullPlan instanceof TimeSeriesQueryPlan<?>)) {
+            throw new IllegalArgumentException("Unsupported query plan: " + nonNullPlan.getClass().getName());
+        }
         if (nonNullPlan instanceof TimeSeriesQueryPlan<?>) {
             if (!(nonNullWindow instanceof TimeSeriesWindow timeSeriesWindow)) {
                 throw new IllegalArgumentException("Time-series plans require a time-series window");
@@ -460,16 +464,9 @@ public class JpaQueryExecutor<T> implements QueryExecutor<T> {
             int valueOffset,
             List<? extends OrderBy<?>> orders
     ) {
-        List<Object> position = new ArrayList<>(orders.size());
+        List<@Nullable Object> position = new ArrayList<>(orders.size());
         for (int index = 0; index < orders.size(); index++) {
-            Object value = tuple.get(valueOffset + index);
-            if (value == null) {
-                throw new IllegalStateException(
-                        "Keyset order field must not resolve to null: "
-                                + orders.get(index).getField().getName()
-                );
-            }
-            position.add(value);
+            position.add(tuple.get(valueOffset + index));
         }
         return new KeysetPosition(position);
     }
@@ -700,6 +697,21 @@ public class JpaQueryExecutor<T> implements QueryExecutor<T> {
         return limit + 1;
     }
 
-    private record KeysetRow<T>(T item, KeysetPosition position) {
+    private static final class KeysetRow<T> {
+        private final T item;
+        private final KeysetPosition position;
+
+        private KeysetRow(T item, KeysetPosition position) {
+            this.item = item;
+            this.position = position;
+        }
+
+        private T item() {
+            return item;
+        }
+
+        private KeysetPosition position() {
+            return position;
+        }
     }
 }

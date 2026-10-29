@@ -25,8 +25,9 @@ import java.util.Optional;
 /**
  * Adds safe password replacement events to an application-owned password store.
  *
- * <p>Only successful replacements are published. The decorator never reads or copies password
- * representation values into the event.</p>
+ * <p>Only successful mutations are published. The decorator never reads or copies password
+ * representation values into the event. Publication occurs synchronously after the delegate
+ * returns; the caller or publisher owns any after-commit or transactional delivery policy.</p>
  *
  * @author RollW
  */
@@ -71,16 +72,43 @@ public class EventPublishingUserPasswordStore implements UserPasswordStore {
     }
 
     @Override
+    public boolean initialize(long userId, EncodedPassword password) {
+        boolean initialized = delegate.initialize(userId, password);
+        if (initialized) {
+            publish(userId, UserPasswordChangedEvent.ChangeType.INITIALIZED);
+        }
+        return initialized;
+    }
+
+    @Override
     public boolean replace(
             long userId,
             EncodedPassword currentPassword,
-            EncodedPassword replacementPassword
+            EncodedPassword replacementPassword,
+            PasswordReplacementPurpose purpose
     ) {
-        boolean replaced = delegate.replace(userId, currentPassword, replacementPassword);
+        PasswordReplacementPurpose nonNullPurpose = Objects.requireNonNull(purpose, "purpose");
+        boolean replaced = delegate.replace(userId, currentPassword, replacementPassword, nonNullPurpose);
         if (!replaced) {
             return false;
         }
-        eventPublisher.publish(new UserPasswordChangedEvent(userId, clock.instant()));
+        UserPasswordChangedEvent.ChangeType type = nonNullPurpose == PasswordReplacementPurpose.REHASH
+                ? UserPasswordChangedEvent.ChangeType.REHASHED
+                : UserPasswordChangedEvent.ChangeType.CHANGED;
+        publish(userId, type);
         return true;
+    }
+
+    @Override
+    public boolean reset(long userId, EncodedPassword password) {
+        boolean reset = delegate.reset(userId, password);
+        if (reset) {
+            publish(userId, UserPasswordChangedEvent.ChangeType.RESET);
+        }
+        return reset;
+    }
+
+    private void publish(long userId, UserPasswordChangedEvent.ChangeType type) {
+        eventPublisher.publish(new UserPasswordChangedEvent(userId, type, clock.instant()));
     }
 }

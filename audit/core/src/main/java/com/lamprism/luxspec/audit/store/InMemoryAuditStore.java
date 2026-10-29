@@ -21,11 +21,14 @@ import com.lamprism.luxspec.audit.AuditEventId;
 import com.lamprism.luxspec.audit.publish.AuditSink;
 import com.lamprism.luxspec.audit.query.AuditQuerySchema;
 import com.lamprism.luxspec.audit.query.AuditReader;
+import com.lamprism.luxspec.audit.retention.AuditRetentionPolicy;
+import com.lamprism.luxspec.audit.retention.AuditRetentionStore;
 import com.lamprism.luxspec.data.pagination.QueryResult;
 import com.lamprism.luxspec.data.pagination.QueryWindow;
 import com.lamprism.luxspec.data.query.InMemoryQueryExecutor;
 import com.lamprism.luxspec.data.query.QueryCriteria;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -43,7 +46,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  *
  * @author RollW
  */
-public class InMemoryAuditStore implements AuditSink, AuditReader {
+public class InMemoryAuditStore implements AuditSink, AuditReader, AuditRetentionStore {
     private final ReadWriteLock stateLock = new ReentrantReadWriteLock();
     private final Map<AuditEventId, AuditEntry> entriesById = new LinkedHashMap<>();
     private final InMemoryQueryExecutor<AuditEntry> queryExecutor;
@@ -90,6 +93,31 @@ public class InMemoryAuditStore implements AuditSink, AuditReader {
         QueryCriteria nonNullCriteria = Objects.requireNonNull(criteria, "criteria");
         AuditQuerySchema.validate(nonNullCriteria);
         return queryExecutor.query(nonNullCriteria, Objects.requireNonNull(window, "window"));
+    }
+
+    @Override
+    public int remove(AuditRetentionPolicy policy, Instant now, int limit) {
+        AuditRetentionPolicy nonNullPolicy = Objects.requireNonNull(policy, "policy");
+        Instant nonNullNow = Objects.requireNonNull(now, "now");
+        if (limit <= 0) {
+            throw new IllegalArgumentException("Retention limit must be positive");
+        }
+        stateLock.writeLock().lock();
+        try {
+            List<AuditEventId> selected = new ArrayList<>();
+            for (Map.Entry<AuditEventId, AuditEntry> entry : entriesById.entrySet()) {
+                if (nonNullPolicy.shouldRemove(entry.getValue(), nonNullNow)) {
+                    selected.add(entry.getKey());
+                    if (selected.size() == limit) {
+                        break;
+                    }
+                }
+            }
+            selected.forEach(entriesById::remove);
+            return selected.size();
+        } finally {
+            stateLock.writeLock().unlock();
+        }
     }
 
     /**

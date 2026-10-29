@@ -34,7 +34,7 @@ public final class QueryComplexityBudget {
      * Creates validated complexity limits.
      *
      * @param maximumDepth             the maximum expression nesting depth
-     * @param maximumNodes             the maximum count of non-trivial expression nodes
+     * @param maximumNodes             the maximum count of expression and value nodes
      * @param maximumOrBranches        the maximum direct branches in one OR group
      * @param maximumMembershipValues  the maximum values in one IN or NOT IN condition
      * @param maximumLikePatternLength the maximum character length of one LIKE pattern
@@ -77,7 +77,7 @@ public final class QueryComplexityBudget {
     }
 
     /**
-     * Returns the maximum count of non-trivial expression nodes.
+     * Returns the maximum count of expression and value nodes.
      *
      * @return the maximum node count
      */

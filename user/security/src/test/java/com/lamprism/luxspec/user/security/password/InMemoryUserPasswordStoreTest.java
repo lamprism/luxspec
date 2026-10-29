@@ -22,16 +22,34 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class InMemoryUserPasswordStoreTest {
     @Test
     void supportsValueBasedCompareAndSetReplacement() {
         InMemoryUserPasswordStore store = new InMemoryUserPasswordStore();
         EncodedPassword initial = new EncodedPassword("initial");
         EncodedPassword replacement = new EncodedPassword("replacement");
-        store.put(1L, initial);
+        assertTrue(store.initialize(1L, initial));
 
-        assertTrue(store.replace(1L, new EncodedPassword("initial"), replacement));
+        assertTrue(store.replace(1L, new EncodedPassword("initial"), replacement, PasswordReplacementPurpose.CHANGE));
         assertEquals(replacement, store.find(1L).orElseThrow());
-        assertFalse(store.replace(1L, initial, new EncodedPassword("stale")));
+        assertFalse(store.replace(1L, initial, new EncodedPassword("stale"), PasswordReplacementPurpose.CHANGE));
+    }
+
+    @Test
+    void initializesOnlyOnceAndResetsOnlyAnExistingPassword() {
+        InMemoryUserPasswordStore store = new InMemoryUserPasswordStore();
+        EncodedPassword initial = new EncodedPassword("initial");
+        EncodedPassword reset = new EncodedPassword("reset");
+
+        assertFalse(store.reset(1L, reset));
+        assertTrue(store.initialize(1L, initial));
+        assertFalse(store.initialize(1L, reset));
+        assertEquals(initial, store.find(1L).orElseThrow());
+        assertTrue(store.reset(1L, reset));
+        assertEquals(reset, store.find(1L).orElseThrow());
     }
 }

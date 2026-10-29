@@ -22,18 +22,25 @@ import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QueryField;
 import com.lamprism.luxspec.observability.observation.ObservationHandler;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
+import com.lamprism.luxspec.observability.runtime.observation.DatabaseObservationAttributes;
 import com.lamprism.luxspec.observability.runtime.observation.ObservationRegistryBuilder;
 import com.lamprism.luxspec.observability.runtime.observation.StandardObservationSet;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ *
+ * @author RollW
+ */
 class ObservabilityInstrumentationTest {
     private static final QueryField<String> NAME = QueryField.of("name", String.class);
 
@@ -69,6 +76,37 @@ class ObservabilityInstrumentationTest {
 
             assertEquals(2, stopped.get());
         }
+    }
+
+    @Test
+    void reportsOnlyBoundedDatabaseOperationKinds() throws Exception {
+        List<DatabaseObservationAttributes.Operation> operations = new ArrayList<>();
+        List<Integer> attributeCounts = new ArrayList<>();
+        ObservationHandler handler = new ObservationHandler() {
+            @Override
+            public void onStop(com.lamprism.luxspec.observability.observation.ObservationView view) {
+                operations.add(view.attributes().get(DatabaseObservationAttributes.OPERATION).orElseThrow());
+                attributeCounts.add(view.attributes().values().size());
+            }
+        };
+        JdbcDataSource source = new JdbcDataSource();
+        source.setURL("jdbc:h2:mem:luxspec-operation-kinds;DB_CLOSE_DELAY=-1");
+        try (ObservationRegistry registry = ObservationRegistryBuilder.builder()
+                .set(StandardObservationSet.builder().domain(StandardObservationSet.Domain.DATABASE).build())
+                .handler(handler).build();
+             Connection connection = ObservabilityInstrumentation.dataSource(source, registry).getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("create table sample (id integer)");
+            statement.executeUpdate("insert into sample values (1)");
+            statement.executeQuery("select id from sample").close();
+        }
+        assertEquals(List.of(
+                DatabaseObservationAttributes.Operation.CONNECT,
+                DatabaseObservationAttributes.Operation.EXECUTE,
+                DatabaseObservationAttributes.Operation.UPDATE,
+                DatabaseObservationAttributes.Operation.QUERY
+        ), operations);
+        assertEquals(List.of(1, 1, 1, 1), attributeCounts);
     }
 
     private static ObservationRegistry registry(AtomicInteger stopped) {

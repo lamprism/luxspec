@@ -22,6 +22,7 @@ import java.util.List;
  * Represents an offset page with an exact total count.
  *
  * @param <T> the element type
+ *
  * @author RollW
  */
 public final class PageResult<T> implements QueryResult<T> {

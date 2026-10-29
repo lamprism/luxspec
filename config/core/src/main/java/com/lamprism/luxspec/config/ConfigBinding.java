@@ -23,6 +23,7 @@ import java.util.Objects;
  * Represents one validated concrete key produced by a configuration definition.
  *
  * @param <T> the typed value
+ *
  * @author RollW
  */
 public final class ConfigBinding<T> {

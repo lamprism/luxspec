@@ -16,9 +16,10 @@
 
 package com.lamprism.luxspec.security.firewall.filtertable;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
+import com.lamprism.luxspec.network.ip.IpNetwork;
 import com.lamprism.luxspec.security.authentication.SimpleSubject;
 import com.lamprism.luxspec.security.firewall.FirewallRequest;
-import inet.ipaddr.IPAddress;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
@@ -141,10 +142,10 @@ public final class FilterTableSnapshot {
     }
 
     private @Nullable FilterEntry findAddressMatch(FirewallRequest request, Instant now) {
-        if (addressEntries.isEmpty() || request.getClientAddress() == null) {
+        IpAddress requestAddress = request.getClientAddress();
+        if (addressEntries.isEmpty() || requestAddress == null) {
             return null;
         }
-        IPAddress requestAddress = FilterTableAddress.parseRequest(request.getClientAddress());
         for (AddressEntry addressEntry : addressEntries) {
             if (!addressEntry.matches(requestAddress)) {
                 continue;
@@ -170,20 +171,32 @@ public final class FilterTableSnapshot {
         List<AddressEntry> result = new ArrayList<>();
         for (FilterEntry entry : entries) {
             if (entry.target() instanceof FilterTarget.ClientAddressTarget addressTarget) {
-                FilterTableAddress.ParsedAddress parsed =
-                        FilterTableAddress.parsePolicy(addressTarget.address());
-                result.add(new AddressEntry(parsed.address(), parsed.specificity(), entry));
+                IpNetwork network = addressTarget.address();
+                result.add(new AddressEntry(network, entry));
             }
         }
         result.sort(Comparator.comparingInt(AddressEntry::specificity).reversed());
         return List.copyOf(result);
     }
 
-    private record AddressEntry(IPAddress network, int specificity, FilterEntry entry) {
-        private boolean matches(IPAddress requestAddress) {
-            if (network.getIPVersion() != requestAddress.getIPVersion()) {
-                return false;
-            }
+    private static final class AddressEntry {
+        private final IpNetwork network;
+        private final FilterEntry entry;
+
+        private AddressEntry(IpNetwork network, FilterEntry entry) {
+            this.network = network;
+            this.entry = entry;
+        }
+
+        private int specificity() {
+            return network.prefixLength();
+        }
+
+        private FilterEntry entry() {
+            return entry;
+        }
+
+        private boolean matches(IpAddress requestAddress) {
             return network.contains(requestAddress);
         }
     }

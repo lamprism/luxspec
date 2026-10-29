@@ -27,6 +27,7 @@ import java.util.Objects;
  * {@code static final} field, and shared by every caller that accesses the same value.</p>
  *
  * @param <T> the element type
+ *
  * @author RollW
  */
 public final class ContextKey<T> {

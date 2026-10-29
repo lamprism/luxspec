@@ -24,12 +24,17 @@ import org.junit.jupiter.api.Test;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class DefaultKeysetCursorCodecTest {
     private static final QueryField<String> NAME = QueryField.of("name", String.class);
     private static final QueryField<Integer> SCORE = QueryField.of("score", Integer.class);
@@ -58,6 +63,16 @@ class DefaultKeysetCursorCodecTest {
 
         assertNotEquals(position.values().toString(), token);
         assertEquals(position.values(), decoded.values());
+    }
+
+    @Test
+    void roundTripsNullValuesAndBindsTheirOrderingPlacement() {
+        KeysetPosition position = new KeysetPosition(Arrays.asList(null, ""));
+        String token = codec.encode(ORDERS, position);
+
+        assertEquals(position.values(), codec.decode(ORDERS, token).values());
+        assertThrows(IllegalArgumentException.class, () -> codec.decode(
+                List.of(OrderBy.descending(SCORE, OrderBy.NullPlacement.LAST), OrderBy.ascending(NAME)), token));
     }
 
     @Test

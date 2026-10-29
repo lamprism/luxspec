@@ -18,8 +18,7 @@ package com.lamprism.luxspec.security.token.refresh;
 
 import com.lamprism.luxspec.security.token.SessionRevoker;
 import com.lamprism.luxspec.security.token.TokenDigest;
-import com.lamprism.luxspec.security.token.TokenRotation;
-import com.lamprism.luxspec.security.token.TokenRotationResult;
+import com.lamprism.luxspec.security.token.TokenRotationException;
 
 import java.time.Instant;
 
@@ -27,6 +26,7 @@ import java.time.Instant;
  * Persists Refresh Token Sessions and atomically rotates their Token Digests.
  *
  * @param <S> the Refresh Token Session type
+ *
  * @author RollW
  */
 public interface RefreshTokenSessionStore<S extends RefreshTokenSession>
@@ -42,13 +42,18 @@ public interface RefreshTokenSessionStore<S extends RefreshTokenSession>
     /**
      * Atomically consumes the presented Digest and installs its successor.
      *
-     * <p>Implementations must renew idle lifetime within the absolute lifetime bound. Reuse of a
-     * consumed Digest must revoke the entire session in the same transaction.</p>
+     * <p>Implementations must renew idle lifetime within the absolute lifetime bound. They must
+     * reject reuse of a consumed Digest and apply their configured session replay policy in the
+     * same transaction. An implementation may invoke a typed replay handler only after the
+     * decision has committed and any session lock has been released.</p>
      *
-     * @param rotation the requested Digest transition
-     * @return the updated session or an authoritative rejection reason
+     * @param presentedDigest the presented digest
+     * @param successorDigest the distinct successor digest
+     * @param rotatedAt the rotation time
+     * @return the updated session
+     * @throws TokenRotationException when rotation is rejected
      */
-    TokenRotationResult<S> rotate(TokenRotation<RefreshToken> rotation);
+    S rotate(TokenDigest<RefreshToken> presentedDigest, TokenDigest<RefreshToken> successorDigest, Instant rotatedAt);
 
     /**
      * Revokes the session associated with a presented Refresh Token Digest.

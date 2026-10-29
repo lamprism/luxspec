@@ -25,21 +25,40 @@ import java.util.Objects;
  * A typed condition over a transformed {@link QueryValue}.
  *
  * <p>Existing field-specific condition types remain the concise API for direct fields. This
- * condition is the single general predicate form for lower/upper/coalesce/cast values and avoids
- * one new condition type per supported function.</p>
+ * condition accepts both standard and application-defined operators over value expressions.</p>
  *
  * @param <T> the value expression type
+ * @param <A> the operator argument type
+ *
  * @author RollW
  */
-public final class QueryValueCondition<T> implements QueryExpression {
+public final class QueryValueCondition<T, A> implements QueryExpression {
     private final QueryValue<T> value;
     private final QueryOperator operator;
-    private final List<T> values;
+    private final List<A> values;
 
-    private QueryValueCondition(QueryValue<T> value, QueryOperator operator, List<T> values) {
+    private QueryValueCondition(QueryValue<T> value, QueryOperator operator, List<A> values) {
         this.value = value;
         this.operator = operator;
         this.values = values;
+    }
+
+    /**
+     * Creates a condition using an application-defined operator.
+     *
+     * @param value     the typed value expression
+     * @param operator  the typed operation definition
+     * @param arguments the operation arguments
+     * @param <T>       the expression value type
+     * @param <A>       the operation argument type
+     * @return the immutable condition
+     */
+    public static <T, A> QueryValueCondition<T, A> of(
+            QueryValue<T> value, QueryOperatorDefinition<? super T, A> operator, Collection<? extends A> arguments
+    ) {
+        QueryValue<T> nonNullValue = Objects.requireNonNull(value, "value");
+        return new QueryValueCondition<>(nonNullValue, operator,
+                QueryOperatorArguments.validate(nonNullValue.getValueType(), operator, arguments));
     }
 
     /**
@@ -50,7 +69,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>        the value type
      * @return the immutable condition
      */
-    public static <T> QueryValueCondition<T> equal(QueryValue<T> value, T comparison) {
+    public static <T> QueryValueCondition<T, T> equal(QueryValue<T> value, T comparison) {
         return singleValue(value, QueryOperator.EQUAL, comparison);
     }
 
@@ -62,7 +81,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>        the value type
      * @return the immutable condition
      */
-    public static <T> QueryValueCondition<T> notEqual(QueryValue<T> value, T comparison) {
+    public static <T> QueryValueCondition<T, T> notEqual(QueryValue<T> value, T comparison) {
         return singleValue(value, QueryOperator.NOT_EQUAL, comparison);
     }
 
@@ -74,7 +93,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>        the comparable type
      * @return the immutable condition
      */
-    public static <T extends Comparable<? super T>> QueryValueCondition<T> greaterThan(
+    public static <T extends Comparable<? super T>> QueryValueCondition<T, T> greaterThan(
             QueryValue<T> value,
             T comparison
     ) {
@@ -89,7 +108,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>        the comparable type
      * @return the immutable condition
      */
-    public static <T extends Comparable<? super T>> QueryValueCondition<T> greaterThanOrEqualTo(
+    public static <T extends Comparable<? super T>> QueryValueCondition<T, T> greaterThanOrEqualTo(
             QueryValue<T> value,
             T comparison
     ) {
@@ -104,7 +123,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>        the comparable type
      * @return the immutable condition
      */
-    public static <T extends Comparable<? super T>> QueryValueCondition<T> lessThan(
+    public static <T extends Comparable<? super T>> QueryValueCondition<T, T> lessThan(
             QueryValue<T> value,
             T comparison
     ) {
@@ -119,7 +138,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>        the comparable type
      * @return the immutable condition
      */
-    public static <T extends Comparable<? super T>> QueryValueCondition<T> lessThanOrEqualTo(
+    public static <T extends Comparable<? super T>> QueryValueCondition<T, T> lessThanOrEqualTo(
             QueryValue<T> value,
             T comparison
     ) {
@@ -133,7 +152,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param pattern the validated LIKE pattern
      * @return the immutable condition
      */
-    public static QueryValueCondition<String> like(QueryValue<String> value, String pattern) {
+    public static QueryValueCondition<String, String> like(QueryValue<String> value, String pattern) {
         QueryValue<String> nonNullValue = Objects.requireNonNull(value, "value");
         String nonNullPattern = Objects.requireNonNull(pattern, "pattern");
         LikeCondition.requireValidPattern(nonNullPattern);
@@ -151,7 +170,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>    the value type
      * @return the immutable condition
      */
-    public static <T> QueryValueCondition<T> in(QueryValue<T> value, Collection<? extends T> values) {
+    public static <T> QueryValueCondition<T, T> in(QueryValue<T> value, Collection<? extends T> values) {
         return multipleValues(value, QueryOperator.IN, values);
     }
 
@@ -163,7 +182,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>    the value type
      * @return the immutable condition
      */
-    public static <T> QueryValueCondition<T> notIn(QueryValue<T> value, Collection<? extends T> values) {
+    public static <T> QueryValueCondition<T, T> notIn(QueryValue<T> value, Collection<? extends T> values) {
         return multipleValues(value, QueryOperator.NOT_IN, values);
     }
 
@@ -174,7 +193,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>   the value type
      * @return the immutable condition
      */
-    public static <T> QueryValueCondition<T> isNull(QueryValue<T> value) {
+    public static <T> QueryValueCondition<T, T> isNull(QueryValue<T> value) {
         return noValue(value, QueryOperator.IS_NULL);
     }
 
@@ -185,7 +204,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
      * @param <T>   the value type
      * @return the immutable condition
      */
-    public static <T> QueryValueCondition<T> isNotNull(QueryValue<T> value) {
+    public static <T> QueryValueCondition<T, T> isNotNull(QueryValue<T> value) {
         return noValue(value, QueryOperator.IS_NOT_NULL);
     }
 
@@ -208,11 +227,11 @@ public final class QueryValueCondition<T> implements QueryExpression {
     }
 
     /**
-     * Returns immutable comparison values. Null predicates have no values.
+     * Returns immutable operator arguments. Their type is determined by the operator.
      *
      * @return the comparison values
      */
-    public List<T> getValues() {
+    public List<A> getValues() {
         return values;
     }
 
@@ -221,7 +240,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
         return Objects.requireNonNull(visitor, "visitor").visitValueCondition(this);
     }
 
-    private static <T> QueryValueCondition<T> singleValue(
+    private static <T> QueryValueCondition<T, T> singleValue(
             QueryValue<T> value,
             QueryOperator operator,
             T comparison
@@ -232,7 +251,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
         return new QueryValueCondition<>(nonNullValue, operator, List.of(comparison));
     }
 
-    private static <T> QueryValueCondition<T> noValue(QueryValue<T> value, QueryOperator operator) {
+    private static <T> QueryValueCondition<T, T> noValue(QueryValue<T> value, QueryOperator operator) {
         QueryValue<T> nonNullValue = Objects.requireNonNull(value, "value");
         if (operator != QueryOperator.IS_NULL && operator != QueryOperator.IS_NOT_NULL) {
             throw new IllegalArgumentException("Operator does not accept an empty value list");
@@ -240,7 +259,7 @@ public final class QueryValueCondition<T> implements QueryExpression {
         return new QueryValueCondition<>(nonNullValue, operator, List.of());
     }
 
-    private static <T> QueryValueCondition<T> multipleValues(
+    private static <T> QueryValueCondition<T, T> multipleValues(
             QueryValue<T> value,
             QueryOperator operator,
             Collection<? extends T> values

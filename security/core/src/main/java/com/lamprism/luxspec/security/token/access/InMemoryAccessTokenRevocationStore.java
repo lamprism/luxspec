@@ -25,10 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Keeps access-token revocations in memory until the corresponding token expires.
+ * Keeps access-token revocations in memory until the verifier no longer accepts the token.
  *
- * <p>Only the verified token identifier and expiration are retained. Expired entries are removed
- * opportunistically during lookups and can also be reclaimed in batches with {@link #cleanup()}.
+ * <p>Only the verified token identifier and acceptance deadline are retained. Expired entries
+ * are removed opportunistically during lookups and can also be reclaimed in batches with
+ * {@link #cleanup()}.
  * This implementation is suitable for one JVM and must not be used where revocation state must
  * survive restarts or be shared across nodes.</p>
  *
@@ -55,16 +56,19 @@ public class InMemoryAccessTokenRevocationStore implements AccessTokenRevocation
     }
 
     @Override
-    public void revoke(VerifiedAccessToken accessToken) {
+    public void revoke(VerifiedAccessToken accessToken, Instant acceptanceDeadline) {
         VerifiedAccessToken nonNullAccessToken = Objects.requireNonNull(accessToken, "accessToken");
+        Instant nonNullAcceptanceDeadline = Objects.requireNonNull(acceptanceDeadline, "acceptanceDeadline");
+        if (nonNullAcceptanceDeadline.isBefore(nonNullAccessToken.getExpiresAt())) {
+            throw new IllegalArgumentException("acceptanceDeadline must not precede token expiration");
+        }
         Instant now = now();
-        Instant expiresAt = nonNullAccessToken.getAcceptanceExpiresAt();
-        if (!expiresAt.isAfter(now)) {
+        if (!nonNullAcceptanceDeadline.isAfter(now)) {
             return;
         }
         revokedUntil.merge(
                 nonNullAccessToken.getTokenId(),
-                expiresAt,
+                nonNullAcceptanceDeadline,
                 InMemoryAccessTokenRevocationStore::laterExpiration
         );
     }
@@ -76,12 +80,6 @@ public class InMemoryAccessTokenRevocationStore implements AccessTokenRevocation
         Instant now = now();
         Instant revokedExpiry = revokedUntil.get(tokenId);
         if (revokedExpiry == null) {
-            return false;
-        }
-        if (!nonNullAccessToken.getAcceptanceExpiresAt().isAfter(now)) {
-            if (!revokedExpiry.isAfter(now)) {
-                revokedUntil.remove(tokenId, revokedExpiry);
-            }
             return false;
         }
         if (!revokedExpiry.isAfter(now)) {

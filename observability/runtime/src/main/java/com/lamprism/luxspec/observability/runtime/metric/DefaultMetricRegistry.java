@@ -104,7 +104,9 @@ final class DefaultMetricRegistry implements MetricRegistry, MetricRegistryEvent
             try {
                 listener.accept(nonNullSpec);
             } catch (RuntimeException ignored) {
-                // Provider adapters must report their own projection failures.
+                /*
+                 * Provider adapters must report their own projection failures.
+                 */
             }
         }
     }

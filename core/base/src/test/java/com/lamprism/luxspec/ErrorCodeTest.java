@@ -20,6 +20,10 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ *
+ * @author RollW
+ */
 class ErrorCodeTest {
     @Test
     void createsEqualValuesForTheSameCode() {

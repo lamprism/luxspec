@@ -22,6 +22,7 @@ import java.util.List;
  * Represents a complete collection result.
  *
  * @param <T> the element type
+ *
  * @author RollW
  */
 public final class CompleteResult<T> implements QueryResult<T> {

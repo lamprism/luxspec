@@ -51,7 +51,7 @@ import java.util.Optional;
  */
 public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
     private final AuthenticationManager authenticationManager;
-    private final AuthorizationHeaderBearerTokenResolver tokenResolver;
+    private final BearerTokenResolver tokenResolver;
     private final AuthenticationEntryPoint authenticationEntryPoint;
     private final @Nullable ExecutionContextStorage storage;
     private final SpringAuthenticationExecutionContextBridge contextBridge;
@@ -106,12 +106,12 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
      * Creates a stateless filter with explicit resolution and failure policies.
      *
      * @param authenticationManager    the manager that authenticates Bearer request tokens
-     * @param tokenResolver            the Bearer header resolver
+     * @param tokenResolver            the request token resolver
      * @param authenticationEntryPoint the Spring Security authentication failure handler
      */
     public LuxspecBearerAuthenticationFilter(
             AuthenticationManager authenticationManager,
-            AuthorizationHeaderBearerTokenResolver tokenResolver,
+            BearerTokenResolver tokenResolver,
             AuthenticationEntryPoint authenticationEntryPoint
     ) {
         this(authenticationManager, tokenResolver, authenticationEntryPoint, null);
@@ -121,13 +121,13 @@ public class LuxspecBearerAuthenticationFilter extends OncePerRequestFilter {
      * Creates a stateless filter with optional context storage.
      *
      * @param authenticationManager    the manager that authenticates Bearer request tokens
-     * @param tokenResolver            the Bearer header resolver
+     * @param tokenResolver            the request token resolver
      * @param authenticationEntryPoint the Spring Security authentication failure handler
      * @param storage                  the optional context storage for authenticated request values
      */
     public LuxspecBearerAuthenticationFilter(
             AuthenticationManager authenticationManager,
-            AuthorizationHeaderBearerTokenResolver tokenResolver,
+            BearerTokenResolver tokenResolver,
             AuthenticationEntryPoint authenticationEntryPoint,
             @Nullable ExecutionContextStorage storage
     ) {

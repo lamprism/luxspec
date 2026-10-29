@@ -105,8 +105,6 @@ public class TomlMessageResolver implements MessageResolver {
 
     /**
      * Builds an immutable resolver from explicit locale-file registrations.
-     *
-     * @author RollW
      */
     public static final class Builder {
         private final Locale fallbackLocale;

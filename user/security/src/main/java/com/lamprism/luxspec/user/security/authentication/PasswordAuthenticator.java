@@ -17,7 +17,7 @@
 package com.lamprism.luxspec.user.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
-import com.lamprism.luxspec.resource.ResourceException;
+import com.lamprism.luxspec.resource.ResourceNotFoundException;
 import com.lamprism.luxspec.security.authentication.Authentication;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
 import com.lamprism.luxspec.security.authentication.Authenticator;
@@ -27,6 +27,7 @@ import com.lamprism.luxspec.user.User;
 import com.lamprism.luxspec.user.resource.UserProvider;
 import com.lamprism.luxspec.user.security.authorization.UserRoleGrantResolver;
 import com.lamprism.luxspec.user.security.password.EncodedPassword;
+import com.lamprism.luxspec.user.security.password.PasswordReplacementPurpose;
 import com.lamprism.luxspec.user.security.password.PasswordScheme;
 import com.lamprism.luxspec.user.security.password.UserPasswordStore;
 
@@ -101,7 +102,7 @@ public class PasswordAuthenticator implements Authenticator<UsernamePasswordCred
     private User findUser(String username) {
         try {
             return userProvider.provideByUsername(username);
-        } catch (ResourceException exception) {
+        } catch (ResourceNotFoundException exception) {
             throw invalidCredential();
         }
     }
@@ -116,7 +117,9 @@ public class PasswordAuthenticator implements Authenticator<UsernamePasswordCred
 
     private void upgradeIfNeeded(long userId, EncodedPassword currentPassword, CharSequence rawPassword) {
         if (passwordScheme.needsUpgrade(currentPassword)) {
-            passwordStore.replace(userId, currentPassword, passwordScheme.encode(rawPassword));
+            passwordStore.replace(
+                    userId, currentPassword, passwordScheme.encode(rawPassword), PasswordReplacementPurpose.REHASH
+            );
         }
     }
 

@@ -17,7 +17,7 @@
 package com.lamprism.luxspec.user.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
-import com.lamprism.luxspec.resource.ResourceException;
+import com.lamprism.luxspec.resource.ResourceNotFoundException;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.security.authentication.AuthenticationException;
 import com.lamprism.luxspec.security.authentication.SimpleSubject;
@@ -49,13 +49,16 @@ public class UserSubjectResolver implements SubjectResolver {
 
     @Override
     public Subject resolve(String type, String id) {
+        return requireActive(resolveUser(type, id));
+    }
+
+    User resolveUser(String type, String id) {
         SimpleSubject subject = new SimpleSubject(type, id);
         if (!UserSubject.TYPE.equals(subject.getType())) {
             throw new AuthenticationException(AuthErrorCode.INVALID_TOKEN, "Access token subject type is unsupported");
         }
         long userId = parseUserId(subject.getId());
-        User user = findUser(userId);
-        return requireActive(user);
+        return findUser(userId);
     }
 
     private long parseUserId(String value) {
@@ -73,7 +76,7 @@ public class UserSubjectResolver implements SubjectResolver {
     private User findUser(long userId) {
         try {
             return userProvider.provide(new ResourceReference<>(User.RESOURCE_TYPE, userId));
-        } catch (ResourceException exception) {
+        } catch (ResourceNotFoundException exception) {
             throw new AuthenticationException(AuthErrorCode.SUBJECT_NOT_FOUND, "User subject was not found", exception);
         }
     }

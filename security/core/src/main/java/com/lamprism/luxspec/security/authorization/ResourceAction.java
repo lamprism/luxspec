@@ -24,6 +24,7 @@ import java.util.Objects;
  * Identifies a resource operation and its baseline authorization requirement.
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public final class ResourceAction<ID> {

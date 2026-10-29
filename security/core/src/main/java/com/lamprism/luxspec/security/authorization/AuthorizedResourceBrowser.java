@@ -30,6 +30,7 @@ import com.lamprism.luxspec.security.authentication.Authentication;
  * They must not page an unrestricted result and authorize the returned items afterward.</p>
  *
  * @param <ID> the resource ID type
+ *
  * @author RollW
  */
 public interface AuthorizedResourceBrowser<ID> {

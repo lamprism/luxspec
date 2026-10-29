@@ -23,6 +23,7 @@ package com.lamprism.luxspec.web;
  * enforcing the three-digit HTTP status range.</p>
  *
  * @param value the numeric HTTP status code
+ *
  * @author RollW
  */
 public record HttpStatusCode(int value) {

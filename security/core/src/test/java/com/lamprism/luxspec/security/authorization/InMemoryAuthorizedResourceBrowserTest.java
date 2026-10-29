@@ -44,6 +44,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class InMemoryAuthorizedResourceBrowserTest {
     private static final ResourceType<Long> DOCUMENT = ResourceType.of("document", Long.class);
     private static final QueryField<Integer> RANK = QueryField.of("rank", Integer.class);

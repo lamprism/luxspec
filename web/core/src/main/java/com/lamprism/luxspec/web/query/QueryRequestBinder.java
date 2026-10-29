@@ -16,13 +16,15 @@
 
 package com.lamprism.luxspec.web.query;
 
+import com.lamprism.luxspec.data.pagination.QueryWindow;
+import com.lamprism.luxspec.data.query.QueryCriteria;
 import com.lamprism.luxspec.data.query.QuerySchema;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Converts decoded HTTP query parameters into a typed Luxspec query request.
+ * Converts decoded HTTP query parameters into typed query criteria and a result window.
  *
  * <p>This is an extension boundary. {@link DefaultQueryRequestBinder} provides the standard
  * allowlisted binding format, while an application may implement this contract when its transport
@@ -42,10 +44,22 @@ public interface QueryRequestBinder {
     }
 
     /**
-     * Binds decoded HTTP parameters.
+     * Binds decoded HTTP parameters to query criteria.
      *
      * @param parameters parameter names mapped to decoded repeated values
-     * @return the typed query request
+     * @return the typed query criteria
      */
-    QueryRequest bind(Map<String, ? extends List<String>> parameters);
+    QueryCriteria bindCriteria(Map<String, ? extends List<String>> parameters);
+
+    /**
+     * Binds a result window using the criteria that will be executed.
+     *
+     * <p>The same parameter values should be supplied to both binding operations. A cursor is
+     * checked against the ordering in {@code criteria}.</p>
+     *
+     * @param parameters parameter names mapped to decoded repeated values
+     * @param criteria   the criteria used for query execution
+     * @return the result window
+     */
+    QueryWindow bindWindow(Map<String, ? extends List<String>> parameters, QueryCriteria criteria);
 }

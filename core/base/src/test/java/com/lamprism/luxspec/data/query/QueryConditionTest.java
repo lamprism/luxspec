@@ -24,13 +24,17 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class QueryConditionTest {
     private static final QueryField<String> STATUS = QueryField.of("status", String.class);
     private static final QueryField<Integer> PRIORITY = QueryField.of("priority", Integer.class);
 
     @Test
     void preservesTheFieldValueTypeForMembershipValues() {
-        QueryCondition<String> condition = QueryCondition.in(STATUS, List.of("active", "disabled"));
+        QueryCondition<String, String> condition = QueryCondition.in(STATUS, List.of("active", "disabled"));
 
         assertEquals(STATUS, condition.getField());
         assertEquals(List.of("active", "disabled"), condition.getValues());
@@ -38,8 +42,8 @@ class QueryConditionTest {
 
     @Test
     void createsValueLessNullConditions() {
-        QueryCondition<String> isNull = QueryCondition.isNull(STATUS);
-        QueryCondition<String> isNotNull = QueryCondition.isNotNull(STATUS);
+        QueryCondition<String, String> isNull = QueryCondition.isNull(STATUS);
+        QueryCondition<String, String> isNotNull = QueryCondition.isNotNull(STATUS);
 
         assertEquals(QueryOperator.IS_NULL, isNull.getOperator());
         assertEquals(QueryOperator.IS_NOT_NULL, isNotNull.getOperator());
@@ -104,8 +108,8 @@ class QueryConditionTest {
     @Test
     void validatesValueFunctionsAndCastsThroughTheSchemaAllowlist() {
         QueryValue<String> normalizedStatus = QueryValue.lower(STATUS);
-        QueryValueCondition<String> lowerCondition = QueryValueCondition.like(normalizedStatus, "a%");
-        QueryValueCondition<String> castCondition = QueryValueCondition.like(
+        QueryValueCondition<String, String> lowerCondition = QueryValueCondition.like(normalizedStatus, "a%");
+        QueryValueCondition<String, String> castCondition = QueryValueCondition.like(
                 QueryValue.cast(PRIORITY, String.class),
                 "1%"
         );

@@ -19,6 +19,7 @@ package com.lamprism.luxspec.observability.runtime.observation;
 import com.lamprism.luxspec.context.ContextKey;
 import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
+import com.lamprism.luxspec.failure.FailureHandler;
 import com.lamprism.luxspec.observability.ObservabilityClock;
 import com.lamprism.luxspec.observability.observation.Observation;
 import com.lamprism.luxspec.observability.observation.ObservationActivation;
@@ -39,6 +40,8 @@ import com.lamprism.luxspec.observability.observation.ObservationSpec;
 import com.lamprism.luxspec.observability.observation.ObservationStart;
 import com.lamprism.luxspec.observability.observation.ObservationView;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -54,6 +57,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @author RollW
  */
 final class DefaultObservationRegistry implements ObservationRegistry {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultObservationRegistry.class);
     private static final ContextKey<Observation> CURRENT_OBSERVATION = ContextKey.of(
             "luxspec.observability.observation",
             Observation.class
@@ -65,6 +69,7 @@ final class DefaultObservationRegistry implements ObservationRegistry {
     private final List<ObservationPredicate> predicates;
     private final List<ObservationFilter> filters;
     private final CopyOnWriteArrayList<ObservationHandler> handlers;
+    private final FailureHandler<ObservationSpec> failureHandler;
     private final Map<ObservationName, ObservationSpec> specs = new LinkedHashMap<>();
     private boolean closed;
 
@@ -74,7 +79,8 @@ final class DefaultObservationRegistry implements ObservationRegistry {
             ObservationActivation activation,
             List<ObservationPredicate> predicates,
             List<ObservationFilter> filters,
-            List<ObservationHandler> handlers
+            List<ObservationHandler> handlers,
+            FailureHandler<ObservationSpec> failureHandler
     ) {
         this.contextStorage = contextStorage;
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -82,6 +88,7 @@ final class DefaultObservationRegistry implements ObservationRegistry {
         this.predicates = List.copyOf(predicates);
         this.filters = List.copyOf(filters);
         this.handlers = new CopyOnWriteArrayList<>(handlers);
+        this.failureHandler = Objects.requireNonNull(failureHandler, "failureHandler");
     }
 
     @Override
@@ -129,7 +136,8 @@ final class DefaultObservationRegistry implements ObservationRegistry {
                 if (!predicate.test(current)) {
                     return new NoOpObservation(registered);
                 }
-            } catch (Throwable ignored) {
+            } catch (RuntimeException failure) {
+                reportFailure(current.spec(), failure);
                 return new NoOpObservation(registered);
             }
         }
@@ -139,8 +147,8 @@ final class DefaultObservationRegistry implements ObservationRegistry {
                 if (filtered != null) {
                     current = filtered;
                 }
-            } catch (Throwable ignored) {
-                // A failed filter cannot invalidate the operation start.
+            } catch (RuntimeException failure) {
+                reportFailure(current.spec(), failure);
             }
         }
         ObservationSpec filteredSpec = current.spec();
@@ -369,7 +377,20 @@ final class DefaultObservationRegistry implements ObservationRegistry {
             ExecutionContextStorage.@Nullable Scope contextScope = storage == null
                     ? null
                     : storage.open(scopedContext);
-            registry.dispatchScopeOpened(view());
+            try {
+                registry.dispatchScopeOpened(view());
+            } catch (RuntimeException | Error failure) {
+                if (contextScope != null) {
+                    try {
+                        contextScope.close();
+                    } catch (RuntimeException | Error cleanupFailure) {
+                        if (cleanupFailure != failure) {
+                            failure.addSuppressed(cleanupFailure);
+                        }
+                    }
+                }
+                throw failure;
+            }
             return new Scope(contextScope);
         }
 
@@ -533,45 +554,53 @@ final class DefaultObservationRegistry implements ObservationRegistry {
 
     private void dispatchStart(ObservationView view) {
         for (ObservationHandler handler : handlers) {
-            invoke(() -> handler.onStart(view));
+            invoke(view.spec(), () -> handler.onStart(view));
         }
     }
 
     private void dispatchError(ObservationView view) {
         for (ObservationHandler handler : handlers) {
-            invoke(() -> handler.onError(view));
+            invoke(view.spec(), () -> handler.onError(view));
         }
     }
 
     private void dispatchEvent(ObservationView view, ObservationEvent event) {
         for (ObservationHandler handler : handlers) {
-            invoke(() -> handler.onEvent(view, event));
+            invoke(view.spec(), () -> handler.onEvent(view, event));
         }
     }
 
     private void dispatchScopeOpened(ObservationView view) {
         for (ObservationHandler handler : handlers) {
-            invoke(() -> handler.onScopeOpened(view));
+            invoke(view.spec(), () -> handler.onScopeOpened(view));
         }
     }
 
     private void dispatchScopeClosed(ObservationView view) {
         for (ObservationHandler handler : handlers) {
-            invoke(() -> handler.onScopeClosed(view));
+            invoke(view.spec(), () -> handler.onScopeClosed(view));
         }
     }
 
     private void dispatchStop(ObservationView view) {
         for (ObservationHandler handler : handlers) {
-            invoke(() -> handler.onStop(view));
+            invoke(view.spec(), () -> handler.onStop(view));
         }
     }
 
-    private static void invoke(Runnable callback) {
+    private void invoke(ObservationSpec spec, Runnable callback) {
         try {
             callback.run();
-        } catch (Throwable ignored) {
-            // Handler failures are isolated from the observed operation.
+        } catch (RuntimeException failure) {
+            reportFailure(spec, failure);
+        }
+    }
+
+    private void reportFailure(ObservationSpec spec, RuntimeException failure) {
+        try {
+            failureHandler.onFailure(spec, failure);
+        } catch (RuntimeException reportingFailure) {
+            LOGGER.warn("Observation failure handler failed: {}", reportingFailure.getClass().getName());
         }
     }
 

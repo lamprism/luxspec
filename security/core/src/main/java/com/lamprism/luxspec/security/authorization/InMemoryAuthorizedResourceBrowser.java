@@ -38,6 +38,7 @@ import java.util.Objects;
  *
  * @param <ID> the resource ID type
  * @param <R>  the loaded resource type
+ *
  * @author RollW
  */
 public class InMemoryAuthorizedResourceBrowser<ID, R extends Resource<ID>>

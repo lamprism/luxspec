@@ -23,6 +23,9 @@ import com.lamprism.luxspec.security.crypto.PublicKeyDeriver;
 import com.lamprism.luxspec.security.crypto.config.ConfigKeySetProvider;
 import com.lamprism.luxspec.security.jwt.ConfigJwtAccessTokenSettingsSource;
 import com.lamprism.luxspec.security.jwt.JwtAccessTokenAdapter;
+import com.lamprism.luxspec.security.jwt.JwtAccessTokenClaimsPolicy;
+import com.lamprism.luxspec.security.jwt.JwtAccessTokenMissingScopesPolicy;
+import com.lamprism.luxspec.security.jwt.JwtAlgorithmPolicy;
 import com.lamprism.luxspec.security.jwt.spring.JwtJwksController;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -81,6 +84,9 @@ public class LuxspecJwtAutoConfiguration {
      * @param reader         the configured Luxspec Config reader
      * @param keySetProvider the configured named key-set provider
      * @param clocks         the optional application clock
+     * @param claimsPolicies ordered application claim policies
+     * @param missingScopesPolicies the optional missing-scopes policy
+     * @param algorithmPolicies the optional algorithm selection and trust policy
      * @return the Nimbus JWT access-token adapter
      */
     @Bean
@@ -89,7 +95,10 @@ public class LuxspecJwtAutoConfiguration {
     public JwtAccessTokenAdapter jwtAccessTokenAdapter(
             ConfigReader reader,
             KeySetProvider keySetProvider,
-            ObjectProvider<Clock> clocks
+            ObjectProvider<Clock> clocks,
+            ObjectProvider<JwtAccessTokenClaimsPolicy> claimsPolicies,
+            ObjectProvider<JwtAccessTokenMissingScopesPolicy> missingScopesPolicies,
+            ObjectProvider<JwtAlgorithmPolicy> algorithmPolicies
     ) {
         Clock clock = clocks.getIfAvailable(Clock::systemUTC);
         ConfigJwtAccessTokenSettingsSource settingsSource = new ConfigJwtAccessTokenSettingsSource(reader);
@@ -97,7 +106,10 @@ public class LuxspecJwtAutoConfiguration {
                 keySetProvider,
                 settingsSource.getKeySetName(),
                 clock,
-                settingsSource.getConfiguration()
+                settingsSource.getConfiguration(),
+                claimsPolicies.orderedStream().toList(),
+                missingScopesPolicies.getIfAvailable(JwtAccessTokenMissingScopesPolicy::reject),
+                algorithmPolicies.getIfAvailable(JwtAlgorithmPolicy::standard)
         );
     }
 

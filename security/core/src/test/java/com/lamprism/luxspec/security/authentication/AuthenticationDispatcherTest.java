@@ -17,6 +17,7 @@
 package com.lamprism.luxspec.security.authentication;
 
 import com.lamprism.luxspec.AuthErrorCode;
+import com.lamprism.luxspec.event.FailureHandlingEventPublisher;
 import com.lamprism.luxspec.security.authorization.AuthorizationGrantSet;
 import org.junit.jupiter.api.Test;
 
@@ -29,9 +30,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class AuthenticationDispatcherTest {
     private static final Clock CLOCK = Clock.fixed(
             Instant.parse("2026-08-09T00:00:00Z"),
@@ -83,6 +89,77 @@ class AuthenticationDispatcherTest {
         assertThrows(IllegalStateException.class, () -> dispatcher.authenticate(new TestCredential()));
 
         assertEquals(1, publications.get());
+    }
+
+    @Test
+    void preservesAuthenticationRejectionWhenEventPublicationFails() {
+        IllegalStateException publicationFailure = new IllegalStateException("Event publication failed");
+        TestAuthenticator authenticator = new TestAuthenticator();
+        authenticator.setFailing(true);
+        AuthenticationDispatcher dispatcher = new AuthenticationDispatcherImpl(
+                List.of(authenticator), event -> {
+            throw publicationFailure;
+        }, CLOCK
+        );
+
+        AuthenticationException failure = assertThrows(
+                AuthenticationException.class, () -> dispatcher.authenticate(new TestCredential())
+        );
+        assertEquals(AuthErrorCode.INVALID_CREDENTIALS, failure.getErrorCode());
+        assertSame(publicationFailure, failure.getSuppressed()[0]);
+
+        AuthenticationException unsupported = assertThrows(
+                AuthenticationException.class, () -> dispatcher.authenticate(new UnregisteredCredential())
+        );
+        assertEquals(AuthErrorCode.UNSUPPORTED_CREDENTIALS, unsupported.getErrorCode());
+        assertSame(publicationFailure, unsupported.getSuppressed()[0]);
+    }
+
+    @Test
+    void permitsAnExplicitReportAndContinuePublicationPolicy() {
+        IllegalStateException publicationFailure = new IllegalStateException("Event publication failed");
+        AtomicInteger reported = new AtomicInteger();
+        FailureHandlingEventPublisher publisher = new FailureHandlingEventPublisher(
+                event -> {
+                    throw publicationFailure;
+                },
+                (event, failure) -> {
+                    assertSame(publicationFailure, failure);
+                    reported.incrementAndGet();
+                }
+        );
+        AuthenticationDispatcher dispatcher = new AuthenticationDispatcherImpl(
+                List.of(new TestAuthenticator()), publisher, CLOCK
+        );
+
+        Authentication authentication = dispatcher.authenticate(new TestCredential());
+
+        assertEquals("7", authentication.subject().getId());
+        assertEquals(1, reported.get());
+    }
+
+    @Test
+    void keepsPublicationFailureWhenTheSelectedFailureHandlerFails() {
+        IllegalStateException publicationFailure = new IllegalStateException("Publication failed");
+        IllegalStateException handlerFailure = new IllegalStateException("Failure handler failed");
+        FailureHandlingEventPublisher publisher = new FailureHandlingEventPublisher(
+                event -> {
+                    throw publicationFailure;
+                },
+                (event, failure) -> {
+                    throw handlerFailure;
+                }
+        );
+        AuthenticationDispatcher dispatcher = new AuthenticationDispatcherImpl(
+                List.of(new TestAuthenticator()), publisher, CLOCK
+        );
+
+        IllegalStateException thrown = assertThrows(
+                IllegalStateException.class, () -> dispatcher.authenticate(new TestCredential())
+        );
+
+        assertSame(handlerFailure, thrown);
+        assertSame(publicationFailure, thrown.getSuppressed()[0]);
     }
 
     private static final class TestCredential implements Credential {

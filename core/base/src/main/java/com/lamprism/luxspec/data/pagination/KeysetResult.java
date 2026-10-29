@@ -25,6 +25,7 @@ import java.util.Objects;
  * Represents a bounded keyset page and its optional typed continuation position.
  *
  * @param <T> the element type
+ *
  * @author RollW
  */
 public final class KeysetResult<T> implements QueryResult<T> {

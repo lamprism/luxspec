@@ -22,6 +22,7 @@ import java.time.Instant;
  * Revokes one token session by its typed identifier.
  *
  * @param <ID> the session identifier type
+ *
  * @author RollW
  */
 @FunctionalInterface

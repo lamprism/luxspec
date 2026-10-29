@@ -16,6 +16,8 @@
 
 package com.lamprism.luxspec.security.firewall.filtertable;
 
+import com.lamprism.luxspec.network.ip.IpAddress;
+import com.lamprism.luxspec.network.ip.IpNetwork;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 import com.lamprism.luxspec.security.authentication.UserSubject;
 import com.lamprism.luxspec.security.firewall.FirewallDecision;
@@ -33,20 +35,24 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class FilterTableTest {
     private static final Instant NOW = Instant.parse("2026-09-20T00:00:00Z");
 
     private static final class TestRequest implements FirewallRequest {
-        private final String clientAddress;
+        private final IpAddress clientAddress;
         private final UserSubject subject;
 
         private TestRequest(String clientAddress, UserSubject subject) {
-            this.clientAddress = clientAddress;
+            this.clientAddress = IpAddress.parse(clientAddress);
             this.subject = subject;
         }
 
         @Override
-        public String getClientAddress() {
+        public IpAddress getClientAddress() {
             return clientAddress;
         }
 
@@ -59,7 +65,7 @@ class FilterTableTest {
     @Test
     void atomicallyPublishesInMemoryChangesAndKeepsSnapshotsImmutable() {
         InMemoryFilterTable table = new InMemoryFilterTable();
-        FilterEntry entry = FilterEntry.deny(FilterTarget.clientAddress("192.0.2.1"));
+        FilterEntry entry = FilterEntry.deny(FilterTarget.clientAddress(IpNetwork.parse("192.0.2.1")));
 
         FilterTableSnapshot before = table.snapshot();
         table.put(entry);
@@ -75,9 +81,9 @@ class FilterTableTest {
 
     @Test
     void usesLongestActiveAddressPrefixAndFallsBackAfterExpiration() {
-        FilterEntry broadAllow = FilterEntry.allow(FilterTarget.clientAddress("10.0.0.0/8"));
+        FilterEntry broadAllow = FilterEntry.allow(FilterTarget.clientAddress(IpNetwork.parse("10.0.0.0/8")));
         FilterEntry expiredNarrowDeny = new FilterEntry(
-                FilterTarget.clientAddress("10.1.0.0/16"),
+                FilterTarget.clientAddress(IpNetwork.parse("10.1.0.0/16")),
                 FilterMode.DENY,
                 NOW,
                 "temporary block"
@@ -92,7 +98,7 @@ class FilterTableTest {
     @Test
     void givesActiveSubjectEntryPrecedenceOverAddressEntry() {
         UserSubject subject = new UserSubject(7L);
-        FilterEntry addressDeny = FilterEntry.deny(FilterTarget.clientAddress("198.51.100.0/24"));
+        FilterEntry addressDeny = FilterEntry.deny(FilterTarget.clientAddress(IpNetwork.parse("198.51.100.0/24")));
         FilterEntry subjectAllow = FilterEntry.allow(FilterTarget.subject(subject));
         FilterTableFirewall firewall = new FilterTableFirewall(
                 new InMemoryFilterTable(List.of(addressDeny, subjectAllow)),
@@ -116,9 +122,9 @@ class FilterTableTest {
         TestRequest request = new TestRequest("203.0.113.10", null);
 
         assertEquals(FirewallDecision.Case.NEUTRAL, firewall.verifyRequest(request).getCase());
-        table.put(FilterEntry.allow(FilterTarget.clientAddress("203.0.113.10")));
+        table.put(FilterEntry.allow(FilterTarget.clientAddress(IpNetwork.parse("203.0.113.10"))));
         assertEquals(FirewallDecision.Case.ALLOW, firewall.verifyRequest(request).getCase());
-        table.put(FilterEntry.deny(FilterTarget.clientAddress("203.0.113.10")));
+        table.put(FilterEntry.deny(FilterTarget.clientAddress(IpNetwork.parse("203.0.113.10"))));
         FirewallDecision denied = firewall.verifyRequest(request);
         assertEquals(FirewallDecision.Case.DENY, denied.getCase());
         assertEquals(SecurityErrorCode.FIREWALL_CLIENT_ADDRESS_DENIED, denied.getReasonCode());
@@ -128,14 +134,14 @@ class FilterTableTest {
     void rejectsInvalidOrDuplicateTargets() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> FilterTarget.clientAddress("192.0.2.1-192.0.2.2")
+                () -> FilterTarget.clientAddress(IpNetwork.parse("192.0.2.1-192.0.2.2"))
         );
         assertThrows(
                 IllegalArgumentException.class,
-                () -> FilterTarget.clientAddress("192.0.2.*")
+                () -> FilterTarget.clientAddress(IpNetwork.parse("192.0.2.*"))
         );
 
-        FilterTarget target = FilterTarget.clientAddress("192.0.2.1");
+        FilterTarget target = FilterTarget.clientAddress(IpNetwork.parse("192.0.2.1"));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new FilterTableSnapshot(List.of(

@@ -23,6 +23,10 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class LocalizedTextTest {
     @Test
     void resolvesExactLanguageAndDefaultTranslations() {

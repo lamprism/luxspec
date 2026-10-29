@@ -34,6 +34,7 @@ import java.util.Arrays;
  * {@code @Converter}. Stored values begin with a four-byte format header.</p>
  *
  * @param <T> the converted object type
+ *
  * @author RollW
  */
 public abstract class BinaryObjectAttributeConverter<T> implements AttributeConverter<T, byte[]> {

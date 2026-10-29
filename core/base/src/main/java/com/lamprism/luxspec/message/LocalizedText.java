@@ -82,8 +82,6 @@ public interface LocalizedText {
 
     /**
      * Builds immutable local translations.
-     *
-     * @author RollW
      */
     final class Builder {
         private final String defaultText;

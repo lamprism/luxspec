@@ -16,6 +16,10 @@
 
 package com.lamprism.luxspec.data.query;
 
+/**
+ *
+ * @author RollW
+ */
 final class MatchAllQueryExpression implements QueryExpression {
     static final MatchAllQueryExpression INSTANCE = new MatchAllQueryExpression();
 

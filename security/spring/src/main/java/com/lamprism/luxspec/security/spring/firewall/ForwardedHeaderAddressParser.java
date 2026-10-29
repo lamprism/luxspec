@@ -16,19 +16,22 @@
 
 package com.lamprism.luxspec.security.spring.firewall;
 
-import inet.ipaddr.IPAddress;
-import inet.ipaddr.IPAddressString;
+import com.lamprism.luxspec.network.ip.IpAddress;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ *
+ * @author RollW
+ */
 final class ForwardedHeaderAddressParser {
     private ForwardedHeaderAddressParser() {
     }
 
-    static Optional<List<IPAddress>> parseForwarded(List<String> headerValues) {
-        List<IPAddress> result = new ArrayList<>();
+    static Optional<List<IpAddress>> parseForwarded(List<String> headerValues) {
+        List<IpAddress> result = new ArrayList<>();
         for (String headerValue : headerValues) {
             Optional<List<String>> elements = splitOutsideQuotes(headerValue, ',');
             if (elements.isEmpty()) {
@@ -39,7 +42,7 @@ final class ForwardedHeaderAddressParser {
                 if (forValue.isEmpty()) {
                     return Optional.empty();
                 }
-                Optional<IPAddress> address = parseAddressToken(forValue.get());
+                Optional<IpAddress> address = parseAddressToken(forValue.get());
                 if (address.isEmpty()) {
                     return Optional.empty();
                 }
@@ -49,15 +52,15 @@ final class ForwardedHeaderAddressParser {
         return result.isEmpty() ? Optional.empty() : Optional.of(List.copyOf(result));
     }
 
-    static Optional<List<IPAddress>> parseXForwardedFor(List<String> headerValues) {
-        List<IPAddress> result = new ArrayList<>();
+    static Optional<List<IpAddress>> parseXForwardedFor(List<String> headerValues) {
+        List<IpAddress> result = new ArrayList<>();
         for (String headerValue : headerValues) {
             Optional<List<String>> values = splitOutsideQuotes(headerValue, ',');
             if (values.isEmpty()) {
                 return Optional.empty();
             }
             for (String value : values.get()) {
-                Optional<IPAddress> address = parseAddressToken(value);
+                Optional<IpAddress> address = parseAddressToken(value);
                 if (address.isEmpty()) {
                     return Optional.empty();
                 }
@@ -164,7 +167,7 @@ final class ForwardedHeaderAddressParser {
         return escaped ? Optional.empty() : Optional.of(result.toString());
     }
 
-    private static Optional<IPAddress> parseAddressToken(String token) {
+    private static Optional<IpAddress> parseAddressToken(String token) {
         String value = token.trim();
         if (value.isEmpty()) {
             return Optional.empty();
@@ -181,7 +184,7 @@ final class ForwardedHeaderAddressParser {
         return parseAddress(value);
     }
 
-    private static Optional<IPAddress> parseBracketedAddress(String value) {
+    private static Optional<IpAddress> parseBracketedAddress(String value) {
         int closingBracket = value.indexOf(']');
         if (closingBracket <= 1) {
             return Optional.empty();
@@ -225,18 +228,14 @@ final class ForwardedHeaderAddressParser {
         return count;
     }
 
-    private static Optional<IPAddress> parseAddress(String value) {
+    private static Optional<IpAddress> parseAddress(String value) {
         if (value.isBlank()) {
             return Optional.empty();
         }
-        IPAddressString parsed = new IPAddressString(value);
-        if (!parsed.isValid() || !parsed.isIPAddress()) {
+        try {
+            return Optional.of(IpAddress.parse(value));
+        } catch (IllegalArgumentException exception) {
             return Optional.empty();
         }
-        IPAddress address = parsed.getAddress();
-        if (address == null || address.isMultiple()) {
-            return Optional.empty();
-        }
-        return Optional.of(address.withoutPrefixLength());
     }
 }

@@ -23,6 +23,10 @@ import jakarta.persistence.criteria.Root;
 
 import java.util.Objects;
 
+/**
+ *
+ * @author RollW
+ */
 public class DefaultJpaQueryFieldResolver<T> implements JpaQueryFieldResolver<T> {
     private final JpaFieldNamingStrategy namingStrategy;
 

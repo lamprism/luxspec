@@ -35,6 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class JwtJwksControllerTest {
     @Test
     void publishesTheCurrentPublicSnapshotWithConservativeCaching() throws GeneralSecurityException {

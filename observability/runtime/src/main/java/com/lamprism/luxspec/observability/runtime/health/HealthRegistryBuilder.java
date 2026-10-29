@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.observability.runtime.health;
 
+import com.lamprism.luxspec.observability.health.HealthAggregationPolicy;
 import com.lamprism.luxspec.observability.health.HealthContributor;
 import com.lamprism.luxspec.observability.health.HealthGroup;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
@@ -43,6 +44,7 @@ public final class HealthRegistryBuilder {
     private final Map<HealthGroup, LinkedHashSet<String>> groups = new EnumMap<>(HealthGroup.class);
     private final List<ObservabilitySet> sets = new ArrayList<>();
     private @Nullable Duration timeout;
+    private HealthAggregationPolicy aggregationPolicy = HealthAggregationPolicy.worstStatus();
 
     private HealthRegistryBuilder(Executor executor) {
         this.executor = Objects.requireNonNull(executor, "executor");
@@ -97,6 +99,17 @@ public final class HealthRegistryBuilder {
         return this;
     }
 
+    /**
+     * Selects the policy used to aggregate each health group.
+     *
+     * @param policy the group aggregation policy
+     * @return this builder
+     */
+    public HealthRegistryBuilder aggregationPolicy(HealthAggregationPolicy policy) {
+        this.aggregationPolicy = Objects.requireNonNull(policy, "policy");
+        return this;
+    }
+
     public HealthRegistry build() {
         for (ObservabilitySet set : sets) {
             set.registerHealth(this);
@@ -109,7 +122,7 @@ public final class HealthRegistryBuilder {
                 }
             }
         }
-        return new DefaultHealthRegistry(executor, contributors, groups, timeout);
+        return new DefaultHealthRegistry(executor, contributors, groups, timeout, aggregationPolicy);
     }
 
     private static String validateName(String name) {

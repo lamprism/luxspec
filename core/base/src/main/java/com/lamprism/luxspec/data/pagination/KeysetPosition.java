@@ -16,7 +16,10 @@
 
 package com.lamprism.luxspec.data.pagination;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,23 +32,19 @@ import java.util.Objects;
  * @author RollW
  */
 public final class KeysetPosition {
-    private final List<Object> values;
+    private final List<@Nullable Object> values;
 
     /**
      * Creates an immutable keyset position.
      *
-     * @param values the non-empty ordered field values
+     * @param values the non-empty ordered field values, which may include null
      */
     public KeysetPosition(List<?> values) {
         List<?> nonNullValues = Objects.requireNonNull(values, "values");
         if (nonNullValues.isEmpty()) {
             throw new IllegalArgumentException("Keyset position must contain at least one value");
         }
-        List<Object> copiedValues = new ArrayList<>(nonNullValues.size());
-        for (Object value : nonNullValues) {
-            copiedValues.add(Objects.requireNonNull(value, "keyset value"));
-        }
-        this.values = List.copyOf(copiedValues);
+        this.values = Collections.unmodifiableList(new ArrayList<>(nonNullValues));
     }
 
     /**
@@ -53,7 +52,7 @@ public final class KeysetPosition {
      *
      * @return the keyset values
      */
-    public List<Object> values() {
+    public List<@Nullable Object> values() {
         return values;
     }
 }

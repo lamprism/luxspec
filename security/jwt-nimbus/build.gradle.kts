@@ -23,5 +23,5 @@ description = "Nimbus-backed access token adapter for Luxspec security."
 dependencies {
     api(project(":security:security-core"))
     api(project(":config:config-core"))
-    implementation("com.nimbusds:nimbus-jose-jwt")
+    api("com.nimbusds:nimbus-jose-jwt")
 }

@@ -30,6 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class EventPublishingUserPasswordStoreTest {
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-09T00:00:00Z");
 
@@ -44,16 +48,37 @@ class EventPublishingUserPasswordStoreTest {
         );
 
         delegate.setReplacementResult(false);
-        assertFalse(store.replace(7L, new EncodedPassword("old"), new EncodedPassword("new")));
+        assertFalse(store.replace(7L, new EncodedPassword("old"), new EncodedPassword("new"), PasswordReplacementPurpose.CHANGE));
         assertTrue(events.isEmpty());
 
         delegate.setReplacementResult(true);
-        assertTrue(store.replace(7L, new EncodedPassword("old"), new EncodedPassword("new")));
+        assertTrue(store.replace(7L, new EncodedPassword("old"), new EncodedPassword("new"), PasswordReplacementPurpose.CHANGE));
 
         assertEquals(1, events.size());
         UserPasswordChangedEvent event = (UserPasswordChangedEvent) events.get(0);
         assertEquals(7L, event.getUserId());
+        assertEquals(UserPasswordChangedEvent.ChangeType.CHANGED, event.getChangeType());
         assertEquals(OCCURRED_AT, event.getOccurredAt());
+    }
+
+    @Test
+    void distinguishesInitializationRehashAndResetEvents() {
+        List<Event> events = new ArrayList<>();
+        EventPublishingUserPasswordStore store = new EventPublishingUserPasswordStore(
+                new InMemoryUserPasswordStore(), events::add, Clock.fixed(OCCURRED_AT, ZoneOffset.UTC)
+        );
+        EncodedPassword first = new EncodedPassword("first");
+        EncodedPassword rehashed = new EncodedPassword("rehashed");
+        assertTrue(store.initialize(7L, first));
+        assertFalse(store.initialize(7L, first));
+        assertTrue(store.replace(7L, first, rehashed, PasswordReplacementPurpose.REHASH));
+        assertTrue(store.reset(7L, new EncodedPassword("reset")));
+
+        assertEquals(List.of(
+                UserPasswordChangedEvent.ChangeType.INITIALIZED,
+                UserPasswordChangedEvent.ChangeType.REHASHED,
+                UserPasswordChangedEvent.ChangeType.RESET
+        ), events.stream().map(event -> ((UserPasswordChangedEvent) event).getChangeType()).toList());
     }
 
     private static final class RecordingStore implements UserPasswordStore {
@@ -65,11 +90,22 @@ class EventPublishingUserPasswordStoreTest {
         }
 
         @Override
+        public boolean initialize(long userId, EncodedPassword password) {
+            return replacementResult;
+        }
+
+        @Override
         public boolean replace(
                 long userId,
                 EncodedPassword currentPassword,
-                EncodedPassword replacementPassword
+                EncodedPassword replacementPassword,
+                PasswordReplacementPurpose purpose
         ) {
+            return replacementResult;
+        }
+
+        @Override
+        public boolean reset(long userId, EncodedPassword password) {
             return replacementResult;
         }
 

@@ -24,6 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class UlidResourceIdGeneratorTest {
     private static final ResourceType<String> ARTICLE = ResourceType.of("article", String.class);
 

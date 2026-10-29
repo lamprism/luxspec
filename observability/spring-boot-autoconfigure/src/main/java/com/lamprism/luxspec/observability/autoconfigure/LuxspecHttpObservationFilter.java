@@ -19,7 +19,6 @@ package com.lamprism.luxspec.observability.autoconfigure;
 import com.lamprism.luxspec.observability.observation.Observation;
 import com.lamprism.luxspec.observability.observation.ObservationAttributeClassification;
 import com.lamprism.luxspec.observability.observation.ObservationAttributeSpec;
-import com.lamprism.luxspec.observability.observation.ObservationOutcome;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
 import com.lamprism.luxspec.observability.observation.ObservationScope;
 import com.lamprism.luxspec.observability.runtime.observation.StandardObservationCatalog;
@@ -62,6 +61,7 @@ public final class LuxspecHttpObservationFilter extends OncePerRequestFilter imp
     );
 
     private final ObservationRegistry registry;
+    private final HttpObservationOutcomePolicy outcomePolicy;
 
     /**
      * Creates an HTTP observation filter.
@@ -69,7 +69,18 @@ public final class LuxspecHttpObservationFilter extends OncePerRequestFilter imp
      * @param registry the registry containing the standard web request specification
      */
     public LuxspecHttpObservationFilter(ObservationRegistry registry) {
+        this(registry, HttpObservationOutcomePolicy.exceptionsOnly());
+    }
+
+    /**
+     * Creates an HTTP observation filter with an explicit outcome policy.
+     *
+     * @param registry      the observation registry
+     * @param outcomePolicy the policy for completed HTTP requests
+     */
+    public LuxspecHttpObservationFilter(ObservationRegistry registry, HttpObservationOutcomePolicy outcomePolicy) {
         this.registry = Objects.requireNonNull(registry, "registry");
+        this.outcomePolicy = Objects.requireNonNull(outcomePolicy, "outcomePolicy");
     }
 
     @Override
@@ -129,12 +140,11 @@ public final class LuxspecHttpObservationFilter extends OncePerRequestFilter imp
         return route;
     }
 
-    private static String status(int value, boolean failed) {
-        int effective = failed && (value < 500 || value > 599) ? 500 : value;
-        if (effective < 100 || effective > 999) {
+    private static String status(int value) {
+        if (value < 100 || value > 999) {
             return "UNKNOWN";
         }
-        return Integer.toString(effective);
+        return Integer.toString(value);
     }
 
     private final class RequestCompletion implements AsyncListener {
@@ -172,13 +182,12 @@ public final class LuxspecHttpObservationFilter extends OncePerRequestFilter imp
             if (failure != null) {
                 observation.error(failure);
             }
+            boolean failed = forcedFailure || failure != null;
+            int responseStatus = response.getStatus();
+            int effectiveStatus = failed && (responseStatus < 500 || responseStatus > 599) ? 500 : responseStatus;
             observation.put(ROUTE, route(request));
-            observation.put(STATUS, status(response.getStatus(), forcedFailure || failure != null));
-            if (forcedFailure || failure != null) {
-                observation.setOutcome(ObservationOutcome.ERROR);
-            } else {
-                observation.setOutcome(ObservationOutcome.SUCCESS);
-            }
+            observation.put(STATUS, status(effectiveStatus));
+            observation.setOutcome(Objects.requireNonNull(outcomePolicy.resolve(effectiveStatus, failed), "outcome"));
             observation.stop();
         }
 

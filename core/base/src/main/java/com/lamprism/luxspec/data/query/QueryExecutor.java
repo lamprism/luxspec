@@ -23,6 +23,7 @@ import com.lamprism.luxspec.data.pagination.QueryWindow;
  * Executes provider-neutral query criteria and plans against one owned data source.
  *
  * @param <T> the query result item type
+ *
  * @author RollW
  */
 public interface QueryExecutor<T> {

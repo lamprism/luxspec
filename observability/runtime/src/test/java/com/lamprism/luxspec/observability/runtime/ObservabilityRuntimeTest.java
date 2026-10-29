@@ -16,9 +16,11 @@
 
 package com.lamprism.luxspec.observability.runtime;
 
+import com.lamprism.luxspec.context.ExecutionContext;
 import com.lamprism.luxspec.context.ExecutionContextStorage;
 import com.lamprism.luxspec.context.ThreadLocalExecutionContextStorage;
 import com.lamprism.luxspec.observability.ObservabilityClock;
+import com.lamprism.luxspec.observability.health.HealthAggregationPolicy;
 import com.lamprism.luxspec.observability.health.HealthGroup;
 import com.lamprism.luxspec.observability.health.HealthRegistry;
 import com.lamprism.luxspec.observability.health.HealthResult;
@@ -58,12 +60,17 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ *
+ * @author RollW
+ */
 class ObservabilityRuntimeTest {
     @Test
     void materializesDimensionedCountersAndCapturesOneSnapshot() {
@@ -214,6 +221,30 @@ class ObservabilityRuntimeTest {
     }
 
     @Test
+    void restoresThePreviousContextIfOpeningAScopeCallbackThrowsAnError() {
+        ExecutionContextStorage storage = new ThreadLocalExecutionContextStorage();
+        ExecutionContext outer = ExecutionContext.empty();
+        AssertionError callbackFailure = new AssertionError("scope callback failure");
+        ObservationHandler handler = new ObservationHandler() {
+            @Override
+            public void onScopeOpened(ObservationView view) {
+                throw callbackFailure;
+            }
+        };
+        ObservationSpec spec = ObservationSpec.builder("scope").build();
+        try (var registry = ObservationRegistryBuilder.builder().contextStorage(storage).handler(handler).build();
+             ExecutionContextStorage.Scope ignored = storage.open(outer)) {
+            registry.register(spec);
+            Observation observation = registry.start(spec);
+
+            assertSame(callbackFailure, assertThrows(AssertionError.class, observation::openScope));
+            assertSame(outer, storage.current().orElseThrow());
+            observation.stop();
+        }
+        assertTrue(storage.current().isEmpty());
+    }
+
+    @Test
     void replacesObservationAttributeSpecificationsAndTheirFormatters() {
         ObservationAttributeSpec<String> plain = ObservationAttributeSpec.of(
                 "credential",
@@ -292,6 +323,79 @@ class ObservabilityRuntimeTest {
     }
 
     @Test
+    void reportsObservationCallbackFailuresAndPreservesBusinessFailures() {
+        ObservationSpec spec = ObservationSpec.builder("request").build();
+        List<Throwable> failures = new ArrayList<>();
+        IllegalStateException filterFailure = new IllegalStateException("filter failure");
+        IllegalStateException handlerFailure = new IllegalStateException("handler failure");
+        IllegalStateException businessFailure = new IllegalStateException("business failure");
+        ObservationHandler handler = new ObservationHandler() {
+            @Override
+            public void onError(ObservationView view) {
+                throw handlerFailure;
+            }
+
+            @Override
+            public void onStop(ObservationView view) {
+                throw handlerFailure;
+            }
+        };
+        try (var registry = ObservationRegistryBuilder.builder()
+                .failureHandler((observed, failure) -> {
+                    assertEquals(spec, observed);
+                    failures.add(failure);
+                })
+                .filter(start -> {
+                    throw filterFailure;
+                })
+                .handler(handler)
+                .build()) {
+            registry.register(spec);
+            IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
+                try (Observation observation = registry.start(spec)) {
+                    observation.error(businessFailure);
+                    throw businessFailure;
+                }
+            });
+            assertSame(businessFailure, thrown);
+            assertEquals(List.of(filterFailure, handlerFailure, handlerFailure), failures);
+        }
+    }
+
+    @Test
+    void doesNotSilentlyDiscardJvmErrorsFromObservationCallbacks() {
+        ObservationSpec spec = ObservationSpec.builder("request").build();
+        AssertionError failure = new AssertionError("fatal callback failure");
+        try (var registry = ObservationRegistryBuilder.builder()
+                .predicate(start -> {
+                    throw failure;
+                })
+                .build()) {
+            registry.register(spec);
+            assertSame(failure, assertThrows(AssertionError.class, () -> registry.start(spec)));
+        }
+    }
+
+    @Test
+    void isolatesFailureReporterErrorsWithoutRecursiveReporting() {
+        ObservationSpec spec = ObservationSpec.builder("request").build();
+        AtomicInteger reports = new AtomicInteger();
+        try (var registry = ObservationRegistryBuilder.builder()
+                .predicate(start -> {
+                    throw new IllegalStateException("predicate failure");
+                })
+                .failureHandler((observed, failure) -> {
+                    reports.incrementAndGet();
+                    throw new IllegalStateException("reporter failure");
+                })
+                .build()) {
+            registry.register(spec);
+            registry.start(spec).stop();
+            assertEquals(1, reports.get());
+        }
+    }
+
+    @Test
     void aggregatesHealthContributorsAndIsolatesFailures() {
         Executor executor = Runnable::run;
         HealthRegistry registry = HealthRegistryBuilder.builder(executor)
@@ -305,6 +409,29 @@ class ObservabilityRuntimeTest {
         assertEquals(HealthStatus.DOWN, registry.evaluate(HealthGroup.AGGREGATE).getStatus());
         assertEquals(HealthStatus.UP, registry.evaluate(HealthGroup.READINESS).getStatus());
         assertEquals(HealthStatus.UP, registry.evaluate(HealthGroup.LIVENESS).getStatus());
+    }
+
+    @Test
+    void selectsHealthAggregationByGroupIncludingEmptyGroups() {
+        HealthAggregationPolicy worst = HealthAggregationPolicy.worstStatus();
+        HealthRegistry registry = HealthRegistryBuilder.builder(Runnable::run)
+                .register("dependency", () -> HealthResult.of(HealthStatus.DOWN))
+                .include(HealthGroup.LIVENESS, "dependency")
+                .include(HealthGroup.READINESS, "dependency")
+                .aggregationPolicy((group, results) -> {
+                    if (results.isEmpty()) {
+                        return HealthStatus.UNKNOWN;
+                    }
+                    return group == HealthGroup.LIVENESS ? HealthStatus.UP : worst.aggregate(group, results);
+                })
+                .build();
+
+        assertEquals(HealthStatus.UP, registry.evaluate(HealthGroup.LIVENESS).getStatus());
+        assertEquals(HealthStatus.DOWN, registry.evaluate(HealthGroup.READINESS).getStatus());
+        HealthRegistry empty = HealthRegistryBuilder.builder(Runnable::run)
+                .aggregationPolicy((group, results) -> HealthStatus.UNKNOWN)
+                .build();
+        assertEquals(HealthStatus.UNKNOWN, empty.evaluate(HealthGroup.READINESS).getStatus());
     }
 
     @Test

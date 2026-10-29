@@ -18,6 +18,7 @@ package com.lamprism.luxspec.security.firewall;
 
 import com.lamprism.luxspec.event.Event;
 import com.lamprism.luxspec.event.EventPublisher;
+import com.lamprism.luxspec.failure.FailureHandler;
 import com.lamprism.luxspec.security.SecurityErrorCode;
 
 import java.time.Clock;
@@ -33,12 +34,15 @@ import java.util.concurrent.atomic.AtomicReference;
  * that snapshot, so it cannot observe a partially edited firewall list.</p>
  *
  * @param <R> the request type filtered by the registry
+ *
  * @author RollW
  */
 public final class SimpleFirewallRegistry<R extends FirewallRequest> implements FirewallRegistry<R> {
     private final AtomicReference<List<Firewall<? super R>>> firewalls;
     private final EventPublisher eventPublisher;
     private final Clock clock;
+    private final FirewallDecisionPolicy decisionPolicy;
+    private final FailureHandler<Event> eventFailureHandler;
 
     /**
      * Creates a registry with the supplied firewalls and no-op event publication.
@@ -75,9 +79,31 @@ public final class SimpleFirewallRegistry<R extends FirewallRequest> implements 
             EventPublisher eventPublisher,
             Clock clock
     ) {
+        this(firewalls, eventPublisher, clock, FirewallDecisionPolicy.firstDecision(), (event, failure) -> {
+        });
+    }
+
+    /**
+     * Creates a registry with explicit decision and event failure policies.
+     *
+     * @param firewalls           the initial firewalls
+     * @param eventPublisher      the event publisher
+     * @param clock               the event timestamp clock
+     * @param decisionPolicy      the decision combination policy
+     * @param eventFailureHandler the observer failure policy
+     */
+    public SimpleFirewallRegistry(
+            List<? extends Firewall<? super R>> firewalls,
+            EventPublisher eventPublisher,
+            Clock clock,
+            FirewallDecisionPolicy decisionPolicy,
+            FailureHandler<Event> eventFailureHandler
+    ) {
         this.firewalls = new AtomicReference<>(sortFirewalls(firewalls));
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.decisionPolicy = Objects.requireNonNull(decisionPolicy, "decisionPolicy");
+        this.eventFailureHandler = Objects.requireNonNull(eventFailureHandler, "eventFailureHandler");
     }
 
     @Override
@@ -122,16 +148,15 @@ public final class SimpleFirewallRegistry<R extends FirewallRequest> implements 
     @Override
     public FirewallDecision filter(R request) {
         R nonNullRequest = Objects.requireNonNull(request, "request");
+        FirewallDecision combined = FirewallDecision.neutral();
         for (Firewall<? super R> firewall : firewalls.get()) {
             FirewallDecision decision = evaluate(firewall, nonNullRequest);
-            if (decision.getCase() == FirewallDecision.Case.ALLOW) {
-                return decision;
-            }
-            if (decision.getCase() == FirewallDecision.Case.DENY) {
-                return decision;
+            combined = Objects.requireNonNull(decisionPolicy.combine(combined, decision), "combined decision");
+            if (decisionPolicy.isTerminal(combined)) {
+                return combined;
             }
         }
-        return FirewallDecision.neutral();
+        return combined;
     }
 
     @Override
@@ -154,7 +179,7 @@ public final class SimpleFirewallRegistry<R extends FirewallRequest> implements 
         try {
             decision = Objects.requireNonNull(firewall.verifyRequest(request), "firewall decision");
         } catch (RuntimeException exception) {
-            publishBestEffort(new FirewallRuleFailureEvent(
+            publish(new FirewallRuleFailureEvent(
                     firewall.getClass().getName(),
                     SecurityErrorCode.FIREWALL_RULE_FAILURE,
                     clock.instant()
@@ -162,7 +187,7 @@ public final class SimpleFirewallRegistry<R extends FirewallRequest> implements 
             return FirewallDecision.deny(SecurityErrorCode.FIREWALL_RULE_FAILURE);
         }
         if (decision.getCase() == FirewallDecision.Case.DENY) {
-            publishBestEffort(new FirewallRuleDeniedEvent(
+            publish(new FirewallRuleDeniedEvent(
                     firewall.getClass().getName(),
                     decision.getReasonCode(),
                     decision.getRetryAfter().orElse(null),
@@ -172,11 +197,11 @@ public final class SimpleFirewallRegistry<R extends FirewallRequest> implements 
         return decision;
     }
 
-    private void publishBestEffort(Event event) {
+    private void publish(Event event) {
         try {
             eventPublisher.publish(event);
-        } catch (RuntimeException ignored) {
-            // Firewall decisions remain authoritative when an observer fails.
+        } catch (RuntimeException failure) {
+            eventFailureHandler.onFailure(event, failure);
         }
     }
 

@@ -27,6 +27,7 @@ import java.util.Objects;
  *
  * @param factory the cache implementation factory
  * @param profile the profile for this cache level
+ *
  * @author RollW
  */
 public record CacheLevel(CacheFactory factory, CacheProfile profile) {

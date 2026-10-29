@@ -16,6 +16,7 @@
 
 package com.lamprism.luxspec.user.resource;
 
+import com.lamprism.luxspec.resource.ResourceNotFoundException;
 import com.lamprism.luxspec.resource.ResourceProvider;
 import com.lamprism.luxspec.resource.ResourceReference;
 import com.lamprism.luxspec.user.User;
@@ -52,6 +53,7 @@ public interface UserProvider extends ResourceProvider<Long> {
      *
      * @param username the username
      * @return the resolved user
+     * @throws ResourceNotFoundException when no user has the requested username
      */
     User provideByUsername(String username);
 }

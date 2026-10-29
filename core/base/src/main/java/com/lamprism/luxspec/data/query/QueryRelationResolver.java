@@ -22,6 +22,7 @@ import org.jspecify.annotations.Nullable;
  * Resolves explicitly allowed relationships for provider-independent query execution.
  *
  * @param <T> the root candidate type
+ *
  * @author RollW
  */
 @FunctionalInterface

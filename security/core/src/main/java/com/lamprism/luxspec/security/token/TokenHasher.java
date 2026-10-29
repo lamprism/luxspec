@@ -20,6 +20,7 @@ package com.lamprism.luxspec.security.token;
  * Produces a typed one-way digest of a sensitive token value.
  *
  * @param <T> the token value type
+ *
  * @author RollW
  */
 @FunctionalInterface

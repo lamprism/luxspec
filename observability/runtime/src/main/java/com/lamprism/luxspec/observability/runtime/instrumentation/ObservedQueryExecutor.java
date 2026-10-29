@@ -25,6 +25,7 @@ import com.lamprism.luxspec.observability.observation.Observation;
 import com.lamprism.luxspec.observability.observation.ObservationOutcome;
 import com.lamprism.luxspec.observability.observation.ObservationRegistry;
 import com.lamprism.luxspec.observability.observation.ObservationSpec;
+import com.lamprism.luxspec.observability.runtime.observation.DatabaseObservationAttributes;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -36,6 +37,7 @@ import java.util.function.Supplier;
  * executor without changing the query contract.</p>
  *
  * @param <T> the source candidate or entity type
+ *
  * @author RollW
  */
 public final class ObservedQueryExecutor<T>
@@ -74,6 +76,7 @@ public final class ObservedQueryExecutor<T>
     private <R> R observe(Supplier<R> operation) {
         Observation observation = registry.start(spec);
         try {
+            observation.put(DatabaseObservationAttributes.OPERATION, DatabaseObservationAttributes.Operation.QUERY);
             R result = operation.get();
             observation.setOutcome(ObservationOutcome.SUCCESS);
             return result;

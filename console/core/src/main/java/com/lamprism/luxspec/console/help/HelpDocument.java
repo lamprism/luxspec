@@ -177,8 +177,6 @@ public final class HelpDocument {
 
     /**
      * Child command entry in a Help document.
-     *
-     * @author RollW
      */
     public static final class CommandEntry {
         private final String name;
@@ -273,8 +271,6 @@ public final class HelpDocument {
 
     /**
      * Option entry in a Help document.
-     *
-     * @author RollW
      */
     public static final class OptionEntry {
         private final List<String> names;
@@ -410,8 +406,6 @@ public final class HelpDocument {
 
     /**
      * Positional argument entry in a Help document.
-     *
-     * @author RollW
      */
     public static final class ArgumentEntry {
         private final String name;

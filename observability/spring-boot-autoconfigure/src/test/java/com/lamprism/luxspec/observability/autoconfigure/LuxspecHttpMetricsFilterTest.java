@@ -43,6 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class LuxspecHttpMetricsFilterTest {
     @Test
     void recordsTemplateStatusOutcomeAndActiveRequests() throws Exception {
@@ -121,6 +125,43 @@ class LuxspecHttpMetricsFilterTest {
 
             assertEquals(1L, reading(registry.snapshot(), "http.server.requests").count());
             assertEquals(0.0d, reading(registry.snapshot(), "http.server.active.requests").value());
+        }
+    }
+
+    @Test
+    void canAlignMetricOutcomeWithAnObservationPolicy() throws Exception {
+        HttpServerMetricSet metricSet = new HttpServerMetricSet();
+        try (MetricRegistry registry = MetricRegistryBuilder.builder().set(metricSet).build()) {
+            LuxspecHttpMetricsFilter filter = new LuxspecHttpMetricsFilter(
+                    registry, HttpMetricOutcomePolicy.fromObservation(HttpObservationOutcomePolicy.exceptionsOnly())
+            );
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(new MockHttpServletRequest("GET", "/missing"), response, (request, result) -> {
+                ((MockHttpServletResponse) result).setStatus(404);
+            });
+            assertEquals("SUCCESS", reading(registry.snapshot(), "http.server.requests")
+                    .binding().getDimensions().get("outcome"));
+        }
+    }
+
+    @Test
+    void reportsAsyncTimeoutToTheSelectedMetricOutcomePolicy() throws Exception {
+        HttpServerMetricSet metricSet = new HttpServerMetricSet();
+        try (MetricRegistry registry = MetricRegistryBuilder.builder().set(metricSet).build()) {
+            LuxspecHttpMetricsFilter filter = new LuxspecHttpMetricsFilter(
+                    registry, HttpMetricOutcomePolicy.fromObservation(HttpObservationOutcomePolicy.exceptionsOnly())
+            );
+            CompletingAsyncRequest request = new CompletingAsyncRequest("GET", "/async");
+            request.setAsyncSupported(true);
+            AtomicReference<AsyncContext> reference = new AtomicReference<>();
+            filter.doFilter(request, new MockHttpServletResponse(), (incoming, response) ->
+                    reference.set(incoming.startAsync()));
+            CompletingAsyncContext context = (CompletingAsyncContext) reference.get();
+            context.timeout();
+            context.complete();
+
+            assertEquals("SERVER_ERROR", reading(registry.snapshot(), "http.server.requests")
+                    .binding().getDimensions().get("outcome"));
         }
     }
 

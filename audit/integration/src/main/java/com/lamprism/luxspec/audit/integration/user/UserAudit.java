@@ -43,6 +43,10 @@ public final class UserAudit {
      */
     public static final String ROLES_CHANGED = "user.roles.changed";
     /**
+     * A user's complete role set was atomically replaced.
+     */
+    public static final String ROLES_REPLACED = "user.roles.replaced";
+    /**
      * A user's lifecycle status changed.
      */
     public static final String STATUS_CHANGED = "user.status.changed";

@@ -24,18 +24,13 @@ import java.util.Objects;
 /**
  * Immutable filter-table entry.
  *
- * @param target    the request fact matched by the entry
- * @param mode      the action for a matching request
- * @param expiresAt the exclusive expiration instant, or {@code null} for no expiration
- * @param reason    optional operator-provided reason
  * @author RollW
  */
-public record FilterEntry(
-        FilterTarget target,
-        FilterMode mode,
-        @Nullable Instant expiresAt,
-        @Nullable String reason
-) {
+public final class FilterEntry {
+    private final FilterTarget target;
+    private final FilterMode mode;
+    private final @Nullable Instant expiresAt;
+    private final @Nullable String reason;
     /**
      * Creates one validated filter entry.
      *
@@ -44,12 +39,50 @@ public record FilterEntry(
      * @param expiresAt the exclusive expiration instant, or {@code null} for no expiration
      * @param reason    optional operator-provided reason
      */
-    public FilterEntry {
-        target = Objects.requireNonNull(target, "target");
-        mode = Objects.requireNonNull(mode, "mode");
+    public FilterEntry(FilterTarget target, FilterMode mode, @Nullable Instant expiresAt, @Nullable String reason) {
+        this.target = Objects.requireNonNull(target, "target");
+        this.mode = Objects.requireNonNull(mode, "mode");
         if (reason != null && reason.isBlank()) {
             throw new IllegalArgumentException("reason must not be blank");
         }
+        this.expiresAt = expiresAt;
+        this.reason = reason;
+    }
+
+    /**
+     * Returns the request fact matched by this entry.
+     *
+     * @return the target
+     */
+    public FilterTarget target() {
+        return target;
+    }
+
+    /**
+     * Returns the action for a matching request.
+     *
+     * @return the mode
+     */
+    public FilterMode mode() {
+        return mode;
+    }
+
+    /**
+     * Returns the exclusive expiration time, if configured.
+     *
+     * @return the expiration time, or {@code null}
+     */
+    public @Nullable Instant expiresAt() {
+        return expiresAt;
+    }
+
+    /**
+     * Returns the optional operator-provided reason.
+     *
+     * @return the reason, or {@code null}
+     */
+    public @Nullable String reason() {
+        return reason;
     }
 
     /**
@@ -81,5 +114,19 @@ public record FilterEntry(
     public boolean isActiveAt(Instant instant) {
         Instant nonNullInstant = Objects.requireNonNull(instant, "instant");
         return expiresAt == null || expiresAt.isAfter(nonNullInstant);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof FilterEntry entry
+                && target.equals(entry.target)
+                && mode == entry.mode
+                && Objects.equals(expiresAt, entry.expiresAt)
+                && Objects.equals(reason, entry.reason);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(target, mode, expiresAt, reason);
     }
 }

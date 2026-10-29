@@ -22,6 +22,7 @@ import java.util.List;
  * Dynamically editable, priority-ordered firewall registry.
  *
  * @param <R> the request type filtered by the registry
+ *
  * @author RollW
  */
 public interface FirewallRegistry<R extends FirewallRequest> {

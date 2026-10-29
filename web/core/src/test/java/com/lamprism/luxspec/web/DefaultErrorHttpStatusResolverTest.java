@@ -29,6 +29,10 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ *
+ * @author RollW
+ */
 class DefaultErrorHttpStatusResolverTest {
     private static final HttpStatusCode CONFLICT = new HttpStatusCode(409);
     private static final HttpStatusCode GONE = new HttpStatusCode(410);
